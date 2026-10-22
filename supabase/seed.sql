@@ -20,5 +20,6 @@ insert into invites (association_id, email, full_name, role, flat_id, designatio
 select '00000000-0000-0000-0000-000000000001', 'ajeeshg99@gmail.com', 'Ajeesh G', r.role::app_role,
        case when r.role = 'owner' then (select id from flats where number = 'A-101') end,
        case when r.role = 'ec_member' then array['Membership desk'] else '{}' end
-from (values ('president'), ('secretary'), ('treasurer'), ('ec_member'), ('owner')) as r(role)
+from (values ('president'), ('secretary'), ('treasurer'), ('vice_president'), ('joint_secretary'),
+             ('joint_treasurer'), ('ec_member'), ('owner')) as r(role)
 where not exists (select 1 from invites where lower(email) = 'ajeeshg99@gmail.com');

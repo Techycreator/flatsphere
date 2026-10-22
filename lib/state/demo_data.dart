@@ -48,6 +48,13 @@ const demoUsers = <DemoUser>[
     roles: [Role.jointSecretary, Role.owner],
     flatNumber: 'C-401',
   ),
+  DemoUser(
+    id: 'u11',
+    name: 'Sanjay Gupta',
+    mobile: '98470 12121',
+    roles: [Role.jointTreasurer, Role.owner],
+    flatNumber: 'A-204',
+  ),
   DemoUser(id: 'u5', name: 'Priya Varghese', mobile: '98470 55555', roles: [Role.owner], flatNumber: 'C-204'),
   DemoUser(id: 'u6', name: 'Arun Das', mobile: '98470 66666', roles: [Role.resident], flatNumber: 'C-302'),
   DemoUser(id: 'u7', name: 'Suresh Kumar', mobile: '98470 77777', roles: [Role.caretaker]),

@@ -24,7 +24,7 @@ class DashboardScreen extends ConsumerWidget {
     final body = switch (s.activeRole) {
       Role.president => const _PresidentDash(),
       Role.secretary || Role.jointSecretary || Role.vicePresident => const _SecretaryDash(),
-      Role.treasurer => const _TreasurerDash(),
+      Role.treasurer || Role.jointTreasurer => const _TreasurerDash(),
       Role.owner => const _OwnerDash(),
       Role.resident => const _ResidentDash(),
       Role.caretaker => const _CaretakerDash(),

@@ -4,6 +4,7 @@ enum Role {
   treasurer('Treasurer'),
   vicePresident('Vice President'),
   jointSecretary('Joint Secretary'),
+  jointTreasurer('Joint Treasurer'),
   ecMember('EC Member'),
   monitor('Monitor'),
   owner('Owner'),
@@ -14,8 +15,14 @@ enum Role {
   const Role(this.label);
   final String label;
 
-  bool get isOfficeBearer =>
-      const {Role.president, Role.secretary, Role.treasurer, Role.vicePresident, Role.jointSecretary}.contains(this);
+  bool get isOfficeBearer => const {
+    Role.president,
+    Role.secretary,
+    Role.treasurer,
+    Role.vicePresident,
+    Role.jointSecretary,
+    Role.jointTreasurer,
+  }.contains(this);
 
   bool get isCommittee => isOfficeBearer || this == Role.ecMember || this == Role.monitor;
 

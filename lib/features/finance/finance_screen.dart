@@ -144,7 +144,7 @@ class _DuesTab extends ConsumerWidget {
     final st = ref.watch(duesProvider);
     final n = ref.read(duesProvider.notifier);
     final role = ref.watch(sessionProvider)!.activeRole;
-    final canRemind = role == Role.treasurer || role == Role.secretary;
+    final canRemind = role == Role.treasurer || role == Role.jointTreasurer || role == Role.secretary;
     final pendingFlats = {
       for (final l in st.lines)
         if (!l.isPaid) l.flatNumber,
@@ -266,7 +266,7 @@ class _ExpensesTab extends ConsumerWidget {
             const Expanded(
               child: Text('Entered by Secretary/Treasurer → Treasurer verifies documents → President approves'),
             ),
-            if (role == Role.treasurer || role == Role.secretary)
+            if (role == Role.treasurer || role == Role.jointTreasurer || role == Role.secretary)
               FilledButton.tonalIcon(
                 onPressed: () => toast(context, 'Opens expense entry form with bill photo + OCR auto-fill'),
                 icon: const Icon(Icons.add),

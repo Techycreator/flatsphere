@@ -20,6 +20,7 @@ const _roleByDb = {
   'treasurer': Role.treasurer,
   'vice_president': Role.vicePresident,
   'joint_secretary': Role.jointSecretary,
+  'joint_treasurer': Role.jointTreasurer,
   'ec_member': Role.ecMember,
   'monitor': Role.monitor,
   'owner': Role.owner,
