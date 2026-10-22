@@ -295,7 +295,7 @@ begin
 
   a := r.association_id;
   select * into c from membership_changes where request_id = req and association_id = a for update;
-  if c.request_id is null or c.change_type <> case when r.code = 'W20' then 'owner' else 'resident' end then
+  if c.request_id is null or c.change_type <> (case when r.code = 'W20' then 'owner' else 'resident' end) then
     raise exception 'invalid: membership request data is missing or has the wrong type';
   end if;
   if c.status <> 'pending_final_approval' then raise exception 'invalid: membership change is not ready for final approval'; end if;
