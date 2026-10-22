@@ -81,30 +81,36 @@ class CommunityScreen extends ConsumerWidget {
                     if (events.hasValue)
                       for (final event in events.value!)
                         Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.celebration_outlined),
-                            title: Text(event.title),
-                            subtitle: Text(
-                              '${event.type} · ${dateTimeFmt.format(event.startsAt)} · ${event.location}'
-                              '${event.budget == null ? '' : ' · Budget ${inr.format(event.budget)}'}'
-                                '${event.fundRequestTitle == null ? '' : ' · Fund: ${event.fundRequestTitle}'}'
-                                '${financeVisible ? ' · Approved spend: ${inr.format(approvedExpenses.where((expense) => expense.eventId == event.id).fold(0, (sum, expense) => sum + expense.amount))}' : ''}'
-                              '${event.description.isEmpty ? '' : '\n${event.description}'}',
-                            ),
-                            isThreeLine: event.description.isNotEmpty,
-                            trailing: Pill(event.status, color: event.status == 'scheduled' ? AppColors.green : Colors.blueGrey),
-                          ),
-                        if (event.photoPaths.isNotEmpty)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () async {
-                                final url = await CommunityRepo.eventPhotoUrl(event.photoPaths.first);
-                                await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-                              },
-                              icon: const Icon(Icons.photo_outlined),
-                              label: Text('${event.photoPaths.length} event photo(s)'),
-                            ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ListTile(
+                                leading: const Icon(Icons.celebration_outlined),
+                                title: Text(event.title),
+                                subtitle: Text(
+                                  '${event.type} · ${dateTimeFmt.format(event.startsAt)} · ${event.location}'
+                                  '${event.budget == null ? '' : ' · Budget ${inr.format(event.budget)}'}'
+                                  '${event.fundRequestTitle == null ? '' : ' · Fund: ${event.fundRequestTitle}'}'
+                                  '${financeVisible ? ' · Approved spend: ${inr.format(approvedExpenses.where((expense) => expense.eventId == event.id).fold(0, (sum, expense) => sum + expense.amount))}' : ''}'
+                                  '${event.description.isEmpty ? '' : '\n${event.description}'}',
+                                ),
+                                isThreeLine: event.description.isNotEmpty,
+                                trailing: Pill(event.status, color: event.status == 'scheduled' ? AppColors.green : Colors.blueGrey),
+                              ),
+                              if (event.photoPaths.isNotEmpty)
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    onPressed: () async {
+                                      final url = await CommunityRepo.eventPhotoUrl(event.photoPaths.first);
+                                      if (!context.mounted) return;
+                                      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                                    },
+                                    icon: const Icon(Icons.photo_outlined),
+                                    label: Text('${event.photoPaths.length} event photo(s)'),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                   ],
@@ -232,7 +238,7 @@ Future<void> _addEvent(BuildContext context, WidgetRef ref) async {
           child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
             TextField(controller: title, decoration: const InputDecoration(labelText: 'Event name *')),
             DropdownButtonFormField<String>(initialValue: type, decoration: const InputDecoration(labelText: 'Type'),
-              items: const [for (final t in ['Festival','Kids activity','Republic Day','Onam','Christmas','Other']) DropdownMenuItem(value: t, child: Text(t))], onChanged: (v) => set(() => type = v ?? type)),
+              items: [for (final t in ['Festival','Kids activity','Republic Day','Onam','Christmas','Other']) DropdownMenuItem(value: t, child: Text(t))], onChanged: (v) => set(() => type = v ?? type)),
             TextField(controller: location, decoration: const InputDecoration(labelText: 'Location')),
             TextField(controller: budget, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'Budget (optional)', prefixText: '₹ ')),
             TextField(controller: description, maxLines: 2, decoration: const InputDecoration(labelText: 'Details')),

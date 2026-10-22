@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../backend/backend.dart' show backendEnabled;
 import '../../backend/directory_repo.dart' show DirectoryRepo, friendlyError;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
@@ -26,6 +27,14 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
   }
 
   Future<void> _load() async {
+    if (!backendEnabled) {
+      setState(() {
+        _members = const [];
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -38,13 +47,6 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  int _age(DateTime date) {
-    final now = DateTime.now();
-    var years = now.year - date.year;
-    if (now.month < date.month || (now.month == date.month && now.day < date.day)) years--;
-    return years;
   }
 
   Future<void> _addEmail(FamilyMemberRecord member) async {
@@ -117,7 +119,7 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
                     ),
                     trailing: !member.approved
                         ? const Text('Pending')
-                        : _age(member.dateOfBirth) < minimumAge
+                        : !FamilyAccountRules.isLoginEligible(member.dateOfBirth, minimumAge, DateUtils.dateOnly(DateTime.now()))
                         ? Text('Login at age $minimumAge')
                         : member.email != null
                         ? const Icon(Icons.mark_email_read_outlined)

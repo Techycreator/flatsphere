@@ -17,7 +17,9 @@ import '../../widgets/common.dart';
 
 final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>((ref) => VisitorRepo.load());
 final visitorFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>((ref) => VisitorRepo.myFlats());
-final vehicleSearchProvider = FutureProvider.autoDispose.family<List<VehicleContact>, String>(DirectoryRepo.searchVehicle);
+final vehicleSearchProvider = FutureProvider.autoDispose.family<List<VehicleContact>, String>(
+  (ref, registration) => DirectoryRepo.searchVehicle(registration),
+);
 
 class VisitorsScreen extends ConsumerWidget {
   const VisitorsScreen({super.key});
@@ -69,7 +71,7 @@ class VisitorsScreen extends ConsumerWidget {
             Expanded(child: Text(l.visitorRegister, style: Theme.of(context).textTheme.headlineSmall)),
             if (canHost)
               FilledButton.icon(
-                onPressed: flats == null || flats.isLoading || flats.valueOrNull?.isEmpty == true ? null : addRequest,
+                onPressed: flats == null || flats.isLoading || flats.value?.isEmpty == true ? null : addRequest,
                 icon: const Icon(Icons.person_add_alt),
                 label: Text(l.preregisterVisitor),
               ),
@@ -171,7 +173,7 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
               .map(csvCell)
               .join(','),
       ].join('\r\n');
-      final saved = await FilePicker.platform.saveFile(
+      final saved = await FilePicker.saveFile(
         dialogTitle: l.vehicleExportTitle,
         fileName: 'flatsphere-vehicle-register.csv',
         type: FileType.custom,
@@ -275,7 +277,7 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
   final phone = TextEditingController();
   final vehicle = TextEditingController();
   final note = TextEditingController();
-  var flatId = flats.first.id;
+  var flatId = flats.first.$1;
   var arrival = DateTime.now().add(const Duration(hours: 1));
   String? error;
   final draft = await showDialog<_VisitorDraft>(
@@ -292,7 +294,7 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
                 DropdownButtonFormField<String>(
                   initialValue: flatId,
                   decoration: const InputDecoration(labelText: 'Flat'),
-                  items: [for (final flat in flats) DropdownMenuItem(value: flat.id, child: Text(flat.number))],
+                  items: [for (final flat in flats) DropdownMenuItem(value: flat.$1, child: Text(flat.$2))],
                   onChanged: (value) => setState(() => flatId = value ?? flatId),
                 ),
                 const SizedBox(height: 12),

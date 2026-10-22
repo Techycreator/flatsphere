@@ -145,7 +145,7 @@ class _BookingDraft {
 Future<_BookingDraft?> _bookingDialog(BuildContext context, List<Amenity> amenities, List<(String id, String number)> flats) async {
   if (amenities.isEmpty || flats.isEmpty) return null;
   var amenityId = amenities.first.id;
-  var flatId = flats.first.id;
+  var flatId = flats.first.$1;
   var startsAt = DateTime.now().add(const Duration(days: 1));
   var endsAt = startsAt.add(const Duration(hours: 2));
   final guests = TextEditingController(text: '10');
@@ -172,7 +172,7 @@ Future<_BookingDraft?> _bookingDialog(BuildContext context, List<Amenity> amenit
                 DropdownButtonFormField<String>(
                   initialValue: flatId,
                   decoration: const InputDecoration(labelText: 'Flat'),
-                  items: [for (final flat in flats) DropdownMenuItem(value: flat.id, child: Text(flat.number))],
+                  items: [for (final flat in flats) DropdownMenuItem(value: flat.$1, child: Text(flat.$2))],
                   onChanged: (value) => setState(() => flatId = value ?? flatId),
                 ),
                 const SizedBox(height: 12),
@@ -209,12 +209,22 @@ Future<_BookingDraft?> _bookingDialog(BuildContext context, List<Amenity> amenit
   return draft;
 }
 
-Future<void> _dateTimeButton(BuildContext context, String label, DateTime value, void Function(DateTime) onSelected) async {
-  final date = await showDatePicker(context: context, initialDate: value, firstDate: DateUtils.dateOnly(DateTime.now()), lastDate: DateTime.now().add(const Duration(days: 365)));
-  if (date == null || !context.mounted) return;
-  final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(value));
-  if (time != null) onSelected(DateTime(date.year, date.month, date.day, time.hour, time.minute));
-}
+Widget _dateTimeButton(BuildContext context, String label, DateTime value, void Function(DateTime) onSelected) =>
+    TextButton.icon(
+      onPressed: () async {
+        final date = await showDatePicker(
+          context: context,
+          initialDate: value,
+          firstDate: DateUtils.dateOnly(DateTime.now()),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+        );
+        if (date == null || !context.mounted) return;
+        final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(value));
+        if (time != null) onSelected(DateTime(date.year, date.month, date.day, time.hour, time.minute));
+      },
+      icon: const Icon(Icons.event_outlined),
+      label: Text('$label · ${dateTimeFmt.format(value)}'),
+    );
 
 Color _bookingColor(AmenityBookingStatus status) => switch (status) {
   AmenityBookingStatus.approved => AppColors.green,

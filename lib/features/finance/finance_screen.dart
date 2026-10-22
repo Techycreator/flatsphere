@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -873,7 +874,7 @@ class StatementsScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-                  trailing: _statementAction(role, currentUserId, statement, decide),
+                  trailing: _statementAction(context, role, currentUserId, statement, decide),
             ),
           ),
           const SizedBox(height: 20),
@@ -901,6 +902,7 @@ class StatementsScreen extends ConsumerWidget {
   }
 
   Widget _statementAction(
+    BuildContext context,
     Role role,
     String currentUserId,
     MonthlyStatement statement,
@@ -1119,7 +1121,7 @@ Future<void> _exportLedger(BuildContext context, WidgetRef ref) async {
   ];
   final csv = rows.map((row) => row.map(cell).join(',')).join('\r\n');
   try {
-    final saved = await FilePicker.platform.saveFile(
+    final saved = await FilePicker.saveFile(
       dialogTitle: 'Export finance ledger',
       fileName: 'flatsphere-ledger-${DateFormat('yyyyMMdd').format(DateTime.now())}.csv',
       type: FileType.custom,

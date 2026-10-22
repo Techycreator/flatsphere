@@ -12,30 +12,6 @@ class AppLocalizationsMl extends AppLocalizations {
   @override
   String get appTitle => 'FlatSphere';
 
-    @override
-    String get createAssociation => 'അസോസിയേഷൻ സൃഷ്ടിക്കുക';
-
-    @override
-    String get firstAssociationSetup => 'നിങ്ങളുടെ അസോസിയേഷൻ സജ്ജമാക്കുക';
-
-    @override
-    String get verifiedEmailNoAssociation => 'നിലവിലുള്ള അസോസിയേഷനില്ലാത്ത സ്ഥിരീകരിച്ച ഇമെയിൽ';
-
-    @override
-    String get adminName => 'നിങ്ങളുടെ പൂർണ്ണ പേര്';
-
-    @override
-    String get associationName => 'അസോസിയേഷന്റെ പേര്';
-
-    @override
-    String get state => 'സംസ്ഥാനം';
-
-    @override
-    String get city => 'നഗരം';
-
-    @override
-    String get brandColor => 'ബ്രാൻഡ് നിറം';
-
   @override
   String get dashboard => 'ഡാഷ്ബോർഡ്';
 
@@ -142,7 +118,7 @@ class AppLocalizationsMl extends AppLocalizations {
   String get associationIdentity => 'അസോസിയേഷൻ വിവരങ്ങൾ';
 
   @override
-  String get associationName => 'അസോസിയേഷൻ പേര്';
+  String get associationName => 'അസോസിയേഷന്റെ പേര്';
 
   @override
   String get state => 'സംസ്ഥാനം';
@@ -152,10 +128,6 @@ class AppLocalizationsMl extends AppLocalizations {
 
   @override
   String get brandColor => 'ബ്രാൻഡ് നിറം';
-
-    @override
-    String get familyDobPrivacyNotice =>
-          'കുടുംബാംഗങ്ങളുടെ ജനനത്തീയതികൾ സുരക്ഷിതമായി സൂക്ഷിക്കുന്നു. അത് നൽകിയ ഉടമ/താമസക്കാരന്റെ അക്കൗണ്ടിന് മാത്രമേ കാണാനാകൂ. അസോസിയേഷൻ ജീവനക്കാർ ഉൾപ്പെടെ മറ്റാർക്കും കാണാനാകില്ല.';
 
   @override
   String get operatingDefaults => 'പ്രവർത്തന ക്രമീകരണങ്ങൾ';
@@ -604,4 +576,21 @@ class AppLocalizationsMl extends AppLocalizations {
 
   @override
   String get dueBy => 'അവസാന തീയതി';
+
+  @override
+  String get createAssociation => 'അസോസിയേഷൻ സൃഷ്ടിക്കുക';
+
+  @override
+  String get firstAssociationSetup => 'നിങ്ങളുടെ അസോസിയേഷൻ സജ്ജമാക്കുക';
+
+  @override
+  String get verifiedEmailNoAssociation =>
+      'നിലവിലുള്ള അസോസിയേഷനില്ലാത്ത സ്ഥിരീകരിച്ച ഇമെയിൽ';
+
+  @override
+  String get adminName => 'നിങ്ങളുടെ പൂർണ്ണ പേര്';
+
+  @override
+  String get familyDobPrivacyNotice =>
+      'കുടുംബാംഗങ്ങളുടെ ജനനത്തീയതികൾ സുരക്ഷിതമായി സൂക്ഷിക്കുന്നു. അത് നൽകിയ ഉടമ/താമസക്കാരന്റെ അക്കൗണ്ടിന് മാത്രമേ കാണാനാകൂ. അസോസിയേഷൻ ജീവനക്കാർ ഉൾപ്പെടെ മറ്റാർക്കും കാണാനാകില്ല.';
 }

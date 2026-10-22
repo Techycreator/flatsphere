@@ -224,7 +224,7 @@ class _MeetingCard extends ConsumerWidget {
                 children: [
                   SegmentedButton<Rsvp>(
                     emptySelectionAllowed: true,
-                    segments: const [
+                    segments: [
                       ButtonSegment(value: Rsvp.accepted, label: Text(l.accept)),
                       ButtonSegment(value: Rsvp.tentative, label: Text(l.tentative)),
                       ButtonSegment(value: Rsvp.declined, label: Text(l.decline)),

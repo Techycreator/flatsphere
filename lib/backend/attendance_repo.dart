@@ -169,8 +169,6 @@ class AttendanceRepo {
     }
   }
 
-  static Future<String> housekeepingProofUrl(String path) => db.storage.from('housekeeping-proofs').createSignedUrl(path, 60);
-
   static Future<void> mark({
     required String staffId,
     required DateTime date,

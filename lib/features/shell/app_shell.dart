@@ -32,7 +32,7 @@ class AppShell extends ConsumerWidget {
         .watch(approvalsProvider)
         .where((a) => a.awaits(session.activeRole, session.user.name))
         .length;
-    final unreadCount = ref.watch(appNotificationsProvider).valueOrNull?.where((n) => n.readAt == null).length ?? 0;
+    final unreadCount = ref.watch(appNotificationsProvider).value?.where((n) => n.readAt == null).length ?? 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -82,7 +82,7 @@ class AppShell extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          if (birthdayWish.valueOrNull == true)
+          if (birthdayWish.value == true)
             MaterialBanner(
               leading: const Icon(Icons.cake_outlined),
               content: Text(l.birthdayWish(session.user.name)),
@@ -208,7 +208,7 @@ class AppShell extends ConsumerWidget {
                       if (notice.actionPath != null) context.go(notice.actionPath!);
                     },
                   ),
-              if (pending.isEmpty && notifications.valueOrNull?.isEmpty != false)
+              if (pending.isEmpty && notifications.value?.isEmpty != false)
                 const Padding(padding: EdgeInsets.all(24), child: EmptyState('No notifications')),
             ],
           );

@@ -12,30 +12,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get appTitle => 'FlatSphere';
 
-    @override
-    String get createAssociation => 'Create association';
-
-    @override
-    String get firstAssociationSetup => 'Set up your association';
-
-    @override
-    String get verifiedEmailNoAssociation => 'Verified email with no existing association';
-
-    @override
-    String get adminName => 'Your full name';
-
-    @override
-    String get associationName => 'Association name';
-
-    @override
-    String get state => 'State';
-
-    @override
-    String get city => 'City';
-
-    @override
-    String get brandColor => 'Brand color';
-
   @override
   String get dashboard => 'Dashboard';
 
@@ -152,10 +128,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brandColor => 'Brand color';
-
-    @override
-    String get familyDobPrivacyNotice =>
-          'Family dates of birth are securely stored and visible only to the owner/resident account that submits them. No other account, including association staff, can view them.';
 
   @override
   String get operatingDefaults => 'Operating defaults';
@@ -595,4 +567,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dueBy => 'Due by';
+
+  @override
+  String get createAssociation => 'Create association';
+
+  @override
+  String get firstAssociationSetup => 'Set up your association';
+
+  @override
+  String get verifiedEmailNoAssociation =>
+      'Verified email with no existing association';
+
+  @override
+  String get adminName => 'Your full name';
+
+  @override
+  String get familyDobPrivacyNotice =>
+      'Family dates of birth are securely stored and visible only to the owner/resident account that submits them. No other account, including association staff, can view them.';
 }

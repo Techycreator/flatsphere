@@ -104,24 +104,6 @@ abstract class AppLocalizations {
   /// **'FlatSphere'**
   String get appTitle;
 
-  String get createAssociation;
-
-  String get firstAssociationSetup;
-
-  String get verifiedEmailNoAssociation;
-
-  String get adminName;
-
-  String get associationName;
-
-  String get state;
-
-  String get city;
-
-  String get brandColor;
-
-  String get familyDobPrivacyNotice;
-
   /// No description provided for @dashboard.
   ///
   /// In en, this message translates to:
@@ -1195,6 +1177,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Due by'**
   String get dueBy;
+
+  /// No description provided for @createAssociation.
+  ///
+  /// In en, this message translates to:
+  /// **'Create association'**
+  String get createAssociation;
+
+  /// No description provided for @firstAssociationSetup.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up your association'**
+  String get firstAssociationSetup;
+
+  /// No description provided for @verifiedEmailNoAssociation.
+  ///
+  /// In en, this message translates to:
+  /// **'Verified email with no existing association'**
+  String get verifiedEmailNoAssociation;
+
+  /// No description provided for @adminName.
+  ///
+  /// In en, this message translates to:
+  /// **'Your full name'**
+  String get adminName;
+
+  /// No description provided for @familyDobPrivacyNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Family dates of birth are securely stored and visible only to the owner/resident account that submits them. No other account, including association staff, can view them.'**
+  String get familyDobPrivacyNotice;
 }
 
 class _AppLocalizationsDelegate

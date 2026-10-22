@@ -122,7 +122,7 @@ Future<_HousekeepingDraft?> _housekeepingDialog(
   List<(String id, String number)> flats,
 ) async {
   final name = TextEditingController();
-  var flatId = flats.first.id;
+  var flatId = flats.first.$1;
   var usualIn = const TimeOfDay(hour: 9, minute: 0);
   var usualOut = const TimeOfDay(hour: 17, minute: 0);
   var resides = false;
@@ -144,7 +144,7 @@ Future<_HousekeepingDraft?> _housekeepingDialog(
                 DropdownButtonFormField<String>(
                   initialValue: flatId,
                   decoration: const InputDecoration(labelText: 'Flat'),
-                  items: [for (final flat in flats) DropdownMenuItem(value: flat.id, child: Text(flat.number))],
+                  items: [for (final flat in flats) DropdownMenuItem(value: flat.$1, child: Text(flat.$2))],
                   onChanged: (value) => setState(() => flatId = value ?? flatId),
                 ),
                 const SizedBox(height: 12),

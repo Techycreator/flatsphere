@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,6 +8,7 @@ import '../../app/theme.dart';
 import '../../backend/backend.dart' show backendEnabled;
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../backend/upload_preparation.dart' show maxSourceUploadBytes;
+import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/directory_state.dart';
@@ -36,12 +38,6 @@ class _FamilyDependentDraft {
     name.dispose();
     email.dispose();
   }
-}
-
-int _ageOn(DateTime birthDate, DateTime today) {
-  var age = today.year - birthDate.year;
-  if (today.month < birthDate.month || (today.month == birthDate.month && today.day < birthDate.day)) age--;
-  return age;
 }
 
 class MembershipRequestScreen extends ConsumerStatefulWidget {
@@ -120,7 +116,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
       final minimumAge = minimumAgeSetting is num ? minimumAgeSetting.toInt() : 12;
       final limitSetting = settings['family_member_limit'];
       final familyLimit = limitSetting is num ? limitSetting.toInt() : 5;
-      if (_familyMembers.length > familyLimit) {
+      if (!FamilyAccountRules.isWithinMemberLimit(_familyMembers.length, familyLimit)) {
         toast(context, 'This association allows at most $familyLimit family members');
         return;
       }
@@ -131,7 +127,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
           toast(context, 'Enter a name and date of birth for every family member');
           return;
         }
-        if (_ageOn(birthDate, DateUtils.dateOnly(DateTime.now())) >= minimumAge &&
+        if (FamilyAccountRules.isLoginEligible(birthDate, minimumAge, DateUtils.dateOnly(DateTime.now())) &&
             !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
           toast(context, 'An eligible family member needs a unique email address for login');
           return;

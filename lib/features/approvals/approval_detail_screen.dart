@@ -33,8 +33,8 @@ class ApprovalDetailScreen extends ConsumerWidget {
       : null;
     if (paymentGate != null) {
       ref.listen(membershipPaymentGateProvider(a.id), (previous, next) {
-        final previousStatus = previous?.valueOrNull?.status;
-        final nextStatus = next.valueOrNull?.status;
+        final previousStatus = previous?.value?.status;
+        final nextStatus = next.value?.status;
         if (previousStatus != null && nextStatus != null && previousStatus != nextStatus) {
           ref.read(approvalsProvider.notifier).refresh();
         }
@@ -46,7 +46,7 @@ class ApprovalDetailScreen extends ConsumerWidget {
         }
       });
     }
-    final paymentBlocked = paymentGate?.valueOrNull?.status == 'pending_payment_due';
+    final paymentBlocked = paymentGate?.value?.status == 'pending_payment_due';
     final notifier = ref.read(approvalsProvider.notifier);
     final theme = Theme.of(context);
 
@@ -235,7 +235,7 @@ class ApprovalDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
             if (a.code == 'W21' &&
-              (backendEnabled ? paymentGate?.valueOrNull?.status == 'applied' : a.overall == Decision.approved)) ...[
+              (backendEnabled ? paymentGate?.value?.status == 'applied' : a.overall == Decision.approved)) ...[
             const Card(
               color: Color(0xFFF0FDF4),
               child: ListTile(

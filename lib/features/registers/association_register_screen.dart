@@ -289,4 +289,3 @@ Widget _dateButton(
     label: Text(current == null ? label : '$label · ${dateFmt.format(current)}'),
   ),
 );
-*** End Patch

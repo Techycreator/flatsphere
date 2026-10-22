@@ -1,6 +1,8 @@
 import 'package:flatsphere/app/router.dart';
 import 'package:flatsphere/app/nav.dart';
 import 'package:flatsphere/features/approvals/membership_request_screen.dart';
+import 'package:flatsphere/features/directory/family_accounts_screen.dart';
+import 'package:flatsphere/l10n/app_localizations.dart';
 import 'package:flatsphere/main.dart';
 import 'package:flatsphere/models/models.dart';
 import 'package:flatsphere/models/sla.dart';
@@ -32,6 +34,14 @@ class _SignedInSessionNotifier extends SessionNotifier {
 class _LoadingDirectoryNotifier extends DirectoryNotifier {
   @override
   DirectoryState build() => const DirectoryState(loading: true);
+}
+
+class _OwnerSessionNotifier extends SessionNotifier {
+  @override
+  Session? build() => Session(
+    user: demoUsers.firstWhere((user) => user.roles.contains(Role.owner)),
+    activeRole: Role.owner,
+  );
 }
 
 void main() {
@@ -81,6 +91,32 @@ void main() {
     expect(find.byType(DropdownButtonFormField<String>), findsNothing);
   });
 
+  testWidgets('owner sees the DOB privacy notice in family accounts', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionProvider.overrideWith(_OwnerSessionNotifier.new)],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const FamilyAccountsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Family dates of birth are securely stored'), findsOneWidget);
+    expect(find.text('No family members are recorded for your flat yet.'), findsOneWidget);
+  });
+
+  testWidgets('non-household role is denied family DOB screen', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionProvider.overrideWith(_SignedInSessionNotifier.new)],
+        child: const MaterialApp(home: FamilyAccountsScreen()),
+      ),
+    );
+    expect(find.text('Only owners and residents can view family DOBs.'), findsOneWidget);
+  });
+
   group('route guard', () {
     test('resident cannot deep-link to finance or dues', () {
       expect(canAccess(Role.resident, '/finance'), isFalse);
@@ -99,6 +135,28 @@ void main() {
       expect(canAccess(Role.ecMember, '/approvals/new/owner', membershipDesk: true), isTrue);
       expect(canAccess(Role.ecMember, '/meetings', membershipDesk: true), isTrue);
       expect(navFor(Role.ecMember, membershipDesk: true).map((i) => i.path), contains('/approvals'));
+    });
+    test('family account screen is limited to owner and resident roles', () {
+      expect(canAccess(Role.owner, '/family-accounts'), isTrue);
+      expect(canAccess(Role.resident, '/family-accounts'), isTrue);
+      for (final role in Role.values.where((role) => role != Role.owner && role != Role.resident)) {
+        expect(canAccess(role, '/family-accounts'), isFalse, reason: '${role.name} must not access family DOBs');
+      }
+    });
+  });
+
+  group('family account policy boundaries', () {
+    final dateOfBirth = DateTime(2014, 10, 23);
+    test('login eligibility begins on the configured birthday', () {
+      expect(FamilyAccountRules.isLoginEligible(dateOfBirth, 12, DateTime(2026, 10, 22)), isFalse);
+      expect(FamilyAccountRules.isLoginEligible(dateOfBirth, 12, DateTime(2026, 10, 23)), isTrue);
+      expect(FamilyAccountRules.isLoginEligible(dateOfBirth, 12, DateTime(2026, 10, 24)), isTrue);
+      expect(FamilyAccountRules.isLoginEligible(dateOfBirth, 0, DateTime(2026, 10, 23)), isFalse);
+    });
+    test('dependent count accepts the cap and rejects overflow/negative values', () {
+      expect(FamilyAccountRules.isWithinMemberLimit(5, 5), isTrue);
+      expect(FamilyAccountRules.isWithinMemberLimit(6, 5), isFalse);
+      expect(FamilyAccountRules.isWithinMemberLimit(-1, 5), isFalse);
     });
   });
 

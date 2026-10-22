@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../backend/association_settings_repo.dart';
 import '../../l10n/app_localizations.dart';
+import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
 

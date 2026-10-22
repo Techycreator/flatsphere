@@ -243,6 +243,19 @@ class FamilyMemberRecord {
   final String? email;
 }
 
+class FamilyAccountRules {
+  static int ageOn(DateTime birthDate, DateTime today) {
+    var age = today.year - birthDate.year;
+    if (today.month < birthDate.month || (today.month == birthDate.month && today.day < birthDate.day)) age--;
+    return age;
+  }
+
+  static bool isLoginEligible(DateTime birthDate, int minimumAge, DateTime today) =>
+      minimumAge > 0 && ageOn(birthDate, today) >= minimumAge;
+
+  static bool isWithinMemberLimit(int count, int limit) => count >= 0 && limit >= 0 && count <= limit;
+}
+
 enum AgeCategory {
   child('Child'),
   adult('Adult'),
