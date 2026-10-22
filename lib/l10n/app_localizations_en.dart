@@ -504,4 +504,67 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get submitBudgetReview => 'Submit for review';
+
+  @override
+  String get recordPayment => 'Record payment';
+
+  @override
+  String get raiseDues => 'Raise dues';
+
+  @override
+  String get openingBalance => 'Opening balance';
+
+  @override
+  String get setOpeningBalance => 'Set opening balance';
+
+  @override
+  String get editOpeningBalance => 'Edit opening balance';
+
+  @override
+  String get noDues => 'No dues';
+
+  @override
+  String get pendingDues => 'Pending dues';
+
+  @override
+  String get lateFeeFixed => 'Fixed late fee';
+
+  @override
+  String get perSqFtRate => 'Rate per sq ft';
+
+  @override
+  String get flatTypeAmount => 'Amount per flat type (leave empty to skip)';
+
+  @override
+  String get recordPaymentReceived => 'Record payment received';
+
+  @override
+  String get saveReceipt => 'Save & issue receipt';
+
+  @override
+  String get paymentReceived => 'Amount received';
+
+  @override
+  String get paymentMode => 'Mode';
+
+  @override
+  String get paymentReference => 'Reference';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get account => 'Account';
+
+  @override
+  String get balance => 'Balance';
+
+  @override
+  String get fixedLateAmount => 'Fixed amount per flat';
+
+  @override
+  String get duesName => 'Name';
+
+  @override
+  String get dueBy => 'Due by';
 }

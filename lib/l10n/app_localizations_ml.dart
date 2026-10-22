@@ -512,4 +512,68 @@ class AppLocalizationsMl extends AppLocalizations {
 
   @override
   String get submitBudgetReview => 'പരിശോധനയ്ക്ക് സമർപ്പിക്കുക';
+
+  @override
+  String get recordPayment => 'പേയ്മെന്റ് രേഖപ്പെടുത്തുക';
+
+  @override
+  String get raiseDues => 'കുടിശ്ശിക ചുമത്തുക';
+
+  @override
+  String get openingBalance => 'ആരംഭ ബാലൻസ്';
+
+  @override
+  String get setOpeningBalance => 'ആരംഭ ബാലൻസ് സജ്ജമാക്കുക';
+
+  @override
+  String get editOpeningBalance => 'ആരംഭ ബാലൻസ് തിരുത്തുക';
+
+  @override
+  String get noDues => 'കുടിശ്ശികയില്ല';
+
+  @override
+  String get pendingDues => 'ബാക്കി കുടിശ്ശിക';
+
+  @override
+  String get lateFeeFixed => 'നിശ്ചിത വൈകിയ പിഴ';
+
+  @override
+  String get perSqFtRate => 'ചതുരശ്ര അടിക്കുള്ള നിരക്ക്';
+
+  @override
+  String get flatTypeAmount =>
+      'ഫ്ലാറ്റ് തരത്തിനുള്ള തുക (ഒഴിവാക്കാൻ ശൂന്യമായി വിടുക)';
+
+  @override
+  String get recordPaymentReceived => 'ലഭിച്ച പേയ്മെന്റ് രേഖപ്പെടുത്തുക';
+
+  @override
+  String get saveReceipt => 'സംരക്ഷിച്ച് രസീത് നൽകുക';
+
+  @override
+  String get paymentReceived => 'ലഭിച്ച തുക';
+
+  @override
+  String get paymentMode => 'പേയ്മെന്റ് രീതി';
+
+  @override
+  String get paymentReference => 'റഫറൻസ്';
+
+  @override
+  String get save => 'സംരക്ഷിക്കുക';
+
+  @override
+  String get account => 'അക്കൗണ്ട്';
+
+  @override
+  String get balance => 'ബാലൻസ്';
+
+  @override
+  String get fixedLateAmount => 'ഓരോ ഫ്ലാറ്റിനുമുള്ള നിശ്ചിത തുക';
+
+  @override
+  String get duesName => 'പേര്';
+
+  @override
+  String get dueBy => 'അവസാന തീയതി';
 }

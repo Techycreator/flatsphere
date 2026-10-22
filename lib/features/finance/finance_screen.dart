@@ -190,6 +190,7 @@ class _DuesTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     final st = ref.watch(duesProvider);
     final n = ref.read(duesProvider.notifier);
     final role = ref.watch(sessionProvider)!.activeRole;
@@ -214,12 +215,12 @@ class _DuesTab extends ConsumerWidget {
               FilledButton.icon(
                 onPressed: () => showPaymentForm(context, ref),
                 icon: const Icon(Icons.receipt_long),
-                label: const Text('Record payment'),
+                label: Text(l.recordPayment),
               ),
               OutlinedButton.icon(
                 onPressed: () => showRaiseDuesForm(context, ref),
                 icon: const Icon(Icons.playlist_add),
-                label: const Text('Raise dues'),
+                label: Text(l.raiseDues),
               ),
               OutlinedButton.icon(
                 onPressed: () => showRaiseDuesPerSqftForm(context, ref),
@@ -234,7 +235,7 @@ class _DuesTab extends ConsumerWidget {
               OutlinedButton.icon(
                 onPressed: () => showOpeningBalanceForm(context, ref),
                 icon: const Icon(Icons.account_balance),
-                label: Text(o == null ? 'Set opening balance' : 'Edit opening balance'),
+                label: Text(o == null ? l.setOpeningBalance : l.editOpeningBalance),
               ),
             ],
           ),
@@ -333,7 +334,7 @@ class _DuesTab extends ConsumerWidget {
                           DataCell(Text(pending <= 0 ? '–' : inr.format(pending))),
                           DataCell(
                             lines.isEmpty
-                                ? const Text('No dues')
+                                ? Text(l.noDues)
                                 : open == 0
                                 ? const Pill('Paid', color: AppColors.green)
                                 : Pill('$open due', color: AppColors.red),

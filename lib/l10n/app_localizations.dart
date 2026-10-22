@@ -1051,6 +1051,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Submit for review'**
   String get submitBudgetReview;
+
+  /// No description provided for @recordPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Record payment'**
+  String get recordPayment;
+
+  /// No description provided for @raiseDues.
+  ///
+  /// In en, this message translates to:
+  /// **'Raise dues'**
+  String get raiseDues;
+
+  /// No description provided for @openingBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening balance'**
+  String get openingBalance;
+
+  /// No description provided for @setOpeningBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Set opening balance'**
+  String get setOpeningBalance;
+
+  /// No description provided for @editOpeningBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit opening balance'**
+  String get editOpeningBalance;
+
+  /// No description provided for @noDues.
+  ///
+  /// In en, this message translates to:
+  /// **'No dues'**
+  String get noDues;
+
+  /// No description provided for @pendingDues.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending dues'**
+  String get pendingDues;
+
+  /// No description provided for @lateFeeFixed.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed late fee'**
+  String get lateFeeFixed;
+
+  /// No description provided for @perSqFtRate.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate per sq ft'**
+  String get perSqFtRate;
+
+  /// No description provided for @flatTypeAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount per flat type (leave empty to skip)'**
+  String get flatTypeAmount;
+
+  /// No description provided for @recordPaymentReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Record payment received'**
+  String get recordPaymentReceived;
+
+  /// No description provided for @saveReceipt.
+  ///
+  /// In en, this message translates to:
+  /// **'Save & issue receipt'**
+  String get saveReceipt;
+
+  /// No description provided for @paymentReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount received'**
+  String get paymentReceived;
+
+  /// No description provided for @paymentMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Mode'**
+  String get paymentMode;
+
+  /// No description provided for @paymentReference.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference'**
+  String get paymentReference;
+
+  /// No description provided for @save.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get save;
+
+  /// No description provided for @account.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get account;
+
+  /// No description provided for @balance.
+  ///
+  /// In en, this message translates to:
+  /// **'Balance'**
+  String get balance;
+
+  /// No description provided for @fixedLateAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed amount per flat'**
+  String get fixedLateAmount;
+
+  /// No description provided for @duesName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get duesName;
+
+  /// No description provided for @dueBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Due by'**
+  String get dueBy;
 }
 
 class _AppLocalizationsDelegate

@@ -8,6 +8,7 @@ import '../../backend/backend.dart';
 import '../../backend/community_repo.dart';
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../backend/upload_preparation.dart' show maxSourceUploadBytes;
+import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
@@ -99,6 +100,7 @@ Future<void> _run(BuildContext context, Future<String> Function() f) async {
 }
 
 Future<void> showOpeningBalanceForm(BuildContext context, WidgetRef ref) async {
+  final l = AppLocalizations.of(context);
   final cur = ref.read(duesProvider).opening;
   final account = TextEditingController(text: cur?.account ?? 'Bank account');
   final amount = TextEditingController(text: cur?.amount.toString() ?? '');
@@ -107,19 +109,19 @@ Future<void> showOpeningBalanceForm(BuildContext context, WidgetRef ref) async {
   var asOf = cur?.asOf ?? _fyStart(DateTime.now(), fiscalMonth);
   final ok = await _form(
     context,
-    title: 'Opening balance',
-    action: 'Save',
+    title: l.openingBalance,
+    action: l.save,
     validate: () => int.tryParse(amount.text.trim()) == null ? 'Enter the balance in rupees' : null,
     fields: (set) => [
       TextField(
         controller: account,
-        decoration: const InputDecoration(labelText: 'Account', hintText: 'e.g. SBI current a/c ••••4521'),
+        decoration: InputDecoration(labelText: l.account, hintText: 'e.g. SBI current a/c ••••4521'),
       ),
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        decoration: const InputDecoration(labelText: 'Balance *', prefixText: '₹ '),
+        decoration: InputDecoration(labelText: '${l.balance} *', prefixText: '₹ '),
       ),
       const SizedBox(height: 12),
       OutlinedButton.icon(
@@ -156,6 +158,7 @@ Future<void> showOpeningBalanceForm(BuildContext context, WidgetRef ref) async {
 }
 
 Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
+  final l = AppLocalizations.of(context);
   final st = ref.read(duesProvider);
   final types = {for (final f in financeFlats(st)) f.$2}.toList()..sort();
   if (types.isEmpty) return toast(context, 'Add flats first in Flats & people');
@@ -170,8 +173,8 @@ Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
   int rate(String t) => int.tryParse(rates[t]!.text) ?? 0;
   final ok = await _form(
     context,
-    title: 'Raise dues for all flats',
-    action: 'Raise',
+    title: l.raiseDues,
+    action: l.raiseDues,
     validate: () {
       if (head.text.trim().isEmpty) return 'Enter a name, e.g. Maintenance – Nov 2026';
       if (types.every((t) => rate(t) <= 0)) return 'Enter an amount for at least one flat type';
@@ -195,7 +198,7 @@ Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
         },
       ),
       const SizedBox(height: 12),
-      const Text('Amount per flat type (leave empty to skip)', style: TextStyle(fontWeight: FontWeight.w600)),
+      Text(l.flatTypeAmount, style: const TextStyle(fontWeight: FontWeight.w600)),
       for (final t in types)
         TextField(
           controller: rates[t],
@@ -224,14 +227,15 @@ Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
 }
 
 Future<void> showRaiseDuesPerSqftForm(BuildContext context, WidgetRef ref) async {
+  final l = AppLocalizations.of(context);
   final now = DateTime.now();
   final head = TextEditingController(text: 'Per-square-foot assessment – ${DateFormat('MMM yyyy').format(now)}');
   final rateController = TextEditingController();
   var dueDate = DateTime(now.year, now.month, 10);
   final ok = await _form(
     context,
-    title: 'Raise dues per square foot',
-    action: 'Raise',
+    title: l.perSquareFootCharge,
+    action: l.raiseDues,
     validate: () {
       if (head.text.trim().isEmpty) return 'Enter a dues name';
       final rate = double.tryParse(rateController.text.trim());
@@ -239,12 +243,12 @@ Future<void> showRaiseDuesPerSqftForm(BuildContext context, WidgetRef ref) async
       return null;
     },
     fields: (set) => [
-      TextField(controller: head, decoration: const InputDecoration(labelText: 'Name *')),
+      TextField(controller: head, decoration: InputDecoration(labelText: '${l.duesName} *')),
       TextField(
         controller: rateController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
-        decoration: const InputDecoration(labelText: 'Rate per sq ft *', prefixText: '₹ '),
+        decoration: InputDecoration(labelText: '${l.perSqFtRate} *', prefixText: '₹ '),
       ),
       OutlinedButton.icon(
         icon: const Icon(Icons.event),
@@ -270,25 +274,26 @@ Future<void> showRaiseDuesPerSqftForm(BuildContext context, WidgetRef ref) async
 }
 
 Future<void> showFixedLateFeeForm(BuildContext context, WidgetRef ref) async {
+  final l = AppLocalizations.of(context);
   final feeName = TextEditingController(text: 'Late fee – ${DateFormat('MMM yyyy').format(DateTime.now())}');
   final amount = TextEditingController();
   var dueDate = DateTime.now().add(const Duration(days: 7));
   final ok = await _form(
     context,
-    title: 'Apply fixed late fee',
-    action: 'Apply',
+    title: l.lateFeeFixed,
+    action: l.applyLateFee,
     validate: () {
       if (feeName.text.trim().isEmpty) return 'Enter a fee name';
       if ((int.tryParse(amount.text.trim()) ?? 0) <= 0) return 'Enter a positive fixed amount';
       return null;
     },
     fields: (set) => [
-      TextField(controller: feeName, decoration: const InputDecoration(labelText: 'Fee name *')),
+      TextField(controller: feeName, decoration: InputDecoration(labelText: '${l.duesName} *')),
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        decoration: const InputDecoration(labelText: 'Fixed amount per flat *', prefixText: '₹ '),
+        decoration: InputDecoration(labelText: '${l.fixedLateAmount} *', prefixText: '₹ '),
       ),
       OutlinedButton.icon(
         icon: const Icon(Icons.event),
@@ -310,6 +315,7 @@ Future<void> showFixedLateFeeForm(BuildContext context, WidgetRef ref) async {
 }
 
 Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}) async {
+  final l = AppLocalizations.of(context);
   final st = ref.read(duesProvider);
   final flats = [for (final f in financeFlats(st)) f.$1];
   if (flats.isEmpty) return toast(context, 'Add flats first in Flats & people');
@@ -322,14 +328,14 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
   var paidOn = DateUtils.dateOnly(DateTime.now());
   final ok = await _form(
     context,
-    title: 'Record payment received',
-    action: 'Save & issue receipt',
+    title: l.recordPaymentReceived,
+    action: l.saveReceipt,
     validate: () => (int.tryParse(amount.text) ?? 0) <= 0 ? 'Enter the amount received' : null,
     fields: (set) => [
       DropdownButtonFormField<String>(
         initialValue: number,
         isExpanded: true,
-        decoration: const InputDecoration(labelText: 'Flat'),
+        decoration: InputDecoration(labelText: l.directory),
         items: [for (final f in flats) DropdownMenuItem(value: f, child: Text(f))],
         onChanged: (v) => set(() {
           number = v ?? number;
@@ -341,7 +347,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
         key: ValueKey(number),
         initialValue: due,
         isExpanded: true,
-        decoration: const InputDecoration(labelText: 'Against'),
+        decoration: InputDecoration(labelText: l.myDues),
         items: [
           for (final l in open(number))
             DropdownMenuItem(value: l, child: Text('${l.head} · ${inr.format(l.pending)} pending')),
@@ -356,11 +362,11 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
         controller: amount,
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        decoration: const InputDecoration(labelText: 'Amount received *', prefixText: '₹ '),
+        decoration: InputDecoration(labelText: '${l.paymentReceived} *', prefixText: '₹ '),
       ),
       DropdownButtonFormField<String>(
         initialValue: mode,
-        decoration: const InputDecoration(labelText: 'Mode'),
+        decoration: InputDecoration(labelText: l.paymentMode),
         items: [
           for (final e in paymentModes.entries)
             if (e.key != 'online') DropdownMenuItem(value: e.key, child: Text(e.value)),
@@ -369,7 +375,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
       ),
       TextField(
         controller: reference,
-        decoration: const InputDecoration(labelText: 'Reference', hintText: 'UPI ref, cheque no. or bank txn id'),
+        decoration: InputDecoration(labelText: l.paymentReference, hintText: 'UPI ref, cheque no. or bank txn id'),
       ),
       const SizedBox(height: 12),
       OutlinedButton.icon(
