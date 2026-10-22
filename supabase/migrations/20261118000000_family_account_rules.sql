@@ -101,7 +101,7 @@ for each row execute function enforce_family_member_request_limit();
 create function create_membership_change_with_family(
   p_request uuid,p_flat uuid,p_type text,p_name text,p_email text,p_mobile text,p_lease text,p_family jsonb
 ) returns void language plpgsql security definer set search_path=public as $$
-declare a uuid:=my_association(); request_code text; family_count integer; family_row record;
+declare a uuid:=my_association(); request_code text; expected_code text; family_count integer; family_row record;
 begin
   if a is null or auth.uid() is null then raise exception 'not_allowed: authenticated association member required'; end if;
   if p_type not in ('owner','resident') then raise exception 'invalid: membership change type is invalid'; end if;
@@ -123,7 +123,8 @@ begin
 
   select code into request_code from approval_requests
   where id=p_request and association_id=a and initiator=auth.uid() for update;
-  if request_code is distinct from case when p_type='owner' then 'W20' else 'W21' end then
+  expected_code:=case when p_type='owner' then 'W20' else 'W21' end;
+  if request_code is distinct from expected_code then
     raise exception 'not_allowed: request type or initiator does not match';
   end if;
   if not exists(select 1 from flats where id=p_flat and association_id=a) then
