@@ -69,3 +69,7 @@ class AuthService {
     );
   }
 }
+
+String dbRole(Role r) => _roleByDb.entries.firstWhere((e) => e.value == r).key;
+
+Role? roleFromDb(Object? v) => _roleByDb[v];

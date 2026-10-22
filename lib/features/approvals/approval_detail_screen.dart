@@ -40,7 +40,22 @@ class ApprovalDetailScreen extends ConsumerWidget {
         );
         if (ok != true) return;
       }
-      notifier.decide(a.id, s.activeRole, s.user.name, d, comment);
+      try {
+        await notifier.decide(a.id, s.activeRole, s.user.name, d, comment);
+      } catch (e) {
+        final msg = e.toString();
+        if (context.mounted) {
+          toast(
+            context,
+            msg.contains('maker-checker')
+                ? 'Maker-checker: you raised this request or already decided an earlier step.'
+                : msg.contains('not your step')
+                ? 'This step is not assigned to you.'
+                : 'Could not record the decision. Please try again.',
+          );
+        }
+        return;
+      }
       if (context.mounted) toast(context, 'Decision recorded. All approvers and the initiator have been notified.');
     }
 

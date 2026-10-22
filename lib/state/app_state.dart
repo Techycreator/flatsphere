@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/backend.dart';
+import '../backend/approvals_repo.dart';
 import '../backend/complaints_repo.dart';
 import '../models/models.dart';
 import 'demo_data.dart';
@@ -103,17 +104,40 @@ final approvalsProvider = NotifierProvider<ApprovalsNotifier, List<ApprovalReque
 
 class ApprovalsNotifier extends Notifier<List<ApprovalRequest>> {
   @override
-  List<ApprovalRequest> build() => buildDemoApprovals(ref.read(clockProvider));
+  List<ApprovalRequest> build() {
+    if (!backendEnabled) return buildDemoApprovals(ref.read(clockProvider));
+    final user = ref.watch(sessionProvider.select((s) => s?.user));
+    if (user != null) refresh(user);
+    return const [];
+  }
+
+  Future<void> refresh([DemoUser? me]) async {
+    final u = me ?? ref.read(sessionProvider)?.user;
+    if (u != null) state = await ApprovalsRepo.fetchAll(u);
+  }
 
   String nextId() {
+    // Other users' requests may be invisible here, so cloud refs must not depend on local state.
+    if (backendEnabled) return 'APR-${DateTime.now().millisecondsSinceEpoch.toRadixString(36).toUpperCase()}';
     final maxN = state.map((a) => int.tryParse(a.id.split('-').last) ?? 0).fold(0, (a, b) => a > b ? a : b);
     return 'APR-${(maxN + 1).toString().padLeft(3, '0')}';
   }
 
-  void add(ApprovalRequest a) => state = [a, ...state];
+  void add(ApprovalRequest a) {
+    state = [a, ...state];
+    if (backendEnabled) ApprovalsRepo.insert(a).catchError((_) => refresh());
+  }
 
   /// Records [d] on the current step if it belongs to [role]/[userName].
-  void decide(String id, Role role, String userName, Decision d, String? comment) {
+  Future<void> decide(String id, Role role, String userName, Decision d, String? comment) async {
+    if (backendEnabled) {
+      try {
+        await ApprovalsRepo.decide(id, d, comment);
+      } finally {
+        await refresh();
+      }
+      return;
+    }
     state = [
       for (final a in state)
         if (a.id == id && a.currentStep != null && a.currentStep!.matches(role, userName))
@@ -131,7 +155,10 @@ class ApprovalsNotifier extends Notifier<List<ApprovalRequest>> {
     ];
   }
 
-  void flag(String id) => state = [for (final a in state) a.id == id ? a.copyWith(flagged: !a.flagged) : a];
+  void flag(String id) {
+    state = [for (final a in state) a.id == id ? a.copyWith(flagged: !a.flagged) : a];
+    if (backendEnabled) ApprovalsRepo.toggleFlag(id).catchError((_) => refresh());
+  }
 }
 
 /// Reminder limits from spec Section 8.3: 1 per flat per day, 1 bulk run per day.
