@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/backend.dart';
+import '../backend/complaints_repo.dart';
 import '../models/models.dart';
 import 'demo_data.dart';
 
@@ -34,16 +35,31 @@ final complaintsProvider = NotifierProvider<ComplaintsNotifier, List<Complaint>>
 
 class ComplaintsNotifier extends Notifier<List<Complaint>> {
   @override
-  List<Complaint> build() => buildDemoComplaints(ref.read(clockProvider));
+  List<Complaint> build() {
+    if (!backendEnabled) return buildDemoComplaints(ref.read(clockProvider));
+    if (ref.watch(sessionProvider.select((s) => s?.user.id)) != null) refresh();
+    return const [];
+  }
+
+  Future<void> refresh() async => state = await ComplaintsRepo.fetchAll();
 
   String nextId() {
     final maxN = state.map((c) => int.tryParse(c.id.split('-').last) ?? 0).fold(0, (a, b) => a > b ? a : b);
     return 'CMP-2026-${(maxN + 1).toString().padLeft(4, '0')}';
   }
 
-  void add(Complaint c) => state = [c, ...state];
+  void add(Complaint c) {
+    state = [c, ...state];
+    if (backendEnabled) ComplaintsRepo.insert(c).catchError((_) => refresh());
+  }
 
-  void update(String id, Complaint Function(Complaint) f) => state = [for (final c in state) c.id == id ? f(c) : c];
+  void update(String id, Complaint Function(Complaint) f) {
+    final before = state.where((c) => c.id == id).firstOrNull;
+    if (before == null) return;
+    final after = f(before);
+    state = [for (final c in state) c.id == id ? after : c];
+    if (backendEnabled) ComplaintsRepo.update(before, after).catchError((_) => refresh());
+  }
 }
 
 class ChecklistState {
