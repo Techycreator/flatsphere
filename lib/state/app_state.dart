@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/backend.dart';
 import '../models/models.dart';
 import 'demo_data.dart';
 
@@ -23,7 +24,10 @@ class SessionNotifier extends Notifier<Session?> {
 
   void login(DemoUser u) => state = Session(user: u, activeRole: u.roles.first);
   void switchRole(Role r) => state = state?.copyWith(activeRole: r);
-  void logout() => state = null;
+  void logout() {
+    if (backendEnabled) AuthService.signOut();
+    state = null;
+  }
 }
 
 final complaintsProvider = NotifierProvider<ComplaintsNotifier, List<Complaint>>(ComplaintsNotifier.new);
@@ -39,8 +43,7 @@ class ComplaintsNotifier extends Notifier<List<Complaint>> {
 
   void add(Complaint c) => state = [c, ...state];
 
-  void update(String id, Complaint Function(Complaint) f) =>
-      state = [for (final c in state) c.id == id ? f(c) : c];
+  void update(String id, Complaint Function(Complaint) f) => state = [for (final c in state) c.id == id ? f(c) : c];
 }
 
 class ChecklistState {
@@ -75,9 +78,9 @@ class ChecklistNotifier extends Notifier<ChecklistState> {
   void approveAll() => state = ChecklistState(items: state.items, submitted: true, approved: true);
 
   void reject(String id, String reason) => state = ChecklistState(
-        items: [for (final i in state.items) i.id == id ? i.copyWith(rejectedReason: reason) : i],
-        submitted: false,
-      );
+    items: [for (final i in state.items) i.id == id ? i.copyWith(rejectedReason: reason) : i],
+    submitted: false,
+  );
 }
 
 final approvalsProvider = NotifierProvider<ApprovalsNotifier, List<ApprovalRequest>>(ApprovalsNotifier.new);
@@ -98,10 +101,15 @@ class ApprovalsNotifier extends Notifier<List<ApprovalRequest>> {
     state = [
       for (final a in state)
         if (a.id == id && a.currentStep != null && a.currentStep!.matches(role, userName))
-          a.copyWith(steps: [
-            for (final s in a.steps)
-              if (identical(s, a.currentStep)) s.copyWith(decision: d, comment: comment, decidedBy: '$userName (${role.label})') else s,
-          ])
+          a.copyWith(
+            steps: [
+              for (final s in a.steps)
+                if (identical(s, a.currentStep))
+                  s.copyWith(decision: d, comment: comment, decidedBy: '$userName (${role.label})')
+                else
+                  s,
+            ],
+          )
         else
           a,
     ];
@@ -117,8 +125,7 @@ class DuesState {
   final Map<String, DateTime> reminded;
   final DateTime? bulkSentAt;
 
-  int pendingFor(String flat) =>
-      lines.where((l) => l.flatNumber == flat).fold(0, (s, l) => s + l.pending);
+  int pendingFor(String flat) => lines.where((l) => l.flatNumber == flat).fold(0, (s, l) => s + l.pending);
 }
 
 bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
@@ -137,15 +144,22 @@ class DuesNotifier extends Notifier<DuesState> {
   bool get canBulk => state.bulkSentAt == null || !_sameDay(state.bulkSentAt!, DateTime.now());
 
   void remind(String flat) => state = DuesState(
-        lines: state.lines,
-        reminded: {...state.reminded, flat: DateTime.now()},
-        bulkSentAt: state.bulkSentAt,
-      );
+    lines: state.lines,
+    reminded: {...state.reminded, flat: DateTime.now()},
+    bulkSentAt: state.bulkSentAt,
+  );
 
   int remindAll() {
-    final flats = {for (final l in state.lines) if (!l.isPaid) l.flatNumber}.where(canRemind).toList();
+    final flats = {
+      for (final l in state.lines)
+        if (!l.isPaid) l.flatNumber,
+    }.where(canRemind).toList();
     final now = DateTime.now();
-    state = DuesState(lines: state.lines, reminded: {...state.reminded, for (final f in flats) f: now}, bulkSentAt: now);
+    state = DuesState(
+      lines: state.lines,
+      reminded: {...state.reminded, for (final f in flats) f: now},
+      bulkSentAt: now,
+    );
     return flats.length;
   }
 

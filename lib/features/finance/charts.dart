@@ -13,45 +13,70 @@ class IncomeExpenseChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(children: [
-      SizedBox(
-        height: 220,
-        child: BarChart(BarChartData(
-          gridData: const FlGridData(drawVerticalLine: false),
-          borderData: FlBorderData(show: false),
-          titlesData: FlTitlesData(
-            topTitles: const AxisTitles(),
-            rightTitles: const AxisTitles(),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 44,
-                getTitlesWidget: (v, _) => Text('${(v / 100000).toStringAsFixed(1)}L', style: const TextStyle(fontSize: 11)),
+    return Column(
+      children: [
+        SizedBox(
+          height: 220,
+          child: BarChart(
+            BarChartData(
+              gridData: const FlGridData(drawVerticalLine: false),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(),
+                rightTitles: const AxisTitles(),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 44,
+                    getTitlesWidget: (v, _) =>
+                        Text('${(v / 100000).toStringAsFixed(1)}L', style: const TextStyle(fontSize: 11)),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (v, _) => Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(_months[v.toInt()], style: const TextStyle(fontSize: 11)),
+                    ),
+                  ),
+                ),
               ),
-            ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (v, _) => Padding(padding: const EdgeInsets.only(top: 6), child: Text(_months[v.toInt()], style: const TextStyle(fontSize: 11))),
-              ),
+              barGroups: [
+                for (var i = 0; i < _months.length; i++)
+                  BarChartGroupData(
+                    x: i,
+                    barsSpace: 4,
+                    barRods: [
+                      BarChartRodData(
+                        toY: _income[i],
+                        color: scheme.primary,
+                        width: 12,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      BarChartRodData(
+                        toY: _expense[i],
+                        color: const Color(0xFFF59E0B),
+                        width: 12,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ],
+                  ),
+              ],
             ),
           ),
-          barGroups: [
-            for (var i = 0; i < _months.length; i++)
-              BarChartGroupData(x: i, barsSpace: 4, barRods: [
-                BarChartRodData(toY: _income[i], color: scheme.primary, width: 12, borderRadius: BorderRadius.circular(3)),
-                BarChartRodData(toY: _expense[i], color: const Color(0xFFF59E0B), width: 12, borderRadius: BorderRadius.circular(3)),
-              ]),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _legend(scheme.primary, 'Income'),
+            const SizedBox(width: 16),
+            _legend(const Color(0xFFF59E0B), 'Expenditure'),
           ],
-        )),
-      ),
-      const SizedBox(height: 8),
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        _legend(scheme.primary, 'Income'),
-        const SizedBox(width: 16),
-        _legend(const Color(0xFFF59E0B), 'Expenditure'),
-      ]),
-    ]);
+        ),
+      ],
+    );
   }
 }
 
@@ -71,39 +96,68 @@ class ExpensePie extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = expenseBreakup.fold<double>(0, (s, e) => s + e.$2);
-    return LayoutBuilder(builder: (context, c) {
-      final pie = SizedBox(
-        height: 180,
-        width: 180,
-        child: PieChart(PieChartData(
-          centerSpaceRadius: 46,
-          sectionsSpace: 2,
-          sections: [
-            for (final e in expenseBreakup)
-              PieChartSectionData(value: e.$2, color: e.$3, radius: 36, showTitle: false),
-          ],
-        )),
-      );
-      final legend = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        for (final e in expenseBreakup)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              _dot(e.$3),
-              const SizedBox(width: 6),
-              Text('${e.$1}  ${inr.format(e.$2)}  (${(e.$2 / total * 100).toStringAsFixed(0)}%)', style: const TextStyle(fontSize: 12)),
-            ]),
+    return LayoutBuilder(
+      builder: (context, c) {
+        final pie = SizedBox(
+          height: 180,
+          width: 180,
+          child: PieChart(
+            PieChartData(
+              centerSpaceRadius: 46,
+              sectionsSpace: 2,
+              sections: [
+                for (final e in expenseBreakup)
+                  PieChartSectionData(value: e.$2, color: e.$3, radius: 36, showTitle: false),
+              ],
+            ),
           ),
-        const SizedBox(height: 6),
-        Text('Total ${inr.format(total)}', style: const TextStyle(fontWeight: FontWeight.w700)),
-      ]);
-      return c.maxWidth < 480
-          ? Column(children: [pie, const SizedBox(height: 12), legend])
-          : Row(children: [pie, const SizedBox(width: 24), Expanded(child: legend)]);
-    });
+        );
+        final legend = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final e in expenseBreakup)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _dot(e.$3),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${e.$1}  ${inr.format(e.$2)}  (${(e.$2 / total * 100).toStringAsFixed(0)}%)',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 6),
+            Text('Total ${inr.format(total)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+          ],
+        );
+        return c.maxWidth < 480
+            ? Column(children: [pie, const SizedBox(height: 12), legend])
+            : Row(
+                children: [
+                  pie,
+                  const SizedBox(width: 24),
+                  Expanded(child: legend),
+                ],
+              );
+      },
+    );
   }
 }
 
-Widget _dot(Color c) => Container(width: 10, height: 10, decoration: BoxDecoration(color: c, shape: BoxShape.circle));
+Widget _dot(Color c) => Container(
+  width: 10,
+  height: 10,
+  decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+);
 
-Widget _legend(Color c, String t) => Row(children: [_dot(c), const SizedBox(width: 6), Text(t, style: const TextStyle(fontSize: 12))]);
+Widget _legend(Color c, String t) => Row(
+  children: [
+    _dot(c),
+    const SizedBox(width: 6),
+    Text(t, style: const TextStyle(fontSize: 12)),
+  ],
+);

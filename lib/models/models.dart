@@ -14,21 +14,14 @@ enum Role {
   const Role(this.label);
   final String label;
 
-  bool get isOfficeBearer => const {
-        Role.president,
-        Role.secretary,
-        Role.treasurer,
-        Role.vicePresident,
-        Role.jointSecretary,
-      }.contains(this);
+  bool get isOfficeBearer =>
+      const {Role.president, Role.secretary, Role.treasurer, Role.vicePresident, Role.jointSecretary}.contains(this);
 
   bool get isCommittee => isOfficeBearer || this == Role.ecMember || this == Role.monitor;
 
-  bool get canReviewChecklist =>
-      const {Role.secretary, Role.jointSecretary, Role.monitor}.contains(this);
+  bool get canReviewChecklist => const {Role.secretary, Role.jointSecretary, Role.monitor}.contains(this);
 
-  bool get seesFinance =>
-      isOfficeBearer || this == Role.ecMember || this == Role.auditor;
+  bool get seesFinance => isOfficeBearer || this == Role.ecMember || this == Role.auditor;
 }
 
 class DemoUser {
@@ -54,7 +47,9 @@ class DemoUser {
 
   /// President, Secretary or an EC member designated (W6-style) for membership changes.
   bool canInitiateMembership(Role active) =>
-      active == Role.president || active == Role.secretary || (active.isCommittee && designations.contains(membershipDesk));
+      active == Role.president ||
+      active == Role.secretary ||
+      (active.isCommittee && designations.contains(membershipDesk));
 }
 
 class Session {
@@ -63,8 +58,7 @@ class Session {
   final DemoUser user;
   final Role activeRole;
 
-  Session copyWith({Role? activeRole}) =>
-      Session(user: user, activeRole: activeRole ?? this.activeRole);
+  Session copyWith({Role? activeRole}) => Session(user: user, activeRole: activeRole ?? this.activeRole);
 }
 
 enum Occupancy { ownerOccupied, rented, vacant }
@@ -115,7 +109,8 @@ enum TicketStatus {
   const TicketStatus(this.label);
   final String label;
 
-  bool get isOpen => !const {TicketStatus.resolved, TicketStatus.closed, TicketStatus.rejected, TicketStatus.planned}.contains(this);
+  bool get isOpen =>
+      !const {TicketStatus.resolved, TicketStatus.closed, TicketStatus.rejected, TicketStatus.planned}.contains(this);
 }
 
 enum ReportKind {
@@ -200,29 +195,28 @@ class Complaint {
     String? description,
     String? category,
     int? estimatedCost,
-  }) =>
-      Complaint(
-        id: id,
-        flatNumber: flatNumber,
-        type: type,
-        category: category ?? this.category,
-        title: title ?? this.title,
-        description: description ?? this.description,
-        criticality: criticality ?? this.criticality,
-        status: status ?? this.status,
-        createdAt: createdAt,
-        raisedBy: raisedBy,
-        aiSuggested: aiSuggested ?? this.aiSuggested,
-        assignee: assignee ?? this.assignee,
-        remarks: remarks ?? this.remarks,
-        photoCount: photoCount,
-        hasVoiceNote: hasVoiceNote,
-        isPrivate: isPrivate,
-        location: location,
-        kind: kind ?? this.kind,
-        acceptedAt: acceptedAt ?? this.acceptedAt,
-        estimatedCost: estimatedCost ?? this.estimatedCost,
-      );
+  }) => Complaint(
+    id: id,
+    flatNumber: flatNumber,
+    type: type,
+    category: category ?? this.category,
+    title: title ?? this.title,
+    description: description ?? this.description,
+    criticality: criticality ?? this.criticality,
+    status: status ?? this.status,
+    createdAt: createdAt,
+    raisedBy: raisedBy,
+    aiSuggested: aiSuggested ?? this.aiSuggested,
+    assignee: assignee ?? this.assignee,
+    remarks: remarks ?? this.remarks,
+    photoCount: photoCount,
+    hasVoiceNote: hasVoiceNote,
+    isPrivate: isPrivate,
+    location: location,
+    kind: kind ?? this.kind,
+    acceptedAt: acceptedAt ?? this.acceptedAt,
+    estimatedCost: estimatedCost ?? this.estimatedCost,
+  );
 }
 
 class ChecklistItem {
@@ -254,18 +248,17 @@ class ChecklistItem {
     bool? hasVoiceNote,
     String? rejectedReason,
     bool clearRejection = false,
-  }) =>
-      ChecklistItem(
-        id: id,
-        title: title,
-        category: category,
-        timeWindow: timeWindow,
-        done: done ?? this.done,
-        note: note ?? this.note,
-        hasVoiceNote: hasVoiceNote ?? this.hasVoiceNote,
-        proofRequired: proofRequired,
-        rejectedReason: clearRejection ? null : (rejectedReason ?? this.rejectedReason),
-      );
+  }) => ChecklistItem(
+    id: id,
+    title: title,
+    category: category,
+    timeWindow: timeWindow,
+    done: done ?? this.done,
+    note: note ?? this.note,
+    hasVoiceNote: hasVoiceNote ?? this.hasVoiceNote,
+    proofRequired: proofRequired,
+    rejectedReason: clearRejection ? null : (rejectedReason ?? this.rejectedReason),
+  );
 }
 
 enum Decision { pending, approved, rejected, sentBack }
@@ -300,14 +293,14 @@ class ApproverStep {
   }
 
   ApproverStep copyWith({Decision? decision, String? comment, String? decidedBy}) => ApproverStep(
-        role: role,
-        name: name,
-        decision: decision ?? this.decision,
-        comment: comment ?? this.comment,
-        onBehalfOf: onBehalfOf,
-        alternateRole: alternateRole,
-        decidedBy: decidedBy ?? this.decidedBy,
-      );
+    role: role,
+    name: name,
+    decision: decision ?? this.decision,
+    comment: comment ?? this.comment,
+    onBehalfOf: onBehalfOf,
+    alternateRole: alternateRole,
+    decidedBy: decidedBy ?? this.decidedBy,
+  );
 }
 
 class ApprovalRequest {
@@ -360,20 +353,20 @@ class ApprovalRequest {
   }
 
   ApprovalRequest copyWith({List<ApproverStep>? steps, bool? flagged}) => ApprovalRequest(
-        id: id,
-        code: code,
-        title: title,
-        initiatorName: initiatorName,
-        initiatorRole: initiatorRole,
-        createdAt: createdAt,
-        steps: steps ?? this.steps,
-        details: details,
-        momRequired: momRequired,
-        momRef: momRef,
-        highRisk: highRisk,
-        flagged: flagged ?? this.flagged,
-        category: category,
-      );
+    id: id,
+    code: code,
+    title: title,
+    initiatorName: initiatorName,
+    initiatorRole: initiatorRole,
+    createdAt: createdAt,
+    steps: steps ?? this.steps,
+    details: details,
+    momRequired: momRequired,
+    momRef: momRef,
+    highRisk: highRisk,
+    flagged: flagged ?? this.flagged,
+    category: category,
+  );
 }
 
 class DueLine {
@@ -396,14 +389,8 @@ class DueLine {
   int get pending => amount - paid;
   bool get isPaid => pending <= 0;
 
-  DueLine markPaid(String receipt) => DueLine(
-        flatNumber: flatNumber,
-        head: head,
-        amount: amount,
-        paid: amount,
-        dueDate: dueDate,
-        receiptNo: receipt,
-      );
+  DueLine markPaid(String receipt) =>
+      DueLine(flatNumber: flatNumber, head: head, amount: amount, paid: amount, dueDate: dueDate, receiptNo: receipt);
 }
 
 enum ExpenseStatus {
@@ -444,28 +431,22 @@ class Expense {
   final String? comment;
 
   Expense copyWith({ExpenseStatus? status, bool? flagged, String? comment}) => Expense(
-        id: id,
-        date: date,
-        category: category,
-        vendor: vendor,
-        description: description,
-        amount: amount,
-        status: status ?? this.status,
-        enteredBy: enteredBy,
-        documents: documents,
-        flagged: flagged ?? this.flagged,
-        comment: comment ?? this.comment,
-      );
+    id: id,
+    date: date,
+    category: category,
+    vendor: vendor,
+    description: description,
+    amount: amount,
+    status: status ?? this.status,
+    enteredBy: enteredBy,
+    documents: documents,
+    flagged: flagged ?? this.flagged,
+    comment: comment ?? this.comment,
+  );
 }
 
 class FundRequest {
-  const FundRequest({
-    required this.name,
-    required this.kind,
-    required this.basis,
-    required this.status,
-    this.dueDay,
-  });
+  const FundRequest({required this.name, required this.kind, required this.basis, required this.status, this.dueDay});
 
   final String name;
   final String kind;

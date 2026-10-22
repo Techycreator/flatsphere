@@ -32,7 +32,15 @@ class PageBody extends StatelessWidget {
 }
 
 class StatCard extends StatelessWidget {
-  const StatCard({super.key, required this.label, required this.value, required this.icon, this.color, this.onTap, this.sub});
+  const StatCard({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.color,
+    this.onTap,
+    this.sub,
+  });
   final String label;
   final String value;
   final IconData icon;
@@ -49,18 +57,31 @@ class StatCard extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(children: [
-            CircleAvatar(backgroundColor: c.withValues(alpha: 0.12), child: Icon(icon, color: c)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(label, style: Theme.of(context).textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-                if (sub != null) Text(sub!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: c)),
-              ]),
-            ),
-          ]),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: c.withValues(alpha: 0.12),
+                child: Icon(icon, color: c),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                    if (sub != null) Text(sub!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: c)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -74,12 +95,18 @@ class StatGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, c) {
-      final cols = c.maxWidth > 900 ? 4 : (c.maxWidth > 520 ? 2 : 1);
-      const gap = 12.0;
-      final w = (c.maxWidth - gap * (cols - 1)) / cols;
-      return Wrap(spacing: gap, runSpacing: gap, children: [for (final ch in children) SizedBox(width: w, child: ch)]);
-    });
+    return LayoutBuilder(
+      builder: (context, c) {
+        final cols = c.maxWidth > 900 ? 4 : (c.maxWidth > 520 ? 2 : 1);
+        const gap = 12.0;
+        final w = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [for (final ch in children) SizedBox(width: w, child: ch)],
+        );
+      },
+    );
   }
 }
 
@@ -95,17 +122,30 @@ class SectionCard extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(children: [
-              Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600))),
-              ?action,
-            ]),
-          ),
-          const SizedBox(height: 8),
-          Padding(padding: EdgeInsets.symmetric(horizontal: padding ? 16 : 0), child: child),
-        ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  ?action,
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: padding ? 16 : 0),
+              child: child,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -119,16 +159,24 @@ class TwoCol extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, c) {
-      if (c.maxWidth < 900) {
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [left, const SizedBox(height: 16), right]);
-      }
-      return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(child: left),
-        const SizedBox(width: 16),
-        Expanded(child: right),
-      ]);
-    });
+    return LayoutBuilder(
+      builder: (context, c) {
+        if (c.maxWidth < 900) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [left, const SizedBox(height: 16), right],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: left),
+            const SizedBox(width: 16),
+            Expanded(child: right),
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -147,10 +195,16 @@ class Pill extends StatelessWidget {
         color: filled ? color : color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (icon != null) ...[Icon(icon, size: 13, color: filled ? Colors.white : color), const SizedBox(width: 4)],
-        Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: filled ? Colors.white : color)),
-      ]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[Icon(icon, size: 13, color: filled ? Colors.white : color), const SizedBox(width: 4)],
+          Text(
+            text,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: filled ? Colors.white : color),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -160,15 +214,16 @@ class SlaPill extends StatelessWidget {
   final SlaInfo info;
 
   @override
-  Widget build(BuildContext context) => Pill(info.ageLabel, color: AppColors.sla(info.color), filled: true, icon: Icons.schedule);
+  Widget build(BuildContext context) =>
+      Pill(info.ageLabel, color: AppColors.sla(info.color), filled: true, icon: Icons.schedule);
 }
 
 Color criticalityColor(Criticality c) => switch (c) {
-      Criticality.critical => AppColors.red,
-      Criticality.high => const Color(0xFFEA580C),
-      Criticality.medium => const Color(0xFF2563EB),
-      Criticality.low => const Color(0xFF64748B),
-    };
+  Criticality.critical => AppColors.red,
+  Criticality.high => const Color(0xFFEA580C),
+  Criticality.medium => const Color(0xFF2563EB),
+  Criticality.low => const Color(0xFF64748B),
+};
 
 class CriticalityPill extends StatelessWidget {
   const CriticalityPill(this.c, {super.key, this.ai = false});
@@ -176,8 +231,7 @@ class CriticalityPill extends StatelessWidget {
   final bool ai;
 
   @override
-  Widget build(BuildContext context) =>
-      Pill(c.label, color: criticalityColor(c), icon: ai ? Icons.auto_awesome : null);
+  Widget build(BuildContext context) => Pill(c.label, color: criticalityColor(c), icon: ai ? Icons.auto_awesome : null);
 }
 
 class EmptyState extends StatelessWidget {
@@ -187,13 +241,19 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(children: [
-          Icon(icon, size: 40, color: Theme.of(context).colorScheme.outline),
-          const SizedBox(height: 8),
-          Text(text, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.outline)),
-        ]),
-      );
+    padding: const EdgeInsets.all(24),
+    child: Column(
+      children: [
+        Icon(icon, size: 40, color: Theme.of(context).colorScheme.outline),
+        const SizedBox(height: 8),
+        Text(
+          text,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Theme.of(context).colorScheme.outline),
+        ),
+      ],
+    ),
+  );
 }
 
 void toast(BuildContext context, String msg) =>
@@ -205,7 +265,12 @@ Future<String?> promptText(BuildContext context, {required String title, require
     context: context,
     builder: (ctx) => AlertDialog(
       title: Text(title),
-      content: TextField(controller: ctrl, autofocus: true, maxLines: 3, decoration: InputDecoration(hintText: hint)),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        maxLines: 3,
+        decoration: InputDecoration(hintText: hint),
+      ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
         FilledButton(

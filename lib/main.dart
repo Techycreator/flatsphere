@@ -2,11 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/router.dart';
+import 'backend/backend.dart';
 import 'app/theme.dart';
 import 'l10n/app_localizations.dart';
 import 'state/app_state.dart';
 
-void main() => runApp(const ProviderScope(child: FlatSphereApp()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initBackend();
+  final container = ProviderContainer();
+  if (backendEnabled) {
+    final user = await AuthService.loadUser();
+    if (user != null) container.read(sessionProvider.notifier).login(user);
+  }
+  runApp(UncontrolledProviderScope(container: container, child: const FlatSphereApp()));
+}
 
 class FlatSphereApp extends ConsumerWidget {
   const FlatSphereApp({super.key});

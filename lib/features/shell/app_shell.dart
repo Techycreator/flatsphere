@@ -23,47 +23,61 @@ class AppShell extends ConsumerWidget {
     final selected = idx < 0 ? 0 : idx;
     final width = MediaQuery.sizeOf(context).width;
     final wide = width >= 840;
-    final pendingForMe = ref.watch(approvalsProvider).where((a) => a.awaits(session.activeRole, session.user.name)).length;
+    final pendingForMe = ref
+        .watch(approvalsProvider)
+        .where((a) => a.awaits(session.activeRole, session.user.name))
+        .length;
 
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: Row(children: [
-          Icon(Icons.apartment, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('FlatSphere', style: TextStyle(fontWeight: FontWeight.w700)),
-              if (wide) Text('$associationName · $associationCity', style: Theme.of(context).textTheme.bodySmall),
-            ]),
-          ),
-        ]),
+        title: Row(
+          children: [
+            Icon(Icons.apartment, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('FlatSphere', style: TextStyle(fontWeight: FontWeight.w700)),
+                  if (wide) Text('$associationName · $associationCity', style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           _RoleSwitcher(session: session),
           if (wide) const LanguageToggle(),
           IconButton(
             tooltip: l.notices,
             onPressed: () => _showNotifications(context, ref),
-            icon: Badge(isLabelVisible: pendingForMe > 0, label: Text('$pendingForMe'), child: const Icon(Icons.notifications_outlined)),
+            icon: Badge(
+              isLabelVisible: pendingForMe > 0,
+              label: Text('$pendingForMe'),
+              child: const Icon(Icons.notifications_outlined),
+            ),
           ),
           _ProfileMenu(session: session, showLanguage: !wide),
           const SizedBox(width: 8),
         ],
       ),
       body: wide
-          ? Row(children: [
-              NavigationRail(
-                extended: width >= 1200,
-                selectedIndex: selected,
-                labelType: width >= 1200 ? NavigationRailLabelType.none : NavigationRailLabelType.all,
-                onDestinationSelected: (i) => context.go(items[i].path),
-                destinations: [
-                  for (final i in items) NavigationRailDestination(icon: Icon(i.icon), label: Text(i.label(l))),
-                ],
-              ),
-              const VerticalDivider(width: 1),
-              Expanded(child: child),
-            ])
+          ? Row(
+              children: [
+                NavigationRail(
+                  extended: width >= 1200,
+                  selectedIndex: selected,
+                  labelType: width >= 1200 ? NavigationRailLabelType.none : NavigationRailLabelType.all,
+                  onDestinationSelected: (i) => context.go(items[i].path),
+                  destinations: [
+                    for (final i in items) NavigationRailDestination(icon: Icon(i.icon), label: Text(i.label(l))),
+                  ],
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: child),
+              ],
+            )
           : child,
       bottomNavigationBar: wide
           ? null
@@ -82,20 +96,32 @@ class AppShell extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (ctx) => ListView(shrinkWrap: true, padding: const EdgeInsets.only(bottom: 24), children: [
-        for (final a in pending)
-          ListTile(
-            leading: const Icon(Icons.verified_outlined),
-            title: Text(a.title),
-            subtitle: Text('${a.code} · waiting for your approval'),
-            onTap: () {
-              Navigator.pop(ctx);
-              context.go('/approvals/${a.id}');
-            },
+      builder: (ctx) => ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.only(bottom: 24),
+        children: [
+          for (final a in pending)
+            ListTile(
+              leading: const Icon(Icons.verified_outlined),
+              title: Text(a.title),
+              subtitle: Text('${a.code} · waiting for your approval'),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.go('/approvals/${a.id}');
+              },
+            ),
+          const ListTile(
+            leading: Icon(Icons.warning_amber, color: Colors.red),
+            title: Text('Complaint CMP-2026-0124 turned RED'),
+            subtitle: Text('Garbage not cleared near Block A gate · Day 7'),
           ),
-        const ListTile(leading: Icon(Icons.warning_amber, color: Colors.red), title: Text('Complaint CMP-2026-0124 turned RED'), subtitle: Text('Garbage not cleared near Block A gate · Day 7')),
-        const ListTile(leading: Icon(Icons.campaign_outlined), title: Text('Water supply interruption – Saturday'), subtitle: Text('Notice from Secretary')),
-      ]),
+          const ListTile(
+            leading: Icon(Icons.campaign_outlined),
+            title: Text('Water supply interruption – Saturday'),
+            subtitle: Text('Notice from Secretary'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -106,10 +132,7 @@ class _RoleSwitcher extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chip = Chip(
-      avatar: const Icon(Icons.badge_outlined, size: 18),
-      label: Text(session.activeRole.label),
-    );
+    final chip = Chip(avatar: const Icon(Icons.badge_outlined, size: 18), label: Text(session.activeRole.label));
     if (session.user.roles.length < 2) return chip;
     return PopupMenuButton<Role>(
       tooltip: AppLocalizations.of(context).switchRole,
@@ -121,10 +144,7 @@ class _RoleSwitcher extends ConsumerWidget {
         for (final r in session.user.roles)
           CheckedPopupMenuItem(value: r, checked: r == session.activeRole, child: Text(r.label)),
       ],
-      child: Chip(
-        avatar: const Icon(Icons.swap_horiz, size: 18),
-        label: Text(session.activeRole.label),
-      ),
+      child: Chip(avatar: const Icon(Icons.swap_horiz, size: 18), label: Text(session.activeRole.label)),
     );
   }
 }
@@ -163,7 +183,10 @@ class _ProfileMenu extends ConsumerWidget {
           const PopupMenuItem(value: 'ml', child: Text('മലയാളം')),
         ],
         const PopupMenuDivider(),
-        PopupMenuItem(value: 'logout', child: ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.logout), title: Text(l.logout))),
+        PopupMenuItem(
+          value: 'logout',
+          child: ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.logout), title: Text(l.logout)),
+        ),
       ],
       child: CircleAvatar(radius: 18, child: Text(initials, style: const TextStyle(fontSize: 13))),
     );
@@ -181,7 +204,10 @@ class LanguageToggle extends ConsumerWidget {
       child: SegmentedButton<String>(
         showSelectedIcon: false,
         style: const ButtonStyle(visualDensity: VisualDensity.compact),
-        segments: const [ButtonSegment(value: 'en', label: Text('EN')), ButtonSegment(value: 'ml', label: Text('മല'))],
+        segments: const [
+          ButtonSegment(value: 'en', label: Text('EN')),
+          ButtonSegment(value: 'ml', label: Text('മല')),
+        ],
         selected: {locale.languageCode},
         onSelectionChanged: (s) => ref.read(localeProvider.notifier).set(Locale(s.first)),
       ),

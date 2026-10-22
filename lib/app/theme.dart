@@ -9,10 +9,10 @@ class AppColors {
   static const red = Color(0xFFDC2626);
 
   static Color sla(SlaColor c) => switch (c) {
-        SlaColor.green => green,
-        SlaColor.amber => amber,
-        SlaColor.red => red,
-      };
+    SlaColor.green => green,
+    SlaColor.amber => amber,
+    SlaColor.red => red,
+  };
 }
 
 class AppTheme {

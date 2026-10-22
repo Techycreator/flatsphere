@@ -18,7 +18,8 @@ class CategorySeries {
   double currToDate([int months = closedMonths]) => current.take(months).fold(0.0, (a, b) => a + b);
 }
 
-List<double> _series(double base, List<double> season, double growth, int seed, {Map<int, double> spikes = const {}}) => [
+List<double> _series(double base, List<double> season, double growth, int seed, {Map<int, double> spikes = const {}}) =>
+    [
       for (var i = 0; i < 12; i++)
         (base * season[i] * growth * (1 + (((i * 37 + seed * 11) % 13) - 6) / 100) * (spikes[i] ?? 1)).roundToDouble(),
     ];
@@ -32,8 +33,16 @@ final expenseSeries = <CategorySeries>[
   CategorySeries('Security agency', _series(59000, _flat, 1.0, 2), _series(59000, _flat, 1.05, 2)),
   CategorySeries('Common electricity', _series(17500, _summer, 1.0, 3), _series(17500, _summer, 1.04, 3)),
   CategorySeries('Water bill', _series(9400, _summer, 1.0, 4), _series(9400, _summer, 1.03, 4)),
-  CategorySeries('Generator diesel', _series(7800, _monsoon, 1.0, 5), _series(7800, _monsoon, 1.06, 5, spikes: {5: 1.55})),
-  CategorySeries('STP maintenance', _series(6200, _flat, 1.0, 6), _series(6200, _flat, 1.05, 6, spikes: {2: 1.9, 5: 2.1})),
+  CategorySeries(
+    'Generator diesel',
+    _series(7800, _monsoon, 1.0, 5),
+    _series(7800, _monsoon, 1.06, 5, spikes: {5: 1.55}),
+  ),
+  CategorySeries(
+    'STP maintenance',
+    _series(6200, _flat, 1.0, 6),
+    _series(6200, _flat, 1.05, 6, spikes: {2: 1.9, 5: 2.1}),
+  ),
   CategorySeries('Lift & DG AMC', _series(23500, _flat, 1.0, 7), _series(23500, _flat, 1.04, 7)),
   CategorySeries('Cleaning supplies', _series(6100, _flat, 1.0, 8), _series(6100, _flat, 0.96, 8)),
   CategorySeries('Repairs & maintenance', _series(11000, _flat, 1.0, 9), _series(11000, _flat, 1.12, 9)),
@@ -42,14 +51,18 @@ final expenseSeries = <CategorySeries>[
 final incomeSeries = <CategorySeries>[
   CategorySeries('Maintenance collected', _series(301000, _flat, 1.0, 10), _series(301000, _flat, 1.06, 10)),
   CategorySeries('Party hall & common area rent', _series(4200, _summer, 1.0, 11), _series(4200, _summer, 1.15, 11)),
-  CategorySeries('Advertisement & sponsorship', _series(5000, _flat, 1.0, 12), _series(5000, _flat, 1.2, 12, spikes: {4: 4.0})),
+  CategorySeries(
+    'Advertisement & sponsorship',
+    _series(5000, _flat, 1.0, 12),
+    _series(5000, _flat, 1.2, 12, spikes: {4: 4.0}),
+  ),
 ];
 
 CategorySeries _sum(String name, List<CategorySeries> xs) => CategorySeries(
-      name,
-      [for (var i = 0; i < 12; i++) xs.fold(0.0, (a, s) => a + s.previous[i])],
-      [for (var i = 0; i < 12; i++) xs.fold(0.0, (a, s) => a + s.current[i])],
-    );
+  name,
+  [for (var i = 0; i < 12; i++) xs.fold(0.0, (a, s) => a + s.previous[i])],
+  [for (var i = 0; i < 12; i++) xs.fold(0.0, (a, s) => a + s.current[i])],
+);
 
 final totalExpense = _sum('All expenses', expenseSeries);
 final totalIncome = _sum('Total income', incomeSeries);

@@ -18,15 +18,27 @@ class ComplaintTile extends ConsumerWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       onTap: () => context.go('/complaints/${c.id}'),
-      leading: Container(width: 6, height: 44, decoration: BoxDecoration(color: _barColor(c, sla), borderRadius: BorderRadius.circular(3))),
+      leading: Container(
+        width: 6,
+        height: 44,
+        decoration: BoxDecoration(color: _barColor(c, sla), borderRadius: BorderRadius.circular(3)),
+      ),
       title: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
-        child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          Text('${c.id} · ${c.flatNumber} · ${c.category}', style: Theme.of(context).textTheme.bodySmall),
-          if (c.kind.isEnhancement) Pill(c.kind.label, color: Colors.teal, icon: Icons.lightbulb_outline) else CriticalityPill(c.criticality, ai: c.aiSuggested),
-          Pill(c.status.label, color: c.inReview ? Colors.purple : Colors.blueGrey),
-        ]),
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text('${c.id} · ${c.flatNumber} · ${c.category}', style: Theme.of(context).textTheme.bodySmall),
+            if (c.kind.isEnhancement)
+              Pill(c.kind.label, color: Colors.teal, icon: Icons.lightbulb_outline)
+            else
+              CriticalityPill(c.criticality, ai: c.aiSuggested),
+            Pill(c.status.label, color: c.inReview ? Colors.purple : Colors.blueGrey),
+          ],
+        ),
       ),
       trailing: _trailing(c, sla),
     );
@@ -51,10 +63,10 @@ class ComplaintTile extends ConsumerWidget {
   }
 
   Color _slaColor(SlaInfo s) => switch (s.color) {
-        SlaColor.green => const Color(0xFF16A34A),
-        SlaColor.amber => const Color(0xFFF59E0B),
-        SlaColor.red => const Color(0xFFDC2626),
-      };
+    SlaColor.green => const Color(0xFF16A34A),
+    SlaColor.amber => const Color(0xFFF59E0B),
+    SlaColor.red => const Color(0xFFDC2626),
+  };
 }
 
 /// Complaints the active role is allowed to see.
@@ -62,7 +74,8 @@ List<Complaint> visibleComplaints(WidgetRef ref) {
   final s = ref.watch(sessionProvider)!;
   final all = ref.watch(complaintsProvider);
   return switch (s.activeRole) {
-    Role.owner || Role.resident => all.where((c) => c.flatNumber == s.user.flatNumber || c.raisedBy == s.user.name).toList(),
+    Role.owner ||
+    Role.resident => all.where((c) => c.flatNumber == s.user.flatNumber || c.raisedBy == s.user.name).toList(),
     _ => all,
   };
 }

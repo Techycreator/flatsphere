@@ -31,8 +31,8 @@ SlaInfo slaFor(Complaint c, DateTime now) {
     final color = h >= t.redAfter
         ? SlaColor.red
         : h >= t.amberAfter
-            ? SlaColor.amber
-            : SlaColor.green;
+        ? SlaColor.amber
+        : SlaColor.green;
     return SlaInfo(color, '$h h');
   }
   final start = DateTime(from.year, from.month, from.day);
@@ -41,8 +41,8 @@ SlaInfo slaFor(Complaint c, DateTime now) {
   final color = days >= t.redAfter
       ? SlaColor.red
       : days >= t.amberAfter
-          ? SlaColor.amber
-          : SlaColor.green;
+      ? SlaColor.amber
+      : SlaColor.green;
   return SlaInfo(color, 'Day $days');
 }
 

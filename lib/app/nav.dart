@@ -21,14 +21,14 @@ final _notices = NavItem('/notices', Icons.campaign_outlined, (l) => l.notices);
 
 /// Max 5 items per role so the mobile bottom bar stays usable.
 List<NavItem> navFor(Role r) => switch (r) {
-      Role.president => [_home, _approvals, _complaints, _finance, _meetings],
-      Role.secretary => [_home, _approvals, _complaints, _checklist, _meetings],
-      Role.treasurer => [_home, _finance, _approvals, _complaints, _meetings],
-      Role.vicePresident => [_home, _approvals, _complaints, _finance, _meetings],
-      Role.jointSecretary => [_home, _approvals, _complaints, _checklist, _finance],
-      Role.ecMember || Role.monitor => [_home, _checklist, _complaints, _finance, _meetings],
-      Role.owner => [_home, _dues, _complaints, _meetings, _notices],
-      Role.resident => [_home, _complaints, _notices],
-      Role.caretaker => [_home, _checklist, _complaints, _notices],
-      Role.auditor => [_home, _finance],
-    };
+  Role.president => [_home, _approvals, _complaints, _finance, _meetings],
+  Role.secretary => [_home, _approvals, _complaints, _checklist, _meetings],
+  Role.treasurer => [_home, _finance, _approvals, _complaints, _meetings],
+  Role.vicePresident => [_home, _approvals, _complaints, _finance, _meetings],
+  Role.jointSecretary => [_home, _approvals, _complaints, _checklist, _finance],
+  Role.ecMember || Role.monitor => [_home, _checklist, _complaints, _finance, _meetings],
+  Role.owner => [_home, _dues, _complaints, _meetings, _notices],
+  Role.resident => [_home, _complaints, _notices],
+  Role.caretaker => [_home, _checklist, _complaints, _notices],
+  Role.auditor => [_home, _finance],
+};

@@ -29,12 +29,17 @@ class ApprovalTile extends StatelessWidget {
       title: Text(a.title, maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
-        child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          Text('${a.initiatorName} · $done/${a.steps.length} approved', style: Theme.of(context).textTheme.bodySmall),
-          if (a.momRequired) const Pill('MOM required', color: Colors.indigo, icon: Icons.description_outlined),
-          if (a.highRisk) const Pill('High risk', color: AppColors.red, icon: Icons.shield_outlined),
-          if (a.flagged) const Pill('Flagged', color: AppColors.amber, icon: Icons.flag),
-        ]),
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text('${a.initiatorName} · $done/${a.steps.length} approved', style: Theme.of(context).textTheme.bodySmall),
+            if (a.momRequired) const Pill('MOM required', color: Colors.indigo, icon: Icons.description_outlined),
+            if (a.highRisk) const Pill('High risk', color: AppColors.red, icon: Icons.shield_outlined),
+            if (a.flagged) const Pill('Flagged', color: AppColors.amber, icon: Icons.flag),
+          ],
+        ),
       ),
       trailing: Pill(statusText, color: statusColor),
     );

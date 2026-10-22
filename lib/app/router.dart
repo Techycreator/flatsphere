@@ -55,7 +55,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (_, _) => _page(const ComplaintsScreen()),
             routes: [
               GoRoute(path: 'new', builder: (_, _) => const RaiseComplaintScreen()),
-              GoRoute(path: ':id', builder: (_, s) => ComplaintDetailScreen(id: s.pathParameters['id']!)),
+              GoRoute(
+                path: ':id',
+                builder: (_, s) => ComplaintDetailScreen(id: s.pathParameters['id']!),
+              ),
             ],
           ),
           GoRoute(path: '/checklist', pageBuilder: (_, _) => _page(const ChecklistScreen())),
@@ -70,7 +73,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   return t == null ? const ApprovalsScreen() : MembershipRequestScreen(type: t);
                 },
               ),
-              GoRoute(path: ':id', builder: (_, s) => ApprovalDetailScreen(id: s.pathParameters['id']!)),
+              GoRoute(
+                path: ':id',
+                builder: (_, s) => ApprovalDetailScreen(id: s.pathParameters['id']!),
+              ),
             ],
           ),
           GoRoute(path: '/finance', pageBuilder: (_, _) => _page(const FinanceScreen())),
