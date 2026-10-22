@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
 import '../../widgets/common.dart';
+import 'analysis_data.dart';
 import 'analysis_tab.dart';
 import 'charts.dart';
 
@@ -69,26 +71,43 @@ class _Overview extends ConsumerWidget {
         if (!l.isPaid) l.flatNumber,
     }.length;
     final role = ref.watch(sessionProvider)!.activeRole;
+    final today = ref.watch(clockProvider);
+    final thisMonth = DateFormat('MMM yyyy').format(today);
     return PageBody(
       children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            Chip(avatar: const Icon(Icons.date_range, size: 18), label: Text('$currentFy · Apr 2026 – Mar 2027')),
+            Chip(avatar: const Icon(Icons.update, size: 18), label: Text('Figures as of ${dateFmt.format(today)}')),
+          ],
+        ),
+        const SizedBox(height: 12),
         StatGrid(
           children: [
-            StatCard(label: 'Bank balance (SBI ••••4521)', value: inr.format(bankBalance), icon: Icons.account_balance),
             StatCard(
-              label: 'Collected this period',
+              label: 'Bank balance (SBI ••••4521)',
+              value: inr.format(bankBalance),
+              icon: Icons.account_balance,
+              sub: 'As of ${dateFmt.format(today)}',
+            ),
+            StatCard(
+              label: 'Dues collected',
               value: inr.format(collected),
               icon: Icons.south_west,
               color: AppColors.green,
+              sub: '$thisMonth bills, arrears & corpus',
             ),
             StatCard(
               label: 'Pending dues',
               value: inr.format(pending),
               icon: Icons.pending_actions,
               color: AppColors.amber,
-              sub: '$defaulters flats',
+              sub: '$defaulters flats · as of ${dateFmt.format(today)}',
             ),
-            const StatCard(
-              label: 'Spent this month',
+            StatCard(
+              label: 'Spent – $thisMonth (to date)',
               value: '₹1,49,000',
               icon: Icons.north_east,
               color: AppColors.red,
@@ -105,12 +124,12 @@ class _Overview extends ConsumerWidget {
             ),
           ),
         const TwoCol(
-          left: SectionCard(title: 'Income vs expenditure (last 6 months)', child: IncomeExpenseChart()),
-          right: SectionCard(title: 'September expenditure by category', child: ExpensePie()),
+          left: SectionCard(title: 'Income vs expenditure (May – Oct 2026)', child: IncomeExpenseChart()),
+          right: SectionCard(title: 'Expenditure by category – Sep 2026 (last closed month)', child: ExpensePie()),
         ),
         const SizedBox(height: 16),
         SectionCard(
-          title: 'Income by category (FY to date)',
+          title: 'Income by category – $currentFy to date (Apr – Oct 2026)',
           child: Column(
             children: [
               for (final (k, v) in const [

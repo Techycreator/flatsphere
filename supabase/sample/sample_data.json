@@ -1,0 +1,571 @@
+{
+ "complaints": [
+  {
+   "ref": "CMP-2026-0142",
+   "flat_number": "Common",
+   "ticket_type": "complaint",
+   "kind": "complaint",
+   "category": "Lift",
+   "title": "Block B lift stuck between 2nd and 3rd floor",
+   "description": "Lift stopped with a jerk. Nobody inside now but it is not moving.",
+   "location": "Block B lift",
+   "criticality": "critical",
+   "ai_suggested": true,
+   "status": "in_progress",
+   "is_private": false,
+   "estimated_cost": null,
+   "raised_by_name": "Lakshmi Pillai",
+   "assignee_name": "Suresh Kumar",
+   "photo_count": 1,
+   "has_voice_note": false,
+   "accepted_at": null,
+   "created_at": "2026-10-22T06:34:53.319760Z",
+   "remarks": []
+  },
+  {
+   "ref": "CMP-2026-0139",
+   "flat_number": "C-204",
+   "ticket_type": "maintenance",
+   "kind": "complaint",
+   "category": "Plumbing",
+   "title": "Kitchen sink drain blocked",
+   "description": "Water not draining since yesterday night.",
+   "location": "Inside flat",
+   "criticality": "medium",
+   "ai_suggested": true,
+   "status": "assigned",
+   "is_private": false,
+   "estimated_cost": null,
+   "raised_by_name": "Priya Varghese",
+   "assignee_name": "Suresh Kumar",
+   "photo_count": 2,
+   "has_voice_note": true,
+   "accepted_at": null,
+   "created_at": "2026-10-20T09:34:53.319760Z",
+   "remarks": []
+  },
+  {
+   "ref": "CMP-2026-0131",
+   "flat_number": "C-302",
+   "ticket_type": "complaint",
+   "kind": "complaint",
+   "category": "Water supply",
+   "title": "Low water pressure on 3rd floor",
+   "description": "Pressure very low in mornings 6-8 AM.",
+   "location": "Inside flat",
+   "criticality": "high",
+   "ai_suggested": true,
+   "status": "on_hold",
+   "is_private": false,
+   "estimated_cost": null,
+   "raised_by_name": "Arun Das",
+   "assignee_name": "Suresh Kumar",
+   "photo_count": 0,
+   "has_voice_note": false,
+   "accepted_at": null,
+   "created_at": "2026-10-18T09:34:53.319760Z",
+   "remarks": [
+    {
+     "by": "Suresh Kumar",
+     "body": "Pressure pump vendor called; part (pressure switch) awaited.",
+     "at": "2026-10-20T09:34:53.319760Z"
+    }
+   ]
+  },
+  {
+   "ref": "CMP-2026-0124",
+   "flat_number": "A-203",
+   "ticket_type": "complaint",
+   "kind": "complaint",
+   "category": "Cleaning",
+   "title": "Garbage not cleared near Block A gate",
+   "description": "Garbage bins overflowing for two days.",
+   "location": "Inside flat",
+   "criticality": "medium",
+   "ai_suggested": false,
+   "status": "in_progress",
+   "is_private": false,
+   "estimated_cost": null,
+   "raised_by_name": "Anitha Nair",
+   "assignee_name": "Cleaning staff",
+   "photo_count": 0,
+   "has_voice_note": false,
+   "accepted_at": null,
+   "created_at": "2026-10-15T09:34:53.319760Z",
+   "remarks": [
+    {
+     "by": "Suresh Kumar",
+     "body": "Corporation truck did not come; arranged private pickup tomorrow.",
+     "at": "2026-10-21T09:34:53.319760Z"
+    }
+   ]
+  },
+  {
+   "ref": "CMP-2026-0120",
+   "flat_number": "B-301",
+   "ticket_type": "maintenance",
+   "kind": "complaint",
+   "category": "Electrical",
+   "title": "Corridor light not working on 3rd floor",
+   "description": "Two tube lights near stairs not working.",
+   "location": "Inside flat",
+   "criticality": "low",
+   "ai_suggested": false,
+   "status": "new",
+   "is_private": false,
+   "estimated_cost": null,
+   "raised_by_name": "Lakshmi Pillai",
+   "assignee_name": null,
+   "photo_count": 0,
+   "has_voice_note": false,
+   "accepted_at": null,
+   "created_at": "2026-10-21T09:34:53.319760Z",
+   "remarks": []
+  },
+  {
+   "ref": "CMP-2026-0144",
+   "flat_number": "Common",
+   "ticket_type": "complaint",
+   "kind": "complaint",
+   "category": "Security",
+   "title": "CCTV camera near Block C gate not recording",
+   "description": "Camera 7 shows \"No signal\" on the NVR since morning.",
+   "location": "Block C gate",
+   "criticality": "high",
+   "ai_suggested": true,
+   "status": "pending_review",
+   "is_private": false,
+   "estimated_cost": null,
+   "raised_by_name": "Suresh Kumar",
+   "assignee_name": null,
+   "photo_count": 1,
+   "has_voice_note": false,
+   "accepted_at": null,
+   "created_at": "2026-10-22T04:34:53.319760Z",
+   "remarks": []
+  },
+  {
+   "ref": "CMP-2026-0145",
+   "flat_number": "Common",
+   "ticket_type": "complaint",
+   "kind": "enhancement_immediate",
+   "category": "Gym",
+   "title": "Replace torn treadmill belt",
+   "description": "Belt is torn at the edge; unsafe to use. Vendor quote \u20b98,500.",
+   "location": "Gym",
+   "criticality": "medium",
+   "ai_suggested": false,
+   "status": "pending_review",
+   "is_private": false,
+   "estimated_cost": 8500,
+   "raised_by_name": "Lakshmi Pillai",
+   "assignee_name": null,
+   "photo_count": 0,
+   "has_voice_note": true,
+   "accepted_at": null,
+   "created_at": "2026-10-21T07:34:53.319760Z",
+   "remarks": []
+  },
+  {
+   "ref": "CMP-2026-0146",
+   "flat_number": "Common",
+   "ticket_type": "complaint",
+   "kind": "enhancement_future",
+   "category": "Electrical",
+   "title": "Solar panels on terrace to cut common electricity bill",
+   "description": "10 kW rooftop system; estimated payback 5 years.",
+   "location": "Terrace",
+   "criticality": "low",
+   "ai_suggested": false,
+   "status": "planned",
+   "is_private": false,
+   "estimated_cost": 650000,
+   "raised_by_name": "Rajesh Menon",
+   "assignee_name": null,
+   "photo_count": 0,
+   "has_voice_note": false,
+   "accepted_at": "2026-10-04T09:34:53.319760Z",
+   "created_at": "2026-10-02T09:34:53.319760Z",
+   "remarks": [
+    {
+     "by": "Anitha Nair (Secretary)",
+     "body": "Moved to future enhancements. Added to AGM 2026 agenda for budget discussion.",
+     "at": "2026-10-04T09:34:53.319760Z"
+    }
+   ]
+  },
+  {
+   "ref": "CMP-2026-0147",
+   "flat_number": "Common",
+   "ticket_type": "complaint",
+   "kind": "enhancement_immediate",
+   "category": "Other",
+   "title": "Anti-skid strips on swimming pool steps",
+   "description": "Two residents slipped last month.",
+   "location": "Swimming pool",
+   "criticality": "medium",
+   "ai_suggested": false,
+   "status": "in_progress",
+   "is_private": false,
+   "estimated_cost": 4200,
+   "raised_by_name": "Suresh Kumar",
+   "assignee_name": "Suresh Kumar",
+   "photo_count": 0,
+   "has_voice_note": false,
+   "accepted_at": "2026-10-17T09:34:53.319760Z",
+   "created_at": "2026-10-16T09:34:53.319760Z",
+   "remarks": [
+    {
+     "by": "Anitha Nair (Secretary)",
+     "body": "Approved as immediate enhancement. Within petty-cash limit.",
+     "at": "2026-10-17T09:34:53.319760Z"
+    }
+   ]
+  },
+  {
+   "ref": "CMP-2026-0111",
+   "flat_number": "C-204",
+   "ticket_type": "complaint",
+   "kind": "complaint",
+   "category": "Community",
+   "title": "Unknown car parked in my slot",
+   "description": "KL-07 white sedan parked in C-204 slot for 2 days.",
+   "location": "Inside flat",
+   "criticality": "low",
+   "ai_suggested": false,
+   "status": "resolved",
+   "is_private": false,
+   "estimated_cost": null,
+   "raised_by_name": "Priya Varghese",
+   "assignee_name": null,
+   "photo_count": 0,
+   "has_voice_note": false,
+   "accepted_at": null,
+   "created_at": "2026-10-13T09:34:53.319760Z",
+   "remarks": [
+    {
+     "by": "Suresh Kumar",
+     "body": "Visitor of A-102; vehicle moved and owner informed.",
+     "at": "2026-10-14T09:34:53.319760Z"
+    }
+   ]
+  }
+ ],
+ "approvals": [
+  {
+   "ref": "APR-036",
+   "code": "W21",
+   "title": "Resident change \u2013 A-101: new tenant Rahul Menon (owner consent needed)",
+   "details": {
+    "Flat": "A-101 (owner: Ajeesh G)",
+    "Incoming resident": "Rahul Menon + spouse (1 login)",
+    "Lease": "1 Dec 2026 \u2013 30 Nov 2027",
+    "ID proofs": "2 uploaded (Aadhaar masked)",
+    "Police verification": "Form submitted",
+    "On approval": "Resident record created; caretaker informed"
+   },
+   "initiator_name": "Anitha Nair",
+   "initiator_role": "secretary",
+   "category": "Membership",
+   "mom_required": false,
+   "mom_ref": null,
+   "high_risk": false,
+   "flagged": false,
+   "created_at": "2026-10-22T03:34:53.319760Z",
+   "steps": [
+    {
+     "role": "owner",
+     "alternate_role": null,
+     "name": "Ajeesh G",
+     "on_behalf_of": null,
+     "decision": "pending",
+     "comment": null,
+     "decided_by": null
+    },
+    {
+     "role": "secretary",
+     "alternate_role": "president",
+     "name": "Anitha Nair / Rajesh Menon",
+     "on_behalf_of": null,
+     "decision": "pending",
+     "comment": null,
+     "decided_by": null
+    }
+   ]
+  },
+  {
+   "ref": "APR-031",
+   "code": "W3",
+   "title": "Change association bank account (settlement)",
+   "details": {
+    "Current account": "SBI Kakkanad \u2022\u2022\u2022\u20224521",
+    "New account": "Federal Bank Edappally \u2022\u2022\u2022\u20228890",
+    "Reason": "Lower charges, sweep FD facility",
+    "Proof": "Cancelled cheque + bank letter",
+    "Cooling-off": "48 hours after final approval"
+   },
+   "initiator_name": "Thomas Kurian",
+   "initiator_role": "treasurer",
+   "category": "General",
+   "mom_required": true,
+   "mom_ref": "EC-2026-09 \u00b7 Decision #4",
+   "high_risk": true,
+   "flagged": false,
+   "created_at": "2026-10-21T09:34:53.319760Z",
+   "steps": [
+    {
+     "role": "secretary",
+     "alternate_role": null,
+     "name": "Anitha Nair",
+     "on_behalf_of": null,
+     "decision": "approved",
+     "comment": "Verified bank letter.",
+     "decided_by": null
+    },
+    {
+     "role": "president",
+     "alternate_role": null,
+     "name": "Rajesh Menon",
+     "on_behalf_of": null,
+     "decision": "pending",
+     "comment": null,
+     "decided_by": null
+    }
+   ]
+  },
+  {
+   "ref": "APR-033",
+   "code": "W20",
+   "title": "Owner change \u2013 A-204: Sanjay Gupta \u2192 Meera & Ravi Shankar (sale)",
+   "details": {
+    "Flat": "A-204 (2BHK, vacant)",
+    "Current owner": "Sanjay Gupta",
+    "New owner(s)": "Meera Shankar, Ravi Shankar (joint)",
+    "Sale deed": "Registered \u00b7 Doc no. 4417/2026, SRO Edappally",
+    "Dues check": "Pending \u20b912,500 \u2013 must be cleared before final approval",
+    "After approval": "Old owner archived; new owners invited by SMS/WhatsApp"
+   },
+   "initiator_name": "Lakshmi Pillai",
+   "initiator_role": "ec_member",
+   "category": "Membership",
+   "mom_required": false,
+   "mom_ref": null,
+   "high_risk": false,
+   "flagged": false,
+   "created_at": "2026-10-21T13:34:53.319760Z",
+   "steps": [
+    {
+     "role": "secretary",
+     "alternate_role": null,
+     "name": "Anitha Nair",
+     "on_behalf_of": null,
+     "decision": "pending",
+     "comment": null,
+     "decided_by": null
+    },
+    {
+     "role": "president",
+     "alternate_role": null,
+     "name": "Rajesh Menon",
+     "on_behalf_of": null,
+     "decision": "pending",
+     "comment": null,
+     "decided_by": null
+    }
+   ]
+  },
+  {
+   "ref": "APR-034",
+   "code": "W21",
+   "title": "Resident change \u2013 B-205: Nikhil Shah \u2192 Sneha Joseph (tenant)",
+   "details": {
+    "Flat": "B-205 (owner: Priya Varghese)",
+    "Outgoing resident": "Nikhil Shah \u2013 lease ends 31 Oct",
+    "Incoming resident": "Sneha Joseph + 2 family members (1 login, age 12+)",
+    "Lease": "1 Nov 2026 \u2013 31 Oct 2027",
+    "ID proofs": "3 uploaded (Aadhaar masked)",
+    "Police verification": "Form submitted",
+    "On approval": "Nikhil Shah's login + 1 family login disabled and archived; caretaker informed"
+   },
+   "initiator_name": "Lakshmi Pillai",
+   "initiator_role": "ec_member",
+   "category": "Membership",
+   "mom_required": false,
+   "mom_ref": null,
+   "high_risk": false,
+   "flagged": false,
+   "created_at": "2026-10-22T03:34:53.319760Z",
+   "steps": [
+    {
+     "role": "owner",
+     "alternate_role": null,
+     "name": "Priya Varghese",
+     "on_behalf_of": null,
+     "decision": "pending",
+     "comment": null,
+     "decided_by": null
+    },
+    {
+     "role": "secretary",
+     "alternate_role": "president",
+     "name": "Anitha Nair / Rajesh Menon",
+     "on_behalf_of": null,
+     "decision": "pending",
+     "comment": null,
+     "decided_by": null
+    }
+   ]
+  },
+  {
+   "ref": "APR-035",
+   "code": "W22",
+   "title": "Committee change \u2013 Joint Secretary: Biju Thomas resigns; co-opt Deepa Krishnan (C-401)",
+   "details": {
+    "Position": "Joint Secretary",
+    "Change type": "Resignation and co-option",
+    "Outgoing": "Biju Thomas (resignation letter uploaded)",
+    "Incoming": "Deepa Krishnan (C-401)",
+    "EC formal vote": "7 for \u00b7 1 against \u00b7 0 abstain (quorum met)",
+    "GBM ratification": "Required at AGM 2026 (office bearer)"
+   },
+   "initiator_name": "Anitha Nair",
+   "initiator_role": "secretary",
+   "category": "Committee",
+   "mom_required": true,
+   "mom_ref": "EC-2026-10 \u00b7 Decision #3",
+   "high_risk": false,
+   "flagged": false,
+   "created_at": "2026-10-21T06:34:53.319760Z",
+   "steps": [
+    {
+     "role": "president",
+     "alternate_role": null,
+     "name": "Rajesh Menon",
+     "on_behalf_of": null,
+     "decision": "pending",
+     "comment": null,
+     "decided_by": null
+    }
+   ]
+  },
+  {
+   "ref": "APR-030",
+   "code": "W12",
+   "title": "Onam 2026 celebration \u2013 voluntary fund request",
+   "details": {
+    "Type": "Adhoc",
+    "Amount": "Voluntary (suggested \u20b91,000)",
+    "Applies to": "All flats",
+    "Due date": "30 Aug"
+   },
+   "initiator_name": "Anitha Nair",
+   "initiator_role": "secretary",
+   "category": "General",
+   "mom_required": true,
+   "mom_ref": "EC-2026-09 \u00b7 Decision #2",
+   "high_risk": false,
+   "flagged": false,
+   "created_at": "2026-10-20T09:34:53.319760Z",
+   "steps": [
+    {
+     "role": "president",
+     "alternate_role": null,
+     "name": "Rajesh Menon",
+     "on_behalf_of": null,
+     "decision": "pending",
+     "comment": null,
+     "decided_by": null
+    }
+   ]
+  },
+  {
+   "ref": "APR-029",
+   "code": "W6",
+   "title": "Appoint Lakshmi Pillai as Monitor \u2013 STP, Gym, Cleaning (3 months)",
+   "details": {
+    "Monitor": "Lakshmi Pillai (EC)",
+    "Categories": "STP, Gym, Cleaning",
+    "Duration": "1 Oct \u2013 31 Dec 2026"
+   },
+   "initiator_name": "Anitha Nair",
+   "initiator_role": "secretary",
+   "category": "General",
+   "mom_required": false,
+   "mom_ref": null,
+   "high_risk": false,
+   "flagged": false,
+   "created_at": "2026-10-19T09:34:53.319760Z",
+   "steps": [
+    {
+     "role": "president",
+     "alternate_role": null,
+     "name": "Rajesh Menon",
+     "on_behalf_of": null,
+     "decision": "pending",
+     "comment": null,
+     "decided_by": null
+    }
+   ]
+  },
+  {
+   "ref": "APR-028",
+   "code": "W10",
+   "title": "New tenant for C-302 \u2013 Arun Das + 2 family members",
+   "details": {
+    "Lease": "1 Oct 2026 \u2013 30 Sep 2027",
+    "ID proofs": "3 uploaded (Aadhaar masked)",
+    "Police verification": "Form submitted",
+    "Family logins": "1 (spouse)"
+   },
+   "initiator_name": "George Antony (Owner)",
+   "initiator_role": "owner",
+   "category": "General",
+   "mom_required": false,
+   "mom_ref": null,
+   "high_risk": false,
+   "flagged": false,
+   "created_at": "2026-10-21T09:34:53.319760Z",
+   "steps": [
+    {
+     "role": "secretary",
+     "alternate_role": null,
+     "name": "Anitha Nair",
+     "on_behalf_of": null,
+     "decision": "pending",
+     "comment": null,
+     "decided_by": null
+    }
+   ]
+  },
+  {
+   "ref": "APR-027",
+   "code": "W16",
+   "title": "Late fee rule: \u20b9100 after 15-day grace, cap \u20b9500",
+   "details": {
+    "Rule": "Flat \u20b9100 after 15 days",
+    "Cap": "\u20b9500 per due",
+    "Excludes": "Voluntary fund requests",
+    "Effective": "From Nov 2026 dues"
+   },
+   "initiator_name": "Anitha Nair & Thomas Kurian",
+   "initiator_role": "secretary",
+   "category": "General",
+   "mom_required": true,
+   "mom_ref": "EC-2026-08 \u00b7 Decision #6",
+   "high_risk": false,
+   "flagged": false,
+   "created_at": "2026-10-17T09:34:53.319760Z",
+   "steps": [
+    {
+     "role": "president",
+     "alternate_role": null,
+     "name": "Rajesh Menon",
+     "on_behalf_of": null,
+     "decision": "approved",
+     "comment": null,
+     "decided_by": null
+    }
+   ]
+  }
+ ]
+}
