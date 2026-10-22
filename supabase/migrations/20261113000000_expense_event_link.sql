@@ -1,4 +1,4 @@
-alter table expenses add column event_id uuid references community_events(id) on delete set null;
+alter table expenses add column if not exists event_id uuid references community_events(id) on delete set null;
 
 create function validate_expense_event_association() returns trigger
 language plpgsql set search_path=public as $$
