@@ -190,7 +190,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                 TextField(controller: _deed, decoration: const InputDecoration(labelText: 'Sale deed / registration number')),
               ],
               if (t == MembershipRequestType.resident) ...[
-                _info('Owner (will be asked to consent)', flat.ownerName),
+                _info(ownerSelf ? 'Owner' : 'Owner (will be asked to consent)', flat.ownerName),
                 _info('Outgoing resident', flat.residentName ?? 'None'),
                 TextField(controller: _newName, decoration: const InputDecoration(labelText: 'Incoming resident name *')),
                 const SizedBox(height: 12),
