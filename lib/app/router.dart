@@ -4,19 +4,27 @@ import 'package:go_router/go_router.dart';
 
 import '../features/approvals/approval_detail_screen.dart';
 import '../features/approvals/approvals_screen.dart';
+import '../features/amenities/amenities_screen.dart';
 import '../features/approvals/membership_request_screen.dart';
+import '../features/archive/archive_screen.dart';
+import '../features/attendance/staff_attendance_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/checklist/checklist_screen.dart';
 import '../features/complaints/complaint_detail_screen.dart';
 import '../features/complaints/complaints_screen.dart';
 import '../features/complaints/raise_complaint_screen.dart';
+import '../features/community/community_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/directory/directory_screen.dart';
 import '../features/finance/finance_screen.dart';
+import '../features/registers/association_register_screen.dart';
+import '../features/registers/association_documents_screen.dart';
 import '../features/finance/my_dues_screen.dart';
+import '../features/attendance/household_staff_screen.dart';
 import '../features/meetings/meetings_screen.dart';
 import '../features/notices/notices_screen.dart';
 import '../features/shell/app_shell.dart';
+import '../features/shell/association_settings_screen.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
 import 'nav.dart';
@@ -72,6 +80,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           GoRoute(path: '/checklist', pageBuilder: (_, _) => _page(const ChecklistScreen())),
+          GoRoute(path: '/attendance', pageBuilder: (_, _) => _page(const StaffAttendanceScreen())),
+          GoRoute(path: '/household-staff', pageBuilder: (_, _) => _page(const HouseholdStaffScreen())),
+          GoRoute(path: '/archive', pageBuilder: (_, _) => _page(const ArchiveScreen())),
+          GoRoute(path: '/registers', pageBuilder: (_, _) => _page(const AssociationRegisterScreen())),
+          GoRoute(path: '/association-documents', pageBuilder: (_, _) => _page(const AssociationDocumentsScreen())),
+          GoRoute(path: '/association-settings', pageBuilder: (_, _) => _page(const AssociationSettingsScreen())),
+          GoRoute(path: '/amenities', pageBuilder: (_, _) => _page(const AmenitiesScreen())),
+          GoRoute(path: '/community', pageBuilder: (_, _) => _page(const CommunityScreen())),
           GoRoute(
             path: '/approvals',
             pageBuilder: (_, _) => _page(const ApprovalsScreen()),
@@ -90,6 +106,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           GoRoute(path: '/finance', pageBuilder: (_, _) => _page(const FinanceScreen())),
+          GoRoute(path: '/statements', pageBuilder: (_, _) => _page(const StatementsScreen())),
           GoRoute(path: '/dues', pageBuilder: (_, _) => _page(const MyDuesScreen())),
           GoRoute(path: '/meetings', pageBuilder: (_, _) => _page(const MeetingsScreen())),
           GoRoute(path: '/directory', pageBuilder: (_, _) => _page(const DirectoryScreen())),

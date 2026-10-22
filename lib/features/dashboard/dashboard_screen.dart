@@ -21,12 +21,14 @@ class DashboardScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final s = ref.watch(sessionProvider)!;
     final body = switch (s.activeRole) {
+      Role.admin => const _PresidentDash(),
       Role.president => const _PresidentDash(),
       Role.secretary || Role.jointSecretary || Role.vicePresident => const _SecretaryDash(),
       Role.treasurer || Role.jointTreasurer => const _TreasurerDash(),
       Role.owner => const _OwnerDash(),
       Role.resident => const _ResidentDash(),
       Role.caretaker => const _CaretakerDash(),
+      Role.security => const _CaretakerDash(),
       Role.monitor || Role.ecMember => const _MonitorDash(),
       Role.auditor => const _AuditorDash(),
     };
@@ -53,8 +55,11 @@ class _SlaSummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider);
-    final open = ref.watch(complaintsProvider).where((c) => c.slaApplies).toList();
-    int n(SlaColor c) => open.where((x) => slaFor(x, now).color == c).length;
+    final tracked = ref
+        .watch(complaintsProvider)
+        .where((c) => !c.kind.isEnhancement && !c.inReview)
+        .toList();
+    int n(SlaColor c) => tracked.where((x) => slaFor(x, now).color == c).length;
     Widget seg(SlaColor c, String label) => Expanded(
       flex: n(c) == 0 ? 1 : n(c) * 3,
       child: Container(
@@ -72,10 +77,18 @@ class _SlaSummary extends ConsumerWidget {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(10),
-          child: Row(children: [seg(SlaColor.green, 'Green'), seg(SlaColor.amber, 'Amber'), seg(SlaColor.red, 'Red')]),
+          child: Row(
+            children: [
+              seg(SlaColor.blue, 'Open ${n(SlaColor.blue)}'),
+              seg(SlaColor.amber, 'Attention ${n(SlaColor.amber)}'),
+              seg(SlaColor.red, 'Overdue ${n(SlaColor.red)}'),
+              seg(SlaColor.green, 'Done ${n(SlaColor.green)}'),
+              seg(SlaColor.grey, 'Closed ${n(SlaColor.grey)}'),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
-        for (final c in open.where((x) => slaFor(x, now).color == SlaColor.red)) ComplaintTile(complaint: c),
+        for (final c in tracked.where((x) => slaFor(x, now).color == SlaColor.red)) ComplaintTile(complaint: c),
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
@@ -150,6 +163,7 @@ class _PresidentDash extends ConsumerWidget {
     final dues = ref.watch(duesProvider).lines;
     final total = dues.fold(0, (a, x) => a + x.amount);
     final paid = dues.fold(0, (a, x) => a + x.paid);
+    final collectionPercent = total == 0 ? null : (paid / total * 100).round();
     final flagged = ref.watch(expensesProvider).where((e) => e.flagged).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -171,7 +185,7 @@ class _PresidentDash extends ConsumerWidget {
             ),
             StatCard(
               label: 'Collection',
-              value: '${(paid / total * 100).round()}%',
+              value: collectionPercent == null ? '—' : '$collectionPercent%',
               icon: Icons.savings_outlined,
               color: AppColors.green,
               sub: '${inr.format(paid)} of ${inr.format(total)}',
@@ -249,7 +263,7 @@ class _SecretaryDash extends ConsumerWidget {
               value: '${open.length}',
               icon: Icons.report_problem_outlined,
               color: AppColors.amber,
-              sub: 'G ${n(SlaColor.green)} · A ${n(SlaColor.amber)} · R ${n(SlaColor.red)}',
+              sub: 'B ${n(SlaColor.blue)} · A ${n(SlaColor.amber)} · R ${n(SlaColor.red)}',
               onTap: () => context.go('/complaints'),
             ),
             StatCard(

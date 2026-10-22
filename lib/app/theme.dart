@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/models.dart';
 import '../models/sla.dart';
 
 class AppColors {
@@ -9,15 +10,28 @@ class AppColors {
   static const red = Color(0xFFDC2626);
 
   static Color sla(SlaColor c) => switch (c) {
-    SlaColor.green => green,
+    SlaColor.blue => const Color(0xFF2563EB),
     SlaColor.amber => amber,
     SlaColor.red => red,
+    SlaColor.green => green,
+    SlaColor.grey => const Color(0xFF64748B),
+  };
+
+  static Color complaintStatus(TicketStatus status) => switch (status) {
+    TicketStatus.pendingReview => const Color(0xFF7C3AED),
+    TicketStatus.newTicket || TicketStatus.assigned || TicketStatus.inProgress => const Color(0xFF2563EB),
+    TicketStatus.onHold => amber,
+    TicketStatus.resolved => green,
+    TicketStatus.closed || TicketStatus.rejected => const Color(0xFF64748B),
+    TicketStatus.planned => const Color(0xFF0F766E),
   };
 }
 
 class AppTheme {
-  static ThemeData get light {
-    final scheme = ColorScheme.fromSeed(seedColor: AppColors.seed);
+  static ThemeData get light => lightForSeed(AppColors.seed);
+
+  static ThemeData lightForSeed(Color seed) {
+    final scheme = ColorScheme.fromSeed(seedColor: seed);
     return ThemeData(
       colorScheme: scheme,
       useMaterial3: true,

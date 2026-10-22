@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../backend/backend.dart' show backendEnabled;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
@@ -14,55 +15,55 @@ class MeetingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final role = ref.watch(sessionProvider)!.activeRole;
+    final meetings = ref.watch(meetingsProvider);
     final now = DateTime.now();
-    final all = ref.watch(meetingsProvider);
-    final visible = all.where((m) => role.isCommittee || m.type == 'General Body').toList();
-    final upcoming = visible.where((m) => m.at.isAfter(now)).toList();
-    final past = visible.where((m) => !m.at.isAfter(now)).toList();
-    final canSchedule = role == Role.secretary || role == Role.president;
+    final visible = meetings.where((meeting) => role.isCommittee || meeting.type == 'General Body').toList();
+    final upcoming = visible.where((meeting) => meeting.at.isAfter(now)).toList();
+    final past = visible.where((meeting) => !meeting.at.isAfter(now)).toList();
+    final canManage = role == Role.admin || role == Role.secretary || role == Role.president;
 
     return PageBody(
       children: [
         Row(
           children: [
-            Expanded(
-              child: Text(
-                l.meetings,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-            if (canSchedule)
+            Expanded(child: Text(l.meetings, style: Theme.of(context).textTheme.headlineSmall)),
+            if (canManage)
               FilledButton.icon(
                 onPressed: () => _schedule(context, ref),
                 icon: const Icon(Icons.event),
-                label: const Text('Schedule meeting'),
+                label: Text(l.scheduleMeeting),
               ),
           ],
         ),
         const SizedBox(height: 12),
-        Text('Upcoming', style: Theme.of(context).textTheme.titleMedium),
+        Text(l.meetingsUpcoming, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        for (final m in upcoming) _MeetingCard(meeting: m, canManage: canSchedule),
+        if (upcoming.isEmpty) EmptyState(l.noUpcomingMeetings, icon: Icons.event_outlined),
+        for (final meeting in upcoming)
+          _MeetingCard(meeting: meeting, canManage: canManage, canApproveMinutes: role == Role.president),
         const SizedBox(height: 16),
-        Text('Past', style: Theme.of(context).textTheme.titleMedium),
+        Text(l.meetingsPast, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        for (final m in past) _MeetingCard(meeting: m, canManage: canSchedule),
+        if (past.isEmpty) EmptyState(l.noPastMeetings, icon: Icons.history),
+        for (final meeting in past)
+          _MeetingCard(meeting: meeting, canManage: canManage, canApproveMinutes: role == Role.president),
       ],
     );
   }
 
   Future<void> _schedule(BuildContext context, WidgetRef ref) async {
+    final l = AppLocalizations.of(context);
     var type = 'Executive Committee';
     var mode = MeetingMode.hybrid;
     var platform = 'Google Meet';
+    var at = DateTime.now().add(const Duration(days: 7));
     final title = TextEditingController(text: 'EC meeting – special');
-    final agenda = TextEditingController(text: 'Lift AMC renewal\nCCTV upgrade quotes');
-    final when = DateTime.now().add(const Duration(days: 7));
-    await showDialog(
+    final agenda = TextEditingController();
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Schedule meeting'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(l.scheduleMeeting),
           content: SizedBox(
             width: 460,
             child: SingleChildScrollView(
@@ -71,100 +72,119 @@ class MeetingsScreen extends ConsumerWidget {
                 children: [
                   DropdownButtonFormField<String>(
                     initialValue: type,
-                    decoration: const InputDecoration(labelText: 'Meeting type'),
+                    decoration: InputDecoration(labelText: l.meetingType),
                     items: [
-                      for (final t in const ['Executive Committee', 'Office bearers', 'Staff meeting', 'General Body'])
-                        DropdownMenuItem(value: t, child: Text(t)),
+                      for (final value in const ['Executive Committee', 'Office bearers', 'Staff meeting', 'General Body'])
+                        DropdownMenuItem(value: value, child: Text(value)),
                     ],
-                    onChanged: (v) => setState(() => type = v!),
+                    onChanged: (value) => setDialogState(() => type = value ?? type),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: title,
-                    decoration: const InputDecoration(labelText: 'Title'),
-                  ),
+                  TextField(controller: title, decoration: InputDecoration(labelText: '${l.meetingTitle} *')),
                   const SizedBox(height: 12),
                   SegmentedButton<MeetingMode>(
                     segments: const [
-                      ButtonSegment(value: MeetingMode.inPerson, label: Text('In person')),
-                      ButtonSegment(value: MeetingMode.online, label: Text('Online')),
-                      ButtonSegment(value: MeetingMode.hybrid, label: Text('Hybrid')),
+                      ButtonSegment(value: MeetingMode.inPerson, label: Text(l.inPerson)),
+                      ButtonSegment(value: MeetingMode.online, label: Text(l.online)),
+                      ButtonSegment(value: MeetingMode.hybrid, label: Text(l.hybrid)),
                     ],
                     selected: {mode},
-                    onSelectionChanged: (s) => setState(() => mode = s.first),
+                    onSelectionChanged: (values) => setDialogState(() => mode = values.first),
                   ),
                   if (mode != MeetingMode.inPerson) ...[
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: platform,
-                      decoration: const InputDecoration(labelText: 'Platform (link auto-generated)'),
+                      decoration: InputDecoration(labelText: l.platform),
                       items: [
-                        for (final p in const ['Google Meet', 'Zoom', 'Microsoft Teams'])
-                          DropdownMenuItem(value: p, child: Text(p)),
+                        for (final value in const ['Google Meet', 'Zoom', 'Microsoft Teams'])
+                          DropdownMenuItem(value: value, child: Text(value)),
                       ],
-                      onChanged: (v) => setState(() => platform = v!),
+                      onChanged: (value) => setDialogState(() => platform = value ?? platform),
                     ),
                   ],
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: agenda,
-                    maxLines: 3,
-                    decoration: const InputDecoration(labelText: 'Agenda (one per line)'),
+                  TextButton.icon(
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: dialogContext,
+                        initialDate: at,
+                        firstDate: DateUtils.dateOnly(DateTime.now()),
+                        lastDate: DateTime.now().add(const Duration(days: 730)),
+                      );
+                      if (date == null || !dialogContext.mounted) return;
+                      final time = await showTimePicker(context: dialogContext, initialTime: TimeOfDay.fromDateTime(at));
+                      if (time != null && dialogContext.mounted) {
+                        setDialogState(() => at = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+                      }
+                    },
+                    icon: const Icon(Icons.calendar_month_outlined),
+                    label: Text(dateTimeFmt.format(at)),
                   ),
+                  TextField(controller: agenda, maxLines: 3, decoration: InputDecoration(labelText: l.meetingAgenda)),
                   const SizedBox(height: 8),
-                  Text(
-                    'Invites go to all $type members by email (calendar invite), WhatsApp and app notification. Date: ${dateTimeFmt.format(DateTime(when.year, when.month, when.day, 19, 30))}',
-                    style: const TextStyle(fontSize: 12),
-                  ),
+                  Text(l.meetingSaved, style: const TextStyle(fontSize: 12)),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l.cancel)),
             FilledButton(
-              onPressed: () {
-                ref
-                    .read(meetingsProvider.notifier)
-                    .add(
-                      Meeting(
-                        id: 'M-${DateTime.now().millisecond}',
-                        type: type,
-                        title: title.text,
-                        at: DateTime(when.year, when.month, when.day, 19, 30),
-                        mode: mode,
-                        platform: mode == MeetingMode.inPerson ? null : platform,
-                        venue: mode == MeetingMode.online ? null : 'Association office',
-                        agenda: agenda.text.split('\n').where((x) => x.trim().isNotEmpty).toList(),
-                        invited: type == 'General Body' ? 120 : 9,
-                      ),
-                    );
-                Navigator.pop(ctx);
-                toast(context, 'Meeting scheduled and invites sent');
-              },
-              child: const Text('Send invites'),
+              onPressed: title.text.trim().isEmpty ? null : () => Navigator.pop(dialogContext, true),
+              child: Text(l.submit),
             ),
           ],
         ),
       ),
     );
+    if (saved != true || !context.mounted) {
+      title.dispose();
+      agenda.dispose();
+      return;
+    }
+    try {
+      await ref.read(meetingsProvider.notifier).add(
+        Meeting(
+          id: backendEnabled ? '' : 'M-${DateTime.now().microsecondsSinceEpoch}',
+          type: type,
+          title: title.text.trim(),
+          at: at,
+          mode: mode,
+          platform: mode == MeetingMode.inPerson ? null : platform,
+          venue: mode == MeetingMode.online ? null : 'Association office',
+          agenda: agenda.text.split('\n').where((line) => line.trim().isNotEmpty).toList(),
+        ),
+      );
+      if (context.mounted) toast(context, l.meetingSaved);
+    } catch (error) {
+      if (context.mounted) toast(context, '$error');
+    } finally {
+      title.dispose();
+      agenda.dispose();
+    }
   }
 }
 
 class _MeetingCard extends ConsumerWidget {
-  const _MeetingCard({required this.meeting, required this.canManage});
+  const _MeetingCard({required this.meeting, required this.canManage, required this.canApproveMinutes});
+
   final Meeting meeting;
   final bool canManage;
+  final bool canApproveMinutes;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final m = meeting;
-    final upcoming = m.at.isAfter(DateTime.now());
-    final modeText = switch (m.mode) {
-      MeetingMode.inPerson => 'In person · ${m.venue}',
-      MeetingMode.online => 'Online · ${m.platform}',
-      MeetingMode.hybrid => 'Hybrid · ${m.venue} + ${m.platform}',
+    final l = AppLocalizations.of(context);
+    final meeting = this.meeting;
+    final upcoming = meeting.at.isAfter(DateTime.now());
+    final modeText = switch (meeting.mode) {
+      MeetingMode.inPerson => '${l.inPerson} · ${meeting.venue}',
+      MeetingMode.online => '${l.online} · ${meeting.platform}',
+      MeetingMode.hybrid => '${l.hybrid} · ${meeting.venue} + ${meeting.platform}',
     };
+    final approvedMinutes = meeting.minutesStatus == 'approved' || meeting.minutesStatus == 'Approved by President';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -174,25 +194,25 @@ class _MeetingCard extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Pill(m.type, color: Theme.of(context).colorScheme.primary),
+                Pill(meeting.type, color: Theme.of(context).colorScheme.primary),
                 const Spacer(),
-                Text(dateTimeFmt.format(m.at), style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(dateTimeFmt.format(meeting.at), style: const TextStyle(fontWeight: FontWeight.w600)),
               ],
             ),
             const SizedBox(height: 8),
-            Text(m.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(meeting.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
             Text(modeText, style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 8),
-            for (final a in m.agenda) Text('• $a'),
+            for (final item in meeting.agenda) Text('• $item'),
             const SizedBox(height: 8),
             Wrap(
               spacing: 6,
               runSpacing: 6,
               children: [
-                Pill('${m.accepted} accepted', color: AppColors.green),
-                Pill('${m.tentative} tentative', color: AppColors.amber),
-                Pill('${m.declined} declined', color: AppColors.red),
-                Pill('${m.invited - m.accepted - m.tentative - m.declined} no reply', color: Colors.blueGrey),
+                Pill('${meeting.accepted} ${l.accepted}', color: AppColors.green),
+                Pill('${meeting.tentative} ${l.tentativeCount}', color: AppColors.amber),
+                Pill('${meeting.declined} ${l.declined}', color: AppColors.red),
+                Pill('${meeting.invited - meeting.accepted - meeting.tentative - meeting.declined} ${l.noReply}', color: Colors.blueGrey),
               ],
             ),
             const SizedBox(height: 12),
@@ -205,26 +225,27 @@ class _MeetingCard extends ConsumerWidget {
                   SegmentedButton<Rsvp>(
                     emptySelectionAllowed: true,
                     segments: const [
-                      ButtonSegment(value: Rsvp.accepted, label: Text('Accept')),
-                      ButtonSegment(value: Rsvp.tentative, label: Text('Tentative')),
-                      ButtonSegment(value: Rsvp.declined, label: Text('Decline')),
+                      ButtonSegment(value: Rsvp.accepted, label: Text(l.accept)),
+                      ButtonSegment(value: Rsvp.tentative, label: Text(l.tentative)),
+                      ButtonSegment(value: Rsvp.declined, label: Text(l.decline)),
                     ],
-                    selected: m.myRsvp == Rsvp.pending ? <Rsvp>{} : {m.myRsvp},
-                    onSelectionChanged: (s) {
-                      if (s.isNotEmpty) ref.read(meetingsProvider.notifier).rsvp(m.id, s.first);
+                    selected: meeting.myRsvp == Rsvp.pending ? <Rsvp>{} : {meeting.myRsvp},
+                    onSelectionChanged: (values) async {
+                      if (values.isEmpty) return;
+                      try {
+                        await ref.read(meetingsProvider.notifier).rsvp(meeting.id, values.first);
+                      } catch (error) {
+                        if (context.mounted) toast(context, '$error');
+                      }
                     },
                   ),
-                  if (m.platform != null)
-                    TextButton.icon(
-                      onPressed: () => toast(context, 'Opens ${m.platform} link'),
-                      icon: const Icon(Icons.videocam_outlined),
-                      label: const Text('Join link'),
-                    ),
+                  if (meeting.platform != null)
+                    Text(l.meetingLinkNotConfigured, style: const TextStyle(fontSize: 12)),
                   if (canManage)
                     TextButton.icon(
-                      onPressed: () => toast(context, 'Reschedule: pick new date; all invitees notified'),
+                      onPressed: () => _reschedule(context, ref, meeting),
                       icon: const Icon(Icons.update),
-                      label: const Text('Reschedule'),
+                      label: Text(l.meetingReschedule),
                     ),
                 ],
               )
@@ -235,18 +256,35 @@ class _MeetingCard extends ConsumerWidget {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Pill(
-                    m.minutesStatus ?? 'Minutes pending',
-                    color: m.minutesStatus != null ? AppColors.green : AppColors.amber,
+                    switch (meeting.minutesStatus) {
+                      'draft' => l.minutesDraft,
+                      'pending_approval' => l.minutesPendingApproval,
+                      'approved' || 'Approved by President' => l.minutesApproved,
+                      _ => l.minutesPending,
+                    },
+                    color: approvedMinutes ? AppColors.green : AppColors.amber,
                     icon: Icons.description_outlined,
                   ),
-                  if (canManage && m.minutesStatus == null)
+                  if (canManage && (meeting.minutesStatus == null || meeting.minutesStatus == 'draft'))
                     FilledButton.tonalIcon(
-                      onPressed: () => _aiMinutes(context, m),
-                      icon: const Icon(Icons.auto_awesome),
-                      label: const Text('Draft minutes with AI'),
+                      onPressed: () => _editMinutes(context, ref, meeting),
+                      icon: const Icon(Icons.edit_note_outlined),
+                      label: Text(meeting.minutesStatus == 'draft' ? l.editMinutes : l.writeMinutes),
                     ),
-                  if (m.minutesStatus != null)
-                    TextButton(onPressed: () => toast(context, 'Opens locked MOM PDF'), child: const Text('View MOM')),
+                  if (canManage && meeting.minutesStatus == 'draft')
+                    TextButton.icon(
+                      onPressed: () => _submitMinutes(context, ref, meeting),
+                      icon: const Icon(Icons.send_outlined),
+                      label: Text(l.submitForApproval),
+                    ),
+                  if (canApproveMinutes && meeting.minutesStatus == 'pending_approval')
+                    FilledButton.tonalIcon(
+                      onPressed: () => _approveMinutes(context, ref, meeting),
+                      icon: const Icon(Icons.verified_outlined),
+                      label: Text(l.approveMinutes),
+                    ),
+                  if (approvedMinutes)
+                    TextButton(onPressed: () => _viewMinutes(context, meeting), child: Text(l.viewMinutes)),
                 ],
               ),
           ],
@@ -255,45 +293,96 @@ class _MeetingCard extends ConsumerWidget {
     );
   }
 
-  void _aiMinutes(BuildContext context, Meeting m) {
-    showDialog(
+  Future<void> _editMinutes(BuildContext context, WidgetRef ref, Meeting meeting) async {
+    final l = AppLocalizations.of(context);
+    final minutes = TextEditingController(text: meeting.minutesText ?? _minutesTemplate(meeting));
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('AI draft minutes'),
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l.minutesTitle),
         content: SizedBox(
           width: 520,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Source: Google Meet transcript (uploaded)', style: TextStyle(fontSize: 12)),
-                const Divider(),
-                Text(m.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                const Text('Attendees: 8 of 9 EC members (quorum met)'),
-                const SizedBox(height: 8),
-                const Text('Decisions', style: TextStyle(fontWeight: FontWeight.w600)),
-                for (var i = 0; i < m.agenda.length; i++)
-                  Text('D${i + 1}. ${m.agenda[i]} – approved (6 for, 1 against, 1 abstain)'),
-                const SizedBox(height: 8),
-                const Text('Action items', style: TextStyle(fontWeight: FontWeight.w600)),
-                const Text('A1. Treasurer to collect 3 quotes – due in 14 days'),
-                const Text('A2. Secretary to circulate notice to owners – due in 7 days'),
-              ],
-            ),
+          child: TextField(
+            controller: minutes,
+            maxLines: 14,
+            maxLength: 30000,
+            decoration: const InputDecoration(labelText: 'Minutes', alignLabelWithHint: true, border: OutlineInputBorder()),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              toast(context, 'Draft saved. Circulated to attendees for comments, then President approval.');
-            },
-            child: const Text('Save as draft'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(l.saveDraft)),
         ],
       ),
     );
+    if (saved == true) {
+      try {
+        await ref.read(meetingsProvider.notifier).saveMinutes(meeting.id, minutes.text);
+      } catch (error) {
+        if (context.mounted) toast(context, '$error');
+      }
+    }
+    minutes.dispose();
   }
+
+  Future<void> _submitMinutes(BuildContext context, WidgetRef ref, Meeting meeting) async {
+    try {
+      await ref.read(meetingsProvider.notifier).submitMinutes(meeting.id);
+    } catch (error) {
+      if (context.mounted) toast(context, '$error');
+    }
+  }
+
+  Future<void> _approveMinutes(BuildContext context, WidgetRef ref, Meeting meeting) async {
+    try {
+      await ref.read(meetingsProvider.notifier).approveMinutes(meeting.id);
+    } catch (error) {
+      if (context.mounted) toast(context, '$error');
+    }
+  }
+
+  Future<void> _reschedule(BuildContext context, WidgetRef ref, Meeting meeting) async {
+    final l = AppLocalizations.of(context);
+    final date = await showDatePicker(
+      context: context,
+      initialDate: meeting.at,
+      firstDate: DateUtils.dateOnly(DateTime.now()),
+      lastDate: DateTime.now().add(const Duration(days: 730)),
+    );
+    if (date == null || !context.mounted) return;
+    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(meeting.at));
+    if (time == null || !context.mounted) return;
+    try {
+      await ref.read(meetingsProvider.notifier).reschedule(meeting.id, DateTime(date.year, date.month, date.day, time.hour, time.minute));
+      if (context.mounted) toast(context, l.meetingSaved);
+    } catch (error) {
+      if (context.mounted) toast(context, '$error');
+    }
+  }
+
+  void _viewMinutes(BuildContext context, Meeting meeting) {
+    final l = AppLocalizations.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l.minutesApproved),
+        content: SizedBox(width: 520, child: SingleChildScrollView(child: SelectableText(meeting.minutesText ?? ''))),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l.no))],
+      ),
+    );
+  }
+
+  String _minutesTemplate(Meeting meeting) => [
+    meeting.title,
+    'Date: ${dateTimeFmt.format(meeting.at)}',
+    '',
+    'Attendees:',
+    '',
+    'Agenda and discussion:',
+    for (final item in meeting.agenda) '- $item',
+    '',
+    'Decisions:',
+    '',
+    'Action items:',
+  ].join('\n');
 }

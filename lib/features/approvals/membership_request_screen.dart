@@ -1,17 +1,22 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
+import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/directory_repo.dart' show friendlyError;
+import '../../backend/upload_preparation.dart' show maxSourceUploadBytes;
 import '../../models/models.dart';
 import '../../state/app_state.dart';
+import '../../state/directory_state.dart';
 import '../../state/demo_data.dart';
 import '../../widgets/common.dart';
 
 /// New membership / committee change requests (spec W20–W22).
 enum MembershipRequestType {
   owner('W20', 'Owner change', 'Sale, gift or inheritance of a flat'),
-  resident('W21', 'Resident change', 'New or outgoing tenant / occupant'),
+  resident('W21', 'Tenant / resident change', 'New or outgoing tenant / occupant'),
   committee('W22', 'Committee member change', 'President, Secretary, other office bearer or EC member');
 
   const MembershipRequestType(this.code, this.label, this.hint);
@@ -33,12 +38,17 @@ class MembershipRequestScreen extends ConsumerStatefulWidget {
 class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScreen> {
   String _flat = demoFlats.first.number;
   final _newName = TextEditingController();
+  final _email = TextEditingController();
   final _mobile = TextEditingController();
+  DateTime? _birthDate;
   final _deed = TextEditingController();
   final _lease = TextEditingController(text: '1 Nov 2026 – 31 Oct 2027');
   int _family = 1;
   bool _docs = false;
   bool _police = false;
+  bool _submitting = false;
+  String _proofType = 'Aadhaar (masked)';
+  List<({PlatformFile file, String type})> _proofs = [];
   String _position = 'Joint Secretary';
   String _changeType = 'Resignation and replacement';
   final _outgoing = TextEditingController();
@@ -47,56 +57,71 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
   final _against = TextEditingController(text: '1');
   final _abstain = TextEditingController(text: '0');
 
-  Flat get flat => demoFlats.firstWhere((f) => f.number == _flat);
+  Future<void> _pickProofs() async {
+    final files = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+    );
+    if (files.isEmpty) return;
+    if (!mounted) return;
+    for (final file in files) {
+      final size = await file.length();
+      if (!mounted) return;
+      if (size == null || size > maxSourceUploadBytes(file.extension ?? '')) {
+        toast(context, 'File exceeds the supported source size');
+        return;
+      }
+    }
+    setState(() => _proofs = [..._proofs, for (final file in files) (file: file, type: _proofType)]);
+  }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_submitting) return;
     final s = ref.read(sessionProvider)!;
     final role = s.activeRole;
     if (_newName.text.trim().isEmpty) {
       toast(context, 'Enter the incoming person\'s name');
       return;
     }
+    if (widget.type != MembershipRequestType.committee &&
+        (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_email.text.trim()) ||
+            !RegExp(r'^[+0-9() -]{5,24}$').hasMatch(_mobile.text.trim()) ||
+            _proofs.isEmpty)) {
+      toast(context, 'Enter a valid email and phone number, and attach at least one ID proof');
+      return;
+    }
     final notifier = ref.read(approvalsProvider.notifier);
     final id = notifier.nextId();
-    final f = flat;
-    final pendingDues = ref.read(duesProvider).pendingFor(f.number);
+    final directory = ref.read(directoryProvider);
+    final selectedFlat = directory.flat(_flat);
+    if (widget.type != MembershipRequestType.committee && selectedFlat == null) {
+      toast(context, 'Choose a valid flat');
+      return;
+    }
+    final flatOwner = directory.at(_flat, Role.owner).firstOrNull?.name ?? 'Owner not listed';
+    final outgoingResident = directory.at(_flat, Role.resident).firstOrNull?.name;
+    final pendingDues = ref.read(duesProvider).pendingFor(_flat);
     final ownerSelf = widget.type == MembershipRequestType.resident && role == Role.owner;
     late final ApprovalRequest req;
     switch (widget.type) {
       case MembershipRequestType.owner:
-        // Secretary AND President; the VP takes the initiator's slot (maker-checker).
-        final steps = switch (role) {
-          Role.secretary => const [
-            ApproverStep(role: Role.president, name: 'Rajesh Menon'),
-            ApproverStep(role: Role.vicePresident, name: 'Vice President', onBehalfOf: 'Secretary'),
-          ],
-          Role.president => const [
-            ApproverStep(role: Role.secretary, name: 'Anitha Nair'),
-            ApproverStep(role: Role.vicePresident, name: 'Vice President', onBehalfOf: 'President'),
-          ],
-          _ => const [
-            ApproverStep(role: Role.secretary, name: 'Anitha Nair'),
-            ApproverStep(role: Role.president, name: 'Rajesh Menon'),
-          ],
-        };
+        const steps = [ApproverStep(role: Role.president, name: 'President · first review')];
         req = ApprovalRequest(
           id: id,
           code: 'W20',
           category: 'Membership',
-          title: 'Owner change – ${f.number}: ${f.ownerName} → ${_newName.text.trim()}',
+          title: 'Owner change – $_flat: $flatOwner → ${_newName.text.trim()}',
           initiatorName: s.user.name,
           initiatorRole: role,
           createdAt: DateTime.now(),
           steps: steps,
           details: {
-            'Flat': '${f.number} (${f.type})',
-            'Current owner': f.ownerName,
+            'Flat': '${selectedFlat?.number ?? _flat} (${selectedFlat?.type ?? ''})',
+            'Current owner': flatOwner,
             'New owner(s)': '${_newName.text.trim()} · ${_mobile.text.trim()}',
             'Sale deed': _deed.text.trim().isEmpty ? 'Not entered' : _deed.text.trim(),
-            'Documents': _docs ? 'Sale deed + ID proofs uploaded' : 'Pending upload',
-            'Dues check': pendingDues == 0
-                ? 'All dues cleared ✓'
-                : 'Pending ${inr.format(pendingDues)} – must be cleared before final approval',
+            'Documents': _proofs.isNotEmpty ? '${_proofs.length} proof(s) attached' : 'Pending upload',
+            'Payment gate': 'Dues are checked after the first President approval. Any balance holds the new occupant out of active records until paid and reapproved.',
           },
         );
       case MembershipRequestType.resident:
@@ -104,23 +129,23 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
           id: id,
           code: 'W21',
           category: 'Membership',
-          title: 'Resident change – ${f.number}: ${f.residentName ?? 'vacant'} → ${_newName.text.trim()}',
+          title: 'Resident change – $_flat: ${outgoingResident ?? 'vacant'} → ${_newName.text.trim()}',
           initiatorName: s.user.name,
           initiatorRole: role,
           createdAt: DateTime.now(),
           steps: [
-            if (!ownerSelf) ApproverStep(role: Role.owner, name: f.ownerName),
-            const ApproverStep(role: Role.secretary, alternateRole: Role.president, name: 'Anitha Nair / Rajesh Menon'),
+            if (!ownerSelf) ApproverStep(role: Role.owner, name: flatOwner),
+            const ApproverStep(role: Role.president, name: 'President · first review'),
           ],
           details: {
-            'Flat': '${f.number} (owner: ${f.ownerName})',
+            'Flat': '$_flat (owner: $flatOwner)',
             'Owner consent': ownerSelf ? 'Given – request raised by the owner' : 'Requested in the owner\'s app',
-            'Outgoing resident': f.residentName ?? 'None (vacant / owner-occupied)',
+            'Outgoing resident': outgoingResident ?? 'None (vacant / owner-occupied)',
             'Incoming resident': '${_newName.text.trim()} + $_family family member(s)',
             'Lease': _lease.text.trim(),
-            'ID proofs': _docs ? 'Uploaded (Aadhaar masked)' : 'Pending upload',
+            'ID proofs': _proofs.isNotEmpty ? '${_proofs.length} proof(s) attached' : 'Pending upload',
             'Police verification': _police ? 'Form submitted' : 'Pending',
-            'On approval': 'Resident record updated; outgoing tenant and family logins disabled immediately and archived; new logins (age 12+) created; caretaker informed',
+            'Payment gate': 'After the first President approval, all flat dues are checked. Any balance keeps the new resident out of active gate-clearance records until paid and reapproved.',
           },
         );
       case MembershipRequestType.committee:
@@ -151,9 +176,43 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
           },
         );
     }
-    notifier.add(req);
-    toast(context, '$id submitted. Approvers notified.');
-    context.go('/approvals/$id');
+    setState(() => _submitting = true);
+    try {
+      final requestId = await notifier.add(req);
+      if (backendEnabled && widget.type != MembershipRequestType.committee) {
+        final f = selectedFlat!;
+        await ref.read(directoryProvider.notifier).createMembershipChange(
+          requestId: requestId!,
+          flat: f,
+          type: widget.type == MembershipRequestType.owner ? 'owner' : 'resident',
+          name: _newName.text.trim(),
+          email: _email.text.trim(),
+          mobile: _mobile.text.trim(),
+          birthDate: _birthDate,
+          leasePeriod: _lease.text.trim(),
+          familyCount: _family,
+        );
+        for (final proof in _proofs) {
+          final bytes = await proof.file.xFile.readAsBytes();
+          await ref.read(directoryProvider.notifier).uploadMembershipProof(
+            requestId: requestId,
+            name: _newName.text.trim(),
+            email: _email.text.trim(),
+            flatId: f.id!,
+            type: proof.type,
+            bytes: bytes,
+            ext: proof.file.extension ?? '',
+          );
+        }
+      }
+      if (!mounted) return;
+      toast(context, '$id submitted. Approvers notified.');
+      context.go('/approvals/$id');
+    } catch (e) {
+      if (mounted) toast(context, friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
@@ -161,9 +220,22 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
     final s = ref.watch(sessionProvider)!;
     final t = widget.type;
     final ownerSelf = t == MembershipRequestType.resident && s.activeRole == Role.owner;
-    final ownFlats = demoFlats
-        .where((f) => f.ownerName == s.user.name && f.occupancy != Occupancy.ownerOccupied)
-        .toList();
+    final canSelfRequest = (t == MembershipRequestType.owner && s.activeRole == Role.owner) ||
+      (t == MembershipRequestType.resident && (s.activeRole == Role.owner || s.activeRole == Role.resident));
+    final directory = ref.watch(directoryProvider);
+    if (directory.loading) {
+      return Scaffold(
+        appBar: AppBar(title: Text(t.label)),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (directory.error != null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(t.label)),
+        body: PageBody(children: [EmptyState(directory.error!, icon: Icons.error_outline)]),
+      );
+    }
+    final ownFlats = directory.flats.where((f) => directory.myFlatNumbers.contains(f.number)).toList();
     if (ownerSelf && ownFlats.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: Text(t.label)),
@@ -173,7 +245,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
         ),
       );
     }
-    if (!s.user.canInitiateMembership(s.activeRole) && !ownerSelf) {
+    if (!s.user.canInitiateMembership(s.activeRole) && !canSelfRequest) {
       return Scaffold(
         appBar: AppBar(title: Text(t.label)),
         body: const EmptyState(
@@ -183,12 +255,22 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
       );
     }
     final pendingDues = ref.watch(duesProvider).pendingFor(_flat);
-    final flats = ownerSelf
-        ? ownFlats
+    final flats = canSelfRequest
+      ? ownFlats
         : t == MembershipRequestType.resident
-        ? demoFlats.where((f) => f.occupancy != Occupancy.ownerOccupied).toList()
-        : demoFlats;
-    if (!flats.any((f) => f.number == _flat)) _flat = flats.first.number;
+      ? directory.flats.where((f) => f.occupancy != Occupancy.ownerOccupied).toList()
+      : directory.flats;
+    if (t != MembershipRequestType.committee && flats.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: Text(t.label)),
+        body: const PageBody(
+          children: [EmptyState('Add a flat before creating a membership change.', icon: Icons.home_outlined)],
+        ),
+      );
+    }
+    if (flats.isNotEmpty && !flats.any((f) => f.number == _flat)) _flat = flats.first.number;
+    final flatOwner = directory.at(_flat, Role.owner).firstOrNull?.name ?? 'Owner not listed';
+    final outgoingResident = directory.at(_flat, Role.resident).firstOrNull?.name;
 
     final flatPicker = DropdownButtonFormField<String>(
       initialValue: _flat,
@@ -197,18 +279,18 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
         for (final f in flats)
           DropdownMenuItem(
             value: f.number,
-            child: Text('${f.number} · ${f.ownerName}${f.residentName != null ? ' · tenant ${f.residentName}' : ''}'),
+            child: Text('${f.number} · ${f.type} · ${f.occupancy.name}'),
           ),
       ],
       onChanged: (v) => setState(() => _flat = v!),
     );
 
     final approvalsText = switch (t) {
-      MembershipRequestType.owner => 'Approvals: Secretary AND President (if one of them starts it, the VP takes that slot). Old owner is archived after approval.',
+      MembershipRequestType.owner => 'First: President review. After this, outstanding flat dues are checked; once paid, Secretary and President approve again before the new owner is activated.',
       MembershipRequestType.resident =>
         ownerSelf
-            ? 'Your consent is recorded. Secretary OR President approves; nothing changes until then. On approval the outgoing tenant\'s logins are disabled.'
-            : 'Approvals: flat owner\'s consent in the app, then Secretary OR President. Caretaker is informed.',
+            ? 'First: President review. After this, dues are checked; any balance pauses activation. Once paid, Secretary and President approve again before the new resident is activated.'
+            : 'First: flat-owner consent, then President review. After this, dues are checked; once paid, Secretary and President approve again before the new resident is activated.',
       MembershipRequestType.committee => 'Approvals: formal EC vote recorded in the MOM, then President (VP if the President is being changed). Office bearer changes need General Body ratification if bylaws require.',
     };
 
@@ -234,7 +316,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                 children: [
                   if (t != MembershipRequestType.committee) ...[flatPicker, const SizedBox(height: 12)],
                   if (t == MembershipRequestType.owner) ...[
-                    _info('Current owner', flat.ownerName),
+                    _info('Current owner', flatOwner),
                     if (pendingDues > 0)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
@@ -255,9 +337,29 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                     ),
                     const SizedBox(height: 12),
                     TextField(
+                      controller: _email,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(labelText: 'New owner email *'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
                       controller: _mobile,
                       keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(labelText: 'New owner mobile', prefixText: '+91 '),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
+                      decoration: const InputDecoration(labelText: 'New owner phone *', prefixText: '+91 '),
+                    ),
+                    TextButton.icon(
+                      onPressed: _submitting ? null : () async {
+                        final selected = await showDatePicker(
+                          context: context,
+                          initialDate: _birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
+                          firstDate: DateTime(1900),
+                          lastDate: DateUtils.dateOnly(DateTime.now()),
+                        );
+                        if (selected != null && mounted) setState(() => _birthDate = selected);
+                      },
+                      icon: const Icon(Icons.cake_outlined),
+                      label: Text(_birthDate == null ? 'Date of birth (optional)' : 'Date of birth · ${dateFmt.format(_birthDate!)}'),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -266,11 +368,37 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                     ),
                   ],
                   if (t == MembershipRequestType.resident) ...[
-                    _info(ownerSelf ? 'Owner' : 'Owner (will be asked to consent)', flat.ownerName),
-                    _info('Outgoing resident', flat.residentName ?? 'None'),
+                    _info(ownerSelf ? 'Owner' : 'Owner (will be asked to consent)', flatOwner),
+                    _info('Outgoing resident', outgoingResident ?? 'None'),
                     TextField(
                       controller: _newName,
                       decoration: const InputDecoration(labelText: 'Incoming resident name *'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _email,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(labelText: 'Incoming resident email *'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _mobile,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
+                      decoration: const InputDecoration(labelText: 'Incoming resident phone *', prefixText: '+91 '),
+                    ),
+                    TextButton.icon(
+                      onPressed: _submitting ? null : () async {
+                        final selected = await showDatePicker(
+                          context: context,
+                          initialDate: _birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
+                          firstDate: DateTime(1900),
+                          lastDate: DateUtils.dateOnly(DateTime.now()),
+                        );
+                        if (selected != null && mounted) setState(() => _birthDate = selected);
+                      },
+                      icon: const Icon(Icons.cake_outlined),
+                      label: Text(_birthDate == null ? 'Date of birth (optional)' : 'Date of birth · ${dateFmt.format(_birthDate!)}'),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -287,7 +415,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                         ),
                         Text('$_family'),
                         IconButton(
-                          onPressed: () => setState(() => _family++),
+                          onPressed: _family < 30 ? () => setState(() => _family++) : null,
                           icon: const Icon(Icons.add_circle_outline),
                         ),
                       ],
@@ -384,19 +512,41 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                     ),
                   ],
                   const SizedBox(height: 8),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _docs,
-                    onChanged: (v) => setState(() => _docs = v!),
-                    title: Text(
-                      t == MembershipRequestType.committee
-                          ? 'Resignation letter / consent uploaded'
-                          : 'Documents and ID proofs uploaded',
+                  if (t != MembershipRequestType.committee) ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: _proofType,
+                      decoration: const InputDecoration(labelText: 'ID proof type'),
+                      items: [for (final type in idDocTypes) DropdownMenuItem(value: type, child: Text(type))],
+                      onChanged: (value) => setState(() => _proofType = value ?? _proofType),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _submitting ? null : _pickProofs,
+                      icon: const Icon(Icons.upload_file_outlined),
+                      label: const Text('Attach ID proof (max 5 MB each)'),
+                    ),
+                    for (var i = 0; i < _proofs.length; i++)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.description_outlined),
+                        title: Text(_proofs[i].file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(_proofs[i].type),
+                        trailing: IconButton(
+                          tooltip: 'Remove file',
+                          onPressed: _submitting ? null : () => setState(() => _proofs.removeAt(i)),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ),
+                  ] else
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _docs,
+                      onChanged: (v) => setState(() => _docs = v!),
+                      title: const Text('Resignation letter / consent uploaded'),
+                    ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
-                    onPressed: _submit,
+                    onPressed: _submitting ? null : _submit,
                     icon: const Icon(Icons.send),
                     label: const Padding(padding: EdgeInsets.all(12), child: Text('Submit for approval')),
                   ),

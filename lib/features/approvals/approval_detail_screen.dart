@@ -2,10 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/membership_transition_repo.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
+
+final membershipTransitionChecklistProvider = FutureProvider.autoDispose.family<List<MembershipTransitionItem>, String>(
+  (ref, requestRef) => MembershipTransitionRepo.checklist(requestRef),
+);
+final membershipPaymentGateProvider = FutureProvider.autoDispose.family<({String status, int outstandingDue}), String>(
+  (ref, requestRef) => MembershipTransitionRepo.paymentGate(requestRef),
+);
 
 class ApprovalDetailScreen extends ConsumerWidget {
   const ApprovalDetailScreen({super.key, required this.id});
@@ -19,6 +28,25 @@ class ApprovalDetailScreen extends ConsumerWidget {
     final s = ref.watch(sessionProvider)!;
     final isInitiator = a.initiatorName.contains(s.user.name);
     final myTurn = a.awaits(s.activeRole, s.user.name);
+    final paymentGate = backendEnabled && (a.code == 'W20' || a.code == 'W21')
+      ? ref.watch(membershipPaymentGateProvider(a.id))
+      : null;
+    if (paymentGate != null) {
+      ref.listen(membershipPaymentGateProvider(a.id), (previous, next) {
+        final previousStatus = previous?.valueOrNull?.status;
+        final nextStatus = next.valueOrNull?.status;
+        if (previousStatus != null && nextStatus != null && previousStatus != nextStatus) {
+          ref.read(approvalsProvider.notifier).refresh();
+        }
+      });
+      ref.listen(duesProvider, (previous, next) {
+        if (previous != null &&
+            (previous.lines.length != next.lines.length || previous.payments.length != next.payments.length)) {
+          ref.invalidate(membershipPaymentGateProvider(a.id));
+        }
+      });
+    }
+    final paymentBlocked = paymentGate?.valueOrNull?.status == 'pending_payment_due';
     final notifier = ref.read(approvalsProvider.notifier);
     final theme = Theme.of(context);
 
@@ -60,7 +88,20 @@ class ApprovalDetailScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('${a.code} · ${a.id}')),
+      appBar: AppBar(
+        title: Text('${a.code} · ${a.id}'),
+        actions: [
+          if (paymentGate != null)
+            IconButton(
+              tooltip: 'Refresh payment and approvals',
+              onPressed: () {
+                ref.invalidate(membershipPaymentGateProvider(a.id));
+                ref.read(approvalsProvider.notifier).refresh();
+              },
+              icon: const Icon(Icons.refresh),
+            ),
+        ],
+      ),
       body: PageBody(
         maxWidth: 900,
         children: [
@@ -120,6 +161,46 @@ class ApprovalDetailScreen extends ConsumerWidget {
               ),
             ),
           ),
+          if (a.code == 'W20' || a.code == 'W21') ...[
+            const SizedBox(height: 16),
+            if (paymentGate != null)
+              SectionCard(
+                title: 'Payment and activation',
+                child: paymentGate.when(
+                  loading: () => const LinearProgressIndicator(),
+                  error: (error, _) => Text('$error'),
+                  data: (gate) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      gate.status == 'pending_payment_due' ? Icons.payments_outlined :
+                      gate.status == 'applied' ? Icons.verified_outlined : Icons.pending_actions_outlined,
+                      color: gate.status == 'pending_payment_due' ? AppColors.red :
+                          gate.status == 'applied' ? AppColors.green : AppColors.amber,
+                    ),
+                    title: Text(switch (gate.status) {
+                      'pending_first_approval' => 'Waiting for first President approval',
+                      'pending_payment_due' => 'Pending payment · ${inr.format(gate.outstandingDue)}',
+                      'pending_final_approval' => 'Dues cleared · awaiting Secretary and President',
+                      'applied' => 'Payment clear · membership activated',
+                      _ => 'Membership transition pending',
+                    }),
+                    subtitle: Text(switch (gate.status) {
+                      'pending_first_approval' => 'The outgoing record remains active until first approval.',
+                      'pending_payment_due' => 'The outgoing record is archived. The incoming person is not active for gate clearance.',
+                      'pending_final_approval' => 'Dues are currently zero; they are checked again before final activation.',
+                      'applied' => 'The incoming owner or tenant is now in active association records.',
+                      _ => '',
+                    }),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+            _MembershipTransitionChecklist(
+              request: a,
+              canEdit: (isInitiator || s.activeRole == Role.owner || s.user.canInitiateMembership(s.activeRole)) &&
+                  a.overall == Decision.pending,
+            ),
+          ],
           const SizedBox(height: 16),
           SectionCard(
             title: 'Approval chain',
@@ -153,7 +234,8 @@ class ApprovalDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          if (a.code == 'W21' && a.overall == Decision.approved) ...[
+            if (a.code == 'W21' &&
+              (backendEnabled ? paymentGate?.valueOrNull?.status == 'applied' : a.overall == Decision.approved)) ...[
             const Card(
               color: Color(0xFFF0FDF4),
               child: ListTile(
@@ -168,7 +250,7 @@ class ApprovalDetailScreen extends ConsumerWidget {
           ],
           if (isInitiator && a.overall == Decision.pending)
             const Card(child: EmptyState('You raised this request, so you cannot approve it.', icon: Icons.block)),
-          if (myTurn)
+          if (myTurn && !paymentBlocked)
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -203,6 +285,66 @@ class ApprovalDetailScreen extends ConsumerWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _MembershipTransitionChecklist extends ConsumerWidget {
+  const _MembershipTransitionChecklist({required this.request, required this.canEdit});
+
+  final ApprovalRequest request;
+  final bool canEdit;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(membershipTransitionChecklistProvider(request.id));
+    return SectionCard(
+      title: 'Move-in / move-out checklist',
+      child: items.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Text('$error'),
+        data: (entries) => Column(
+          children: [
+            for (final phase in const ['move_out', 'move_in']) ...[
+              if (entries.any((entry) => entry.phase == phase))
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(phase == 'move_out' ? 'Move-out' : 'Move-in', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              for (final entry in entries.where((entry) => entry.phase == phase))
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: entry.completed,
+                  onChanged: canEdit
+                      ? (value) async {
+                          var note = entry.note;
+                          if (value == true) {
+                            note = await promptText(context, title: entry.label, hint: 'Optional note or reference', required: false) ?? '';
+                            if (!context.mounted) return;
+                          }
+                          try {
+                            await MembershipTransitionRepo.update(entry.id, value ?? false, note);
+                            ref.invalidate(membershipTransitionChecklistProvider(request.id));
+                          } catch (error) {
+                            if (context.mounted) toast(context, '$error');
+                          }
+                        }
+                      : null,
+                  title: Text(entry.label),
+                  subtitle: Text([
+                    if (entry.required) 'Required before final approval',
+                    if (entry.completedAt != null) dateTimeFmt.format(entry.completedAt!),
+                    if (entry.note.isNotEmpty) entry.note,
+                  ].join(' · ')),
+                  secondary: entry.required ? const Icon(Icons.priority_high, color: AppColors.amber) : null,
+                ),
+            ],
+          ],
+        ),
       ),
     );
   }

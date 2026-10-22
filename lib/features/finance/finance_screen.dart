@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +10,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../app/theme.dart';
 import '../../backend/backend.dart';
 import '../../backend/directory_repo.dart' show friendlyError;
+import '../../backend/finance_repo.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
@@ -13,7 +19,11 @@ import '../../widgets/common.dart';
 import 'analysis_data.dart';
 import 'analysis_tab.dart';
 import 'charts.dart';
+import 'income_screen.dart';
 import 'treasurer_forms.dart';
+
+final monthlyStatementsProvider = FutureProvider.autoDispose<List<MonthlyStatement>>((ref) async =>
+  backendEnabled ? FinanceRepo.statements() : const []);
 
 class FinanceScreen extends ConsumerWidget {
   const FinanceScreen({super.key});
@@ -21,14 +31,16 @@ class FinanceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionProvider)!.activeRole;
+    final l = AppLocalizations.of(context);
     final full = role.isOfficeBearer || role == Role.auditor;
     final tabs = <(String, Widget)>[
       ('Overview', const _Overview()),
+      if (full) ('Income', const IncomeScreen()),
       ('Analysis', const AnalysisTab()),
       if (full) ('Dues & follow-ups', const _DuesTab()),
       if (full) ('Expenses', const _ExpensesTab()),
       ('Fund requests', const _FundRequestsTab()),
-      ('Statements', const _StatementsTab()),
+      ('Statements', const StatementsScreen()),
     ];
     return DefaultTabController(
       length: tabs.length,
@@ -48,8 +60,8 @@ class FinanceScreen extends ConsumerWidget {
               leading: const Icon(Icons.lock_clock),
               actions: [
                 TextButton(
-                  onPressed: () => toast(context, 'Auditor pack (Excel + PDF + documents zip) prepared'),
-                  child: const Text('Download auditor pack'),
+                  onPressed: () => _exportLedger(context, ref),
+                    child: Text(l.exportLedgerCsv),
                 ),
               ],
             ),
@@ -74,7 +86,16 @@ class _Overview extends ConsumerWidget {
     }.length;
     final role = ref.watch(sessionProvider)!.activeRole;
     final today = ref.watch(clockProvider);
+    final fiscalValue = ref.watch(sessionProvider)!.user.association?.settings['fiscal_year_start_month'];
+    final fiscalStartMonth = fiscalValue is num ? fiscalValue.toInt().clamp(1, 12).toInt() : 4;
     final thisMonth = DateFormat('MMM yyyy').format(today);
+    final fyStart = DateTime(today.month >= fiscalStartMonth ? today.year : today.year - 1, fiscalStartMonth, 1);
+    final fiscalStartYear = today.month >= fiscalStartMonth ? today.year : today.year - 1;
+    final currentFyLabel = 'FY $fiscalStartYear-${(fiscalStartYear + 1).toString().substring(2)}';
+    final incomeByCategory = <String, int>{};
+    for (final entry in ref.watch(incomeProvider).entries.where((e) => !e.receivedOn.isBefore(fyStart))) {
+      incomeByCategory.update(entry.categoryName, (value) => value + entry.amount, ifAbsent: () => entry.amount);
+    }
     final bal = ref.watch(bankBalanceProvider);
     final spent = ref
         .watch(expensesProvider)
@@ -86,7 +107,7 @@ class _Overview extends ConsumerWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            Chip(avatar: const Icon(Icons.date_range, size: 18), label: Text('$currentFy · Apr 2026 – Mar 2027')),
+            Chip(avatar: const Icon(Icons.date_range, size: 18), label: Text('$currentFyLabel · ${DateFormat('MMM').format(fyStart)} $fiscalStartYear – ${DateFormat('MMM').format(DateTime(fiscalStartYear + 1, fiscalStartMonth, 0))} ${fiscalStartYear + 1}')),
             Chip(avatar: const Icon(Icons.update, size: 18), label: Text('Figures as of ${dateFmt.format(today)}')),
           ],
         ),
@@ -136,8 +157,7 @@ class _Overview extends ConsumerWidget {
           const Padding(
             padding: EdgeInsets.only(bottom: 16),
             child: Text(
-              'The charts, income breakdown and Analysis tab still show sample figures. '
-              'They will switch to your records once a few months of data are entered.',
+              'Overview trend charts still show illustrative figures. The Analysis tab and ledger exports use recorded association data.',
             ),
           ),
         const TwoCol(
@@ -146,26 +166,20 @@ class _Overview extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         SectionCard(
-          title: 'Income by category – $currentFy to date (Apr – Oct 2026)',
-          child: Column(
-            children: [
-              for (final (k, v) in const [
-                ('Monthly maintenance', 1584000),
-                ('Corpus fund', 600000),
-                ('Advertisement (lift panels – AdVantage Media)', 36000),
-                ('Sponsorship – Onam (Lulu Hypermarket, Muthoot Finance)', 75000),
-                ('Party hall rental', 28500),
-                ('Late fees', 4200),
-                ('Bank interest', 11840),
-              ])
-                ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(k),
-                  trailing: Text(inr.format(v), style: const TextStyle(fontWeight: FontWeight.w600)),
+          title: 'Income by category – $currentFyLabel to date',
+          child: incomeByCategory.isEmpty
+              ? const EmptyState('No income entries recorded this financial year.', icon: Icons.south_west)
+              : Column(
+                  children: [
+                    for (final entry in incomeByCategory.entries)
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(entry.key),
+                        trailing: Text(inr.format(entry.value), style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                  ],
                 ),
-            ],
-          ),
         ),
       ],
     );
@@ -207,6 +221,16 @@ class _DuesTab extends ConsumerWidget {
                 onPressed: () => showRaiseDuesForm(context, ref),
                 icon: const Icon(Icons.playlist_add),
                 label: const Text('Raise dues'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => showRaiseDuesPerSqftForm(context, ref),
+                icon: const Icon(Icons.square_foot),
+                label: const Text('Per-square-foot charge'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => showFixedLateFeeForm(context, ref),
+                icon: const Icon(Icons.schedule_send_outlined),
+                label: const Text('Apply late fee'),
               ),
               OutlinedButton.icon(
                 onPressed: () => showOpeningBalanceForm(context, ref),
@@ -546,60 +570,102 @@ class _ExpensesTab extends ConsumerWidget {
   }
 }
 
+final fundRequestsProvider = FutureProvider.autoDispose<List<FundRequestRecord>>((ref) async {
+  if (backendEnabled) return FinanceRepo.fundRequests();
+  return [
+    for (final request in demoFundRequests)
+      FundRequestRecord(
+        id: request.name,
+        title: request.name,
+        type: request.kind.toLowerCase().startsWith('recurring') ? 'recurring' : 'ad_hoc',
+        status: request.status.toLowerCase(),
+        amount: null,
+        basis: request.basis,
+        dueDay: request.dueDay,
+        momRef: 'Demo MOM',
+      ),
+  ];
+});
+
 class _FundRequestsTab extends ConsumerWidget {
   const _FundRequestsTab();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionProvider)!.activeRole;
+    final l = AppLocalizations.of(context);
+    final records = ref.watch(fundRequestsProvider);
+    final canRequest = role == Role.secretary || role == Role.jointSecretary || role == Role.treasurer || role == Role.jointTreasurer;
+
+    Future<void> addRequest() async {
+      final draft = await _fundRequestDialog(context);
+      if (draft == null || !context.mounted) return;
+      try {
+        if (backendEnabled) {
+          await FinanceRepo.requestFund(
+            title: draft.title,
+            type: draft.type,
+            amount: draft.amount,
+            basis: draft.basis,
+            dueDay: draft.dueDay,
+            momRef: draft.momRef,
+            requestRef: ref.read(approvalsProvider.notifier).nextId(),
+          );
+          await ref.read(approvalsProvider.notifier).refresh();
+        }
+        ref.invalidate(fundRequestsProvider);
+        if (context.mounted) toast(context, 'Fund request submitted for President approval');
+      } catch (error) {
+        if (context.mounted) toast(context, friendlyError(error));
+      }
+    }
+
     return PageBody(
       children: [
         Row(
           children: [
-            const Expanded(
-              child: Text('New fund requests need President approval and an EC MOM before reaching owners.'),
-            ),
-            if (role == Role.secretary)
-              FilledButton.tonalIcon(
-                onPressed: () => toast(context, 'Opens fund request form (name, recurring/adhoc, amount optional)'),
-                icon: const Icon(Icons.add),
-                label: const Text('New fund request'),
-              ),
+            const Expanded(child: Text('Fund requests require President approval and an EC MOM reference.')),
+            if (canRequest)
+              FilledButton.tonalIcon(onPressed: addRequest, icon: const Icon(Icons.add), label: const Text('New request')),
           ],
         ),
         const SizedBox(height: 12),
-        Card(
-          child: Column(
-            children: [
-              for (final f in demoFundRequests)
-                ListTile(
-                  leading: Icon(f.kind.startsWith('Recurring') ? Icons.repeat : Icons.celebration_outlined),
-                  title: Text(f.name),
-                  subtitle: Text('${f.kind} · ${f.basis}${f.dueDay != null ? ' · due ${f.dueDay}' : ''}'),
-                  trailing: Pill(
-                    f.status,
-                    color: f.status == 'Active'
-                        ? AppColors.green
-                        : (f.status == 'Draft' ? Colors.blueGrey : AppColors.amber),
-                  ),
+        if (records.isLoading) const LinearProgressIndicator(),
+        if (records.hasError) Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${records.error}'))),
+        if (records.hasValue && records.value!.isEmpty)
+          const EmptyState('No fund requests yet.', icon: Icons.request_quote_outlined),
+        if (records.hasValue)
+          for (final request in records.value!)
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: Icon(request.type == 'recurring' ? Icons.repeat : Icons.campaign_outlined),
+                title: Text(request.title),
+                subtitle: Text(
+                  '${request.type == 'recurring' ? 'Recurring' : 'Ad hoc'} · ${request.basis}'
+                  '${request.amount == null ? '' : ' · ${inr.format(request.amount)}'}'
+                  '${request.dueDay == null ? '' : ' · due ${request.dueDay}'} · MOM ${request.momRef}',
                 ),
-            ],
-          ),
-        ),
+                isThreeLine: true,
+                trailing: Pill(
+                  request.status,
+                  color: request.status == 'active'
+                      ? AppColors.green
+                      : request.status == 'rejected'
+                      ? AppColors.red
+                      : AppColors.amber,
+                ),
+              ),
+            ),
         const SizedBox(height: 12),
         SectionCard(
           title: 'Maintenance rates (by flat type)',
           child: Column(
             children: [
               for (final e in maintenanceRates.entries)
-                ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(e.key),
-                  trailing: Text('${inr.format(e.value)} / month'),
-                ),
+                ListTile(dense: true, contentPadding: EdgeInsets.zero, title: Text(e.key), trailing: Text('${inr.format(e.value)} / month')),
               const Text(
-                'Basis can be switched to per sq ft (W17: Secretary + Treasurer → President, with EC MOM). Late fee: ₹100 after 15 days, cap ₹500.',
+                'Per-square-foot billing and late-fee rules will be configured and approved separately.',
                 style: TextStyle(fontSize: 12),
               ),
             ],
@@ -610,49 +676,238 @@ class _FundRequestsTab extends ConsumerWidget {
   }
 }
 
-class _StatementsTab extends ConsumerWidget {
-  const _StatementsTab();
+class _FundRequestDraft {
+  const _FundRequestDraft({required this.title, required this.type, required this.amount, required this.basis, required this.dueDay, required this.momRef});
+  final String title;
+  final String type;
+  final int? amount;
+  final String basis;
+  final String dueDay;
+  final String momRef;
+}
+
+Future<_FundRequestDraft?> _fundRequestDialog(BuildContext context) async {
+  final title = TextEditingController();
+  final amount = TextEditingController();
+  final basis = TextEditingController();
+  final dueDay = TextEditingController();
+  final momRef = TextEditingController();
+  var type = 'ad_hoc';
+  String? error;
+  final draft = await showDialog<_FundRequestDraft>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, set) => AlertDialog(
+        title: const Text('New fund request'),
+        content: SizedBox(
+          width: 440,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: title, decoration: const InputDecoration(labelText: 'Request name *')),
+              DropdownButtonFormField<String>(
+                initialValue: type,
+                decoration: const InputDecoration(labelText: 'Type'),
+                items: const [DropdownMenuItem(value: 'ad_hoc', child: Text('Ad hoc')), DropdownMenuItem(value: 'recurring', child: Text('Recurring'))],
+                onChanged: (value) => set(() => type = value ?? type),
+              ),
+              TextField(controller: amount, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'Amount (optional)', prefixText: '₹ ')),
+              TextField(controller: basis, decoration: const InputDecoration(labelText: 'Basis / per-flat details')),
+              if (type == 'recurring') TextField(controller: dueDay, decoration: const InputDecoration(labelText: 'Due day / schedule')),
+              TextField(controller: momRef, decoration: const InputDecoration(labelText: 'EC MOM reference *')),
+              if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () {
+            if (title.text.trim().isEmpty || momRef.text.trim().isEmpty) return set(() => error = 'Name and MOM reference are required');
+            Navigator.pop(ctx, _FundRequestDraft(title: title.text.trim(), type: type, amount: int.tryParse(amount.text), basis: basis.text.trim(), dueDay: dueDay.text.trim(), momRef: momRef.text.trim()));
+          }, child: const Text('Submit')),
+        ],
+      ),
+    ),
+  );
+  title.dispose(); amount.dispose(); basis.dispose(); dueDay.dispose(); momRef.dispose();
+  return draft;
+}
+
+class StatementsScreen extends ConsumerWidget {
+  const StatementsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionProvider)!.activeRole;
+    final l = AppLocalizations.of(context);
+    final currentUserId = ref.watch(sessionProvider)!.user.id;
+    final statements = ref.watch(monthlyStatementsProvider);
+    final canGenerate = backendEnabled && (role == Role.treasurer || role == Role.jointTreasurer);
+
+    Future<void> generate() async {
+      final now = DateTime.now();
+      final selected = await showDatePicker(
+        context: context,
+        initialDate: DateTime(now.year, now.month, 1),
+        firstDate: DateTime(2015),
+        lastDate: DateUtils.dateOnly(now),
+        helpText: 'Choose any day in the statement month',
+      );
+      if (selected == null || !context.mounted) return;
+      try {
+        await FinanceRepo.createMonthlyStatement(DateTime(selected.year, selected.month, 1));
+        ref.invalidate(monthlyStatementsProvider);
+          ref.invalidate(appNotificationsProvider);
+          if (context.mounted) toast(context, l.statementAwaitingTreasurer);
+      } catch (error) {
+        if (context.mounted) toast(context, friendlyError(error));
+      }
+    }
+
+    Future<void> decide(MonthlyStatement statement, String action) async {
+      String? note;
+      if (action == 'reject') {
+          note = await promptText(context, title: l.rejected, hint: 'Reason (required)');
+        if (note == null) return;
+      }
+      try {
+        await FinanceRepo.decideMonthlyStatement(statement.id, action, note);
+        ref.invalidate(monthlyStatementsProvider);
+        ref.invalidate(appNotificationsProvider);
+      } catch (error) {
+        if (context.mounted) toast(context, friendlyError(error));
+      }
+    }
+
     Widget sign(String who, bool ok) =>
         Pill(who, color: ok ? AppColors.green : Colors.blueGrey, icon: ok ? Icons.check : Icons.schedule);
     return PageBody(
       children: [
-        const Text(
-          'Statements are published to owners only after Treasurer, Secretary and President all approve. Published months are locked.',
+        Row(
+          children: [
+              Expanded(child: Text(l.monthlyStatementDescription)),
+            if (canGenerate)
+                FilledButton.icon(onPressed: generate, icon: const Icon(Icons.add), label: Text(l.createStatement)),
+          ],
         ),
         const SizedBox(height: 12),
-        for (final (month, t, s, p) in const [
-          ('October 2026', true, false, false),
-          ('September 2026', true, true, true),
-          ('August 2026', true, true, true),
-        ])
+          if (role.isOfficeBearer || role == Role.auditor)
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: () => _exportLedger(context, ref),
+                icon: const Icon(Icons.download_outlined),
+                  label: Text(l.exportLedgerCsv),
+              ),
+            ),
+            Text(l.statementApprovalDescription),
+          const SizedBox(height: 12),
+          if (statements.isLoading) const LinearProgressIndicator(),
+          if (statements.hasError)
+            Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${statements.error}'))),
+          if (statements.hasValue && statements.value!.isEmpty)
+              EmptyState(l.noStatements, icon: Icons.receipt_long_outlined),
+          if (statements.hasValue)
+          for (final statement in statements.value!)
           Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
-              leading: Icon(p ? Icons.lock : Icons.edit_document),
-              title: Text('Income & expenditure – $month'),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [sign('Treasurer', t), sign('Secretary', s), sign('President', p)],
+                leading: Icon(statement.status == 'published' ? Icons.lock : Icons.edit_document),
+                title: Text('Income & expenditure · ${DateFormat('MMMM yyyy').format(statement.periodStart)}'),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          sign('Treasurer', statement.treasurerApprovedBy != null),
+                          sign('Secretary', statement.secretaryApprovedBy != null),
+                          sign('President', statement.presidentApprovedBy != null),
+                        ],
+                      ),
+                      if (statement.snapshot['totals'] case final Map totals)
+                        Text(
+                            '${l.incomeTotal} ${inr.format((totals['income'] as num?)?.toInt() ?? 0)} · '
+                            '${l.approvedExpenses} ${inr.format((totals['approved_expenses'] as num?)?.toInt() ?? 0)} · '
+                            '${l.paymentsReceived} ${inr.format((totals['payments_received'] as num?)?.toInt() ?? 0)}',
+                        ),
+                      if (statement.status == 'rejected' && statement.rejectionNote != null)
+                        Text('Rejected: ${statement.rejectionNote}'),
+                    ],
+                  ),
                 ),
-              ),
-              trailing: p
-                  ? const Pill('Published', color: AppColors.green)
-                  : (role == Role.secretary || role == Role.president)
-                  ? FilledButton(
-                      onPressed: () => toast(context, 'Approved. Waiting for remaining approvers before publishing.'),
-                      child: const Text('Approve'),
-                    )
-                  : const Pill('Draft', color: Colors.blueGrey),
+                  trailing: _statementAction(role, currentUserId, statement, decide),
             ),
           ),
       ],
     );
+  }
+
+  Widget _statementAction(
+    Role role,
+    String currentUserId,
+    MonthlyStatement statement,
+    Future<void> Function(MonthlyStatement, String) decide,
+  ) {
+    final l = AppLocalizations.of(context);
+    final canApprove = switch (statement.status) {
+      'awaiting_treasurer' => role == Role.treasurer || role == Role.jointTreasurer,
+      'awaiting_secretary' => role == Role.secretary,
+      'awaiting_president' => role == Role.president,
+      _ => false,
+    };
+    if (statement.status == 'published') return Pill(l.published, color: AppColors.green);
+    if (statement.status == 'rejected') return Pill(l.rejected, color: AppColors.red);
+    if (canApprove && statement.createdBy == currentUserId) {
+      return Pill(AppLocalizations.of(context).differentReviewerRequired, color: AppColors.amber);
+    }
+    if (!canApprove) {
+      final label = switch (statement.status) {
+        'awaiting_treasurer' => l.statementAwaitingTreasurer,
+        'awaiting_secretary' => l.statementAwaitingSecretary,
+        _ => l.statementAwaitingPresident,
+      };
+      return Pill(label, color: AppColors.amber);
+    }
+    return Wrap(
+      spacing: 4,
+      children: [
+        FilledButton(onPressed: () => decide(statement, 'approve'), child: const Text('Approve')),
+        IconButton(tooltip: 'Reject', onPressed: () => decide(statement, 'reject'), icon: const Icon(Icons.close)),
+      ],
+    );
+  }
+}
+
+Future<void> _exportLedger(BuildContext context, WidgetRef ref) async {
+  final dues = ref.read(duesProvider);
+  final income = ref.read(incomeProvider);
+  final expenses = ref.read(expensesProvider);
+  String cell(Object? value) => '"${'${value ?? ''}'.replaceAll('"', '""')}"';
+  final rows = <List<Object?>>[
+    ['record_type', 'date', 'flat', 'category_or_head', 'description', 'amount', 'paid', 'pending', 'reference', 'status'],
+    for (final due in dues.lines)
+      ['due', DateFormat('yyyy-MM-dd').format(due.dueDate), due.flatNumber, due.head, '', due.amount, due.paid, due.pending, due.receiptNo, due.isPaid ? 'paid' : 'open'],
+    for (final payment in dues.payments)
+      ['receipt', DateFormat('yyyy-MM-dd').format(payment.paidOn), payment.flatNumber, payment.head ?? 'Advance', payment.mode, payment.amount, payment.amount, 0, '${payment.receiptNo}${payment.reference == null ? '' : ' / ${payment.reference}'}', 'received'],
+    for (final entry in income.entries)
+      ['income', DateFormat('yyyy-MM-dd').format(entry.receivedOn), '', entry.categoryName, entry.description, entry.amount, entry.amount, 0, entry.source ?? '', 'received'],
+    for (final expense in expenses)
+      ['expense', DateFormat('yyyy-MM-dd').format(expense.date), '', expense.category, '${expense.vendor} · ${expense.description}', expense.amount, 0, 0, expense.id, expense.status.label],
+  ];
+  final csv = rows.map((row) => row.map(cell).join(',')).join('\r\n');
+  try {
+    final saved = await FilePicker.platform.saveFile(
+      dialogTitle: 'Export finance ledger',
+      fileName: 'flatsphere-ledger-${DateFormat('yyyyMMdd').format(DateTime.now())}.csv',
+      type: FileType.custom,
+      allowedExtensions: const ['csv'],
+      bytes: Uint8List.fromList(utf8.encode(csv)),
+    );
+    if (context.mounted && saved != null) toast(context, 'Ledger CSV exported');
+  } catch (error) {
+    if (context.mounted) toast(context, 'Could not export ledger: $error');
   }
 }

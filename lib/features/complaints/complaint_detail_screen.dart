@@ -19,6 +19,8 @@ class ComplaintDetailScreen extends ConsumerWidget {
     final role = session.activeRole;
     final sla = slaFor(c, ref.watch(clockProvider));
     final canManage = role.isOfficeBearer || role == Role.caretaker || role == Role.monitor;
+    final canUpdateStatus = role == Role.caretaker || role == Role.secretary || role == Role.jointSecretary ||
+      (role == Role.monitor && session.user.monitorCategories.contains(c.category));
     final reviewer = role == Role.secretary || role == Role.jointSecretary;
     final isRaiser = c.raisedBy == session.user.name || c.flatNumber == session.user.flatNumber;
     final notifier = ref.read(complaintsProvider.notifier);
@@ -40,7 +42,7 @@ class ComplaintDetailScreen extends ConsumerWidget {
     }
 
     Future<void> changeStatus(TicketStatus s) async {
-      final needsReason = sla.color != SlaColor.green || s == TicketStatus.onHold;
+      final needsReason = sla.color == SlaColor.amber || sla.color == SlaColor.red || s == TicketStatus.onHold;
       final text = await promptText(
         context,
         title: 'Move to "${s.label}"',
@@ -48,7 +50,11 @@ class ComplaintDetailScreen extends ConsumerWidget {
         required: needsReason,
       );
       if (text == null) return;
-      addRemark(text.isEmpty ? 'Status changed to ${s.label}' : '[${s.label}] $text', status: s);
+      try {
+        await notifier.setStatus(id, s, text.isEmpty ? 'Status changed to ${s.label}' : text);
+      } catch (error) {
+        if (context.mounted) toast(context, '$error');
+      }
     }
 
     return Scaffold(
@@ -68,7 +74,7 @@ class ComplaintDetailScreen extends ConsumerWidget {
                     children: [
                       if (c.slaApplies) SlaPill(sla),
                       if (!c.kind.isEnhancement) CriticalityPill(c.criticality, ai: c.aiSuggested),
-                      Pill(c.status.label, color: c.inReview ? Colors.purple : Colors.blueGrey),
+                      Pill(c.status.label, color: c.inReview ? Colors.purple : AppColors.complaintStatus(c.status)),
                       c.kind.isEnhancement
                           ? Pill(c.kind.label, color: Colors.teal, icon: Icons.lightbulb_outline)
                           : Pill(
@@ -256,7 +262,10 @@ class ComplaintDetailScreen extends ConsumerWidget {
                 ],
               ),
             ),
-          if (canManage && c.status.isOpen && !c.inReview)
+            if ((canManage || canUpdateStatus) &&
+              !c.inReview &&
+              c.status != TicketStatus.rejected &&
+              c.status != TicketStatus.planned)
             SectionCard(
               title: 'Actions',
               child: Wrap(
@@ -272,8 +281,25 @@ class ComplaintDetailScreen extends ConsumerWidget {
                       icon: const Icon(Icons.person_add_alt),
                       label: const Text('Assign to caretaker'),
                     ),
-                  for (final s in [TicketStatus.inProgress, TicketStatus.onHold, TicketStatus.resolved])
-                    if (s != c.status) OutlinedButton(onPressed: () => changeStatus(s), child: Text(s.label)),
+                  if (canUpdateStatus)
+                    DropdownButton<TicketStatus>(
+                      value: c.status,
+                      underline: const SizedBox.shrink(),
+                      items: [
+                        for (final status in const [
+                          TicketStatus.newTicket,
+                          TicketStatus.assigned,
+                          TicketStatus.inProgress,
+                          TicketStatus.onHold,
+                          TicketStatus.resolved,
+                          TicketStatus.closed,
+                        ])
+                          DropdownMenuItem(value: status, child: Text(status.label)),
+                      ],
+                      onChanged: (status) {
+                        if (status != null && status != c.status) changeStatus(status);
+                      },
+                    ),
                   PopupMenuButton<Criticality>(
                     onSelected: (cr) async {
                       final reason = await promptText(
@@ -306,12 +332,12 @@ class ComplaintDetailScreen extends ConsumerWidget {
                 spacing: 8,
                 children: [
                   FilledButton.icon(
-                    onPressed: () => addRemark('Closed by resident – rated 5/5', status: TicketStatus.closed),
+                    onPressed: () => addRemark('Resident confirmed resolution to their satisfaction.'),
                     icon: const Icon(Icons.thumb_up_alt_outlined),
                     label: const Text('Yes, close it'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: () => addRemark('Reopened by resident', status: TicketStatus.inProgress),
+                    onPressed: () => addRemark('Resident reports that the issue is not resolved.'),
                     icon: const Icon(Icons.replay),
                     label: const Text('No, reopen'),
                   ),
@@ -326,7 +352,7 @@ class ComplaintDetailScreen extends ConsumerWidget {
               children: [
                 _event(context, 'Created by ${c.raisedBy}', c.createdAt),
                 for (final r in c.remarks) _event(context, '${r.by}: ${r.text}', r.at),
-                if (c.slaApplies && sla.color != SlaColor.green && c.remarks.isEmpty)
+                if (c.slaApplies && (sla.color == SlaColor.amber || sla.color == SlaColor.red) && c.remarks.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(

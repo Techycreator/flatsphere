@@ -110,4 +110,290 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get demoPersonas => 'Demo mode – choose a user to explore their view';
+
+  @override
+  String get associationSettings => 'Association settings';
+
+  @override
+  String get associationIdentity => 'Association identity';
+
+  @override
+  String get associationName => 'Association name';
+
+  @override
+  String get state => 'State';
+
+  @override
+  String get city => 'City';
+
+  @override
+  String get brandColor => 'Brand color';
+
+  @override
+  String get operatingDefaults => 'Operating defaults';
+
+  @override
+  String get fiscalYearStartMonth => 'Financial year start month';
+
+  @override
+  String get defaultDueDay => 'Default monthly due day';
+
+  @override
+  String get subscription => 'Subscription';
+
+  @override
+  String get billingProviderNotConfigured => 'Billing provider not configured';
+
+  @override
+  String get billingProviderDescription =>
+      'Subscription plans and payments need an approved billing provider and pricing.';
+
+  @override
+  String get saveSettings => 'Save settings';
+
+  @override
+  String get settingsSaved => 'Association settings saved';
+
+  @override
+  String get ageNotRecorded => 'Age not recorded';
+
+  @override
+  String get child => 'Child';
+
+  @override
+  String get adult => 'Adult';
+
+  @override
+  String get seniorCitizen => 'Senior citizen';
+
+  @override
+  String get dateOfBirthOptional => 'Date of birth (optional)';
+
+  @override
+  String birthdayWish(String name) {
+    return 'Happy birthday, $name! Wishing you a wonderful year ahead.';
+  }
+
+  @override
+  String get notifications => 'Notifications';
+
+  @override
+  String get noNotifications => 'No notifications';
+
+  @override
+  String get exportLedgerCsv => 'Export ledger CSV';
+
+  @override
+  String get applyLateFee => 'Apply late fee';
+
+  @override
+  String get perSquareFootCharge => 'Per-square-foot charge';
+
+  @override
+  String get meetingInvitesNotSent =>
+      'Meeting saved. Notifications have not been sent.';
+
+  @override
+  String get dismiss => 'Dismiss';
+
+  @override
+  String get adminRequired => 'Association Admin access is required.';
+
+  @override
+  String get createStatement => 'Create statement';
+
+  @override
+  String get monthlyStatementDescription =>
+      'Monthly income, dues, receipts and approved expenses';
+
+  @override
+  String get statementApprovalDescription =>
+      'Owners can view a statement after three separate approvals. Published snapshots are immutable.';
+
+  @override
+  String get noStatements => 'No monthly statements yet.';
+
+  @override
+  String get published => 'Published';
+
+  @override
+  String get rejected => 'Rejected';
+
+  @override
+  String get statementAwaitingTreasurer => 'Awaiting Treasurer';
+
+  @override
+  String get statementAwaitingSecretary => 'Awaiting Secretary';
+
+  @override
+  String get statementAwaitingPresident => 'Awaiting President';
+
+  @override
+  String get incomeTotal => 'Income';
+
+  @override
+  String get approvedExpenses => 'Approved expenses';
+
+  @override
+  String get paymentsReceived => 'Payments';
+
+  @override
+  String get analysisYearOnYear => 'Year on year';
+
+  @override
+  String get analysisMonthOnMonth => 'Month on month';
+
+  @override
+  String get analysisCategory => 'Category';
+
+  @override
+  String get noAnalysisData => 'No recorded data matches this selection.';
+
+  @override
+  String get noBudgetRecorded =>
+      'No AGM-approved budget has been recorded for this association.';
+
+  @override
+  String get analysisExportHint =>
+      'Use Statements to export the live ledger CSV';
+
+  @override
+  String get budgetVsActual => 'Budget vs actual';
+
+  @override
+  String get differentReviewerRequired => 'A different reviewer is required';
+
+  @override
+  String get vehicleLookup => 'Vehicle lookup';
+
+  @override
+  String get vehicleRegistration => 'Vehicle registration number';
+
+  @override
+  String get searchVehicleNumber => 'Search vehicle number';
+
+  @override
+  String get enterThreeVehicleChars =>
+      'Enter at least 3 characters from the vehicle number';
+
+  @override
+  String get noRegisteredVehicleMatch =>
+      'No registered vehicle matches that number.';
+
+  @override
+  String vehicleSearchFailed(Object error) {
+    return 'Could not search vehicles: $error';
+  }
+
+  @override
+  String get noActiveOccupant => 'No active owner/tenant recorded';
+
+  @override
+  String get noPhoneOnRecord => 'No phone on record';
+
+  @override
+  String get exportBoomBarrierCsv => 'Export boom-barrier CSV';
+
+  @override
+  String get meetingsUpcoming => 'Upcoming';
+
+  @override
+  String get meetingsPast => 'Past';
+
+  @override
+  String get scheduleMeeting => 'Schedule meeting';
+
+  @override
+  String get meetingType => 'Meeting type';
+
+  @override
+  String get meetingTitle => 'Title';
+
+  @override
+  String get meetingAgenda => 'Agenda (one per line)';
+
+  @override
+  String get meetingSaved =>
+      'Only in-app alerts are queued; email, calendar and WhatsApp delivery is not configured.';
+
+  @override
+  String get minutesTitle => 'Meeting minutes';
+
+  @override
+  String get minutesDraft => 'Draft minutes';
+
+  @override
+  String get minutesPendingApproval => 'Awaiting President approval';
+
+  @override
+  String get minutesApproved => 'Approved minutes';
+
+  @override
+  String get writeMinutes => 'Write minutes';
+
+  @override
+  String get editMinutes => 'Edit minutes';
+
+  @override
+  String get submitForApproval => 'Submit for approval';
+
+  @override
+  String get approveMinutes => 'Approve minutes';
+
+  @override
+  String get viewMinutes => 'View minutes';
+
+  @override
+  String get saveDraft => 'Save draft';
+
+  @override
+  String get meetingReschedule => 'Reschedule';
+
+  @override
+  String get cancel => 'Cancel';
+
+  @override
+  String get noUpcomingMeetings => 'No upcoming meetings';
+
+  @override
+  String get noPastMeetings => 'No past meetings';
+
+  @override
+  String get inPerson => 'In person';
+
+  @override
+  String get online => 'Online';
+
+  @override
+  String get hybrid => 'Hybrid';
+
+  @override
+  String get platform => 'Platform';
+
+  @override
+  String get accept => 'Accept';
+
+  @override
+  String get tentative => 'Tentative';
+
+  @override
+  String get decline => 'Decline';
+
+  @override
+  String get accepted => 'accepted';
+
+  @override
+  String get tentativeCount => 'tentative';
+
+  @override
+  String get declined => 'declined';
+
+  @override
+  String get noReply => 'no reply';
+
+  @override
+  String get meetingLinkNotConfigured => 'Meeting link not configured';
+
+  @override
+  String get minutesPending => 'Minutes pending';
 }

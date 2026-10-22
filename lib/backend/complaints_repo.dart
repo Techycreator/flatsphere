@@ -27,6 +27,9 @@ class ComplaintsRepo {
     }
   }
 
+  static Future<void> setStatus(String ref, TicketStatus status, String note) =>
+      db.rpc('set_complaint_status', params: {'p_ref': ref, 'p_status': _snake(status.name), 'p_note': note});
+
   static Future<void> _addRemarks(String complaintId, List<TicketRemark> remarks) async {
     if (remarks.isEmpty) return;
     await db.from('complaint_remarks').insert([

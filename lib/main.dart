@@ -23,10 +23,15 @@ class FlatSphereApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final association = ref.watch(sessionProvider)?.user.association;
+    final brandValue = association?.settings['brand_primary'] as String?;
+    final normalizedBrand = brandValue?.replaceFirst('#', '').replaceFirst(RegExp(r'^0x', caseSensitive: false), '');
+    final brandRgb = normalizedBrand == null ? null : int.tryParse(normalizedBrand, radix: 16);
+    final seed = brandRgb == null ? AppColors.seed : Color(0xFF000000 | (brandRgb & 0xFFFFFF));
     return MaterialApp.router(
       title: 'FlatSphere',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
+      theme: AppTheme.lightForSeed(seed),
       locale: ref.watch(localeProvider),
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,

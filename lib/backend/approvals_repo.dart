@@ -20,7 +20,7 @@ class ApprovalsRepo {
     return [for (final r in rows) _fromRow(r, me)];
   }
 
-  static Future<void> insert(ApprovalRequest a) async {
+  static Future<String> insert(ApprovalRequest a) async {
     final row = await db
         .from('approval_requests')
         .insert({
@@ -51,6 +51,7 @@ class ApprovalsRepo {
           'owner_flat': s.role == Role.owner ? a.details['Flat']?.split(' ').first : null,
         },
     ]);
+      return id;
   }
 
   static Future<void> decide(String ref, Decision d, String? comment) =>

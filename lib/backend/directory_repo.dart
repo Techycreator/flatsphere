@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/models.dart';
 import 'backend.dart';
+import 'upload_preparation.dart';
 
 Occupancy _occupancy(Object? s) => switch (s) {
   'rented' => Occupancy.rented,
@@ -30,8 +31,40 @@ String? _date(DateTime? d) => d?.toIso8601String().substring(0, 10);
 class DirectoryRepo {
   static const _bucket = 'id-proofs';
 
+  static Future<List<VehicleContact>> searchVehicle(String registrationNumber) async {
+    final rows = await db.rpc('search_vehicle_contacts', params: {
+      'p_vehicle_number': registrationNumber.trim().toUpperCase(),
+    }) as List;
+    return [
+      for (final row in rows.cast<Map<String, dynamic>>())
+        VehicleContact(
+          registrationNumber: row['registration_number'] as String,
+          vehicleType: row['vehicle_type'] as String,
+          flatNumber: row['flat_number'] as String,
+          personName: row['person_name'] as String?,
+          phone: row['phone'] as String?,
+        ),
+    ];
+  }
+
+  static Future<List<VehicleRegisterRow>> vehicleRegister() async {
+    final rows = await db.rpc('export_vehicle_register') as List;
+    return [
+      for (final row in rows.cast<Map<String, dynamic>>())
+        VehicleRegisterRow(
+          registrationNumber: row['registration_number'] as String,
+          vehicleType: row['vehicle_type'] as String,
+          flatNumber: row['flat_number'] as String,
+          parkingSlot: row['parking_slot'] as String?,
+        ),
+    ];
+  }
+
   static Future<List<FlatInfo>> flats() async {
-    final rows = await db.from('flats').select('id, number, block, flat_type, sqft, occupancy').order('number');
+    final rows = await db
+      .from('flats')
+      .select('id, number, block, flat_type, sqft, occupancy, flat_vehicles(vehicle_type, registration_number, parking_slot)')
+      .order('number');
     return [
       for (final r in rows)
         FlatInfo(
@@ -41,8 +74,92 @@ class DirectoryRepo {
           type: r['flat_type'] as String,
           sqft: r['sqft'] as int?,
           occupancy: _occupancy(r['occupancy']),
+            carNumber: (r['flat_vehicles'] as List? ?? const [])
+              .cast<Map<String, dynamic>>()
+              .where((v) => v['vehicle_type'] == 'car')
+              .map((v) => v['registration_number'] as String?)
+              .firstOrNull,
+            bikeNumber: (r['flat_vehicles'] as List? ?? const [])
+              .cast<Map<String, dynamic>>()
+              .where((v) => v['vehicle_type'] == 'bike')
+              .map((v) => v['registration_number'] as String?)
+              .firstOrNull,
+            parkingSlot: (r['flat_vehicles'] as List? ?? const [])
+              .cast<Map<String, dynamic>>()
+              .map((v) => v['parking_slot'] as String?)
+              .whereType<String>()
+              .firstOrNull,
         ),
     ];
+  }
+
+  static Future<Set<String>> ownedFlatNumbers() async {
+    final association = await db.rpc('my_association') as String;
+    final rows = await db.rpc('my_owned_flat_numbers', params: {'assoc': association}) as List;
+    return {for (final row in rows) '$row'};
+  }
+
+  static Future<Set<String>> myFlatNumbers() async {
+    final rows = await db
+        .from('memberships')
+        .select('flats(number)')
+        .eq('user_id', db.auth.currentUser!.id)
+        .isFilter('ended_at', null)
+        .inFilter('role', ['owner', 'resident']);
+    return {
+      for (final row in rows)
+        if ((row['flats'] as Map?)?['number'] case final String number) number,
+    };
+  }
+
+  static Future<void> createMembershipChange({
+    required String requestId,
+    required String flatId,
+    required String type,
+    required String name,
+    required String email,
+    required String mobile,
+    DateTime? birthDate,
+    required String leasePeriod,
+    required int familyCount,
+  }) async {
+    await db.from('membership_changes').insert({
+      'request_id': requestId,
+      'flat_id': flatId,
+      'change_type': type,
+      'incoming_name': name.trim(),
+      'incoming_email': email.trim().toLowerCase(),
+      'incoming_mobile': mobile.trim().isEmpty ? null : mobile.trim(),
+      'incoming_birth_date': _date(birthDate),
+      'lease_period': leasePeriod.trim().isEmpty ? null : leasePeriod.trim(),
+      'family_count': familyCount,
+    });
+  }
+
+  static Future<void> uploadRequestProof({
+    required String requestId,
+    required Person person,
+    required String flatId,
+    required String type,
+    required Uint8List bytes,
+    required String ext,
+  }) async {
+    final prepared = await prepareUpload(bytes, ext);
+    final association = await db.rpc('my_association') as String;
+    final path = '$association/$flatId/$requestId/${DateTime.now().microsecondsSinceEpoch}.${prepared.extension}';
+    await db.storage.from(_bucket).uploadBinary(
+      path,
+      prepared.bytes,
+      fileOptions: FileOptions(contentType: prepared.contentType),
+    );
+    await db.from('id_documents').insert({
+      'request_id': requestId,
+      'subject_email': person.email.toLowerCase(),
+      'subject_name': person.name,
+      'flat_id': flatId,
+      'doc_type': type,
+      'storage_path': path,
+    });
   }
 
   static Future<void> saveFlat(FlatInfo f) async {
@@ -53,11 +170,21 @@ class DirectoryRepo {
       'sqft': f.sqft,
       'occupancy': _occupancyDb(f.occupancy),
     };
-    if (f.id == null) {
-      await db.from('flats').insert(row);
-    } else {
-      await db.from('flats').update(row).eq('id', f.id!);
+    final flatId = f.id == null
+        ? (await db.from('flats').insert(row).select('id').single())['id'] as String
+        : f.id!;
+    if (f.id != null) {
+      await db.from('flats').update(row).eq('id', flatId);
     }
+    await db.rpc(
+      'save_flat_vehicles',
+      params: {
+        'p_flat': flatId,
+        'p_car': f.carNumber,
+        'p_bike': f.bikeNumber,
+        'p_slot': f.parkingSlot,
+      },
+    );
   }
 
   static Future<List<Person>> people() async {
@@ -73,12 +200,17 @@ class DirectoryRepo {
             mobile: r['mobile'] as String?,
             role: role,
             flatNumber: r['flat_number'] as String?,
+            birthDate: DateTime.tryParse(r['date_of_birth'] as String? ?? ''),
             designations: List<String>.from(r['designations'] as List? ?? const []),
             monitorCategories: List<String>.from(r['monitor_categories'] as List? ?? const []),
             monitorFrom: DateTime.tryParse(r['monitor_from'] as String? ?? ''),
             monitorUntil: DateTime.tryParse(r['monitor_until'] as String? ?? ''),
             assignedBy: r['assigned_by'] as String?,
             since: DateTime.tryParse(r['since'] as String? ?? '')?.toLocal(),
+            supportFlags: [
+              for (final flag in List<String>.from(r['support_flags'] as List? ?? const []))
+                if (_supportFlagFromDb(flag) case final modelFlag?) modelFlag,
+            ],
           ),
     ];
   }
@@ -94,8 +226,10 @@ class DirectoryRepo {
       'p_flat': p.flatNumber,
       'p_designations': p.designations,
       'p_monitor_categories': p.monitorCategories,
+      'p_birth_date': _date(p.birthDate),
       'p_from': _date(p.monitorFrom),
       'p_until': _date(p.monitorUntil),
+      'p_support_flags': [for (final flag in p.supportFlags) _supportFlagDb(flag)],
     },
   ) as String;
 
@@ -114,6 +248,15 @@ class DirectoryRepo {
       'p_monitor_categories': areas,
       'p_from': _date(from),
       'p_until': _date(until),
+    },
+  );
+
+  static Future<void> setBirthDate(Person person, DateTime birthDate) => db.rpc(
+    'set_member_birth_date',
+    params: {
+      'p_kind': person.invited ? 'invited' : 'member',
+      'p_id': person.id,
+      'p_birth_date': _date(birthDate),
     },
   );
 
@@ -147,9 +290,14 @@ class DirectoryRepo {
     required Uint8List bytes,
     required String ext,
   }) async {
+    final prepared = await prepareUpload(bytes, ext);
     final assoc = await db.rpc('my_association') as String;
-    final path = '$assoc/${flatId ?? 'none'}/${DateTime.now().microsecondsSinceEpoch}.${ext.toLowerCase()}';
-    await db.storage.from(_bucket).uploadBinary(path, bytes, fileOptions: FileOptions(contentType: mimeFor(ext)));
+    final path = '$assoc/${flatId ?? 'none'}/${DateTime.now().microsecondsSinceEpoch}.${prepared.extension}';
+    await db.storage.from(_bucket).uploadBinary(
+      path,
+      prepared.bytes,
+      fileOptions: FileOptions(contentType: prepared.contentType),
+    );
     await db.from('id_documents').insert({
       'subject_email': person.email.toLowerCase(),
       'subject_name': person.name,
@@ -173,3 +321,12 @@ String friendlyError(Object e) {
   final i = msg.indexOf(': ');
   return i > 0 && !msg.substring(0, i).contains(' ') ? msg.substring(i + 2) : msg;
 }
+
+String _supportFlagDb(MemberSupportFlag flag) => switch (flag) {
+  MemberSupportFlag.wheelchairAssisted => 'wheelchair_assisted',
+};
+
+MemberSupportFlag? _supportFlagFromDb(String flag) => switch (flag) {
+  'wheelchair_assisted' => MemberSupportFlag.wheelchairAssisted,
+  _ => null,
+};

@@ -1,4 +1,5 @@
 enum Role {
+  admin('Admin'),
   president('President'),
   secretary('Secretary'),
   treasurer('Treasurer'),
@@ -10,12 +11,14 @@ enum Role {
   owner('Owner'),
   resident('Resident'),
   caretaker('Caretaker'),
+  security('Security'),
   auditor('Auditor');
 
   const Role(this.label);
   final String label;
 
   bool get isOfficeBearer => const {
+    Role.admin,
     Role.president,
     Role.secretary,
     Role.treasurer,
@@ -42,6 +45,8 @@ class DemoUser {
     this.designations = const [],
     this.monitorUntil,
     this.monitorAssignedBy,
+    this.associationId,
+    this.associations = const [],
   });
 
   final String id;
@@ -53,14 +58,36 @@ class DemoUser {
   final List<String> designations;
   final DateTime? monitorUntil;
   final String? monitorAssignedBy;
+  final String? associationId;
+  final List<AssociationInfo> associations;
+
+  AssociationInfo? get association {
+    for (final association in associations) {
+      if (association.id == associationId) return association;
+    }
+    return null;
+  }
 
   static const membershipDesk = 'Membership desk';
 
   /// President, Secretary or an EC member designated (W6-style) for membership changes.
   bool canInitiateMembership(Role active) =>
+      active == Role.admin ||
       active == Role.president ||
       active == Role.secretary ||
       (active.isCommittee && designations.contains(membershipDesk));
+}
+
+class AssociationInfo {
+  const AssociationInfo({required this.id, required this.name, this.state = '', this.city, this.settings = const {}});
+
+  final String id;
+  final String name;
+  final String state;
+  final String? city;
+  final Map<String, dynamic> settings;
+
+  String get location => [city, state].whereType<String>().where((s) => s.trim().isNotEmpty).join(', ');
 }
 
 class Session {
@@ -103,6 +130,9 @@ class FlatInfo {
     required this.type,
     this.sqft,
     this.occupancy = Occupancy.ownerOccupied,
+    this.carNumber,
+    this.bikeNumber,
+    this.parkingSlot,
   });
 
   final String? id;
@@ -111,6 +141,39 @@ class FlatInfo {
   final String type;
   final int? sqft;
   final Occupancy occupancy;
+  final String? carNumber;
+  final String? bikeNumber;
+  final String? parkingSlot;
+}
+
+class VehicleContact {
+  const VehicleContact({
+    required this.registrationNumber,
+    required this.vehicleType,
+    required this.flatNumber,
+    this.personName,
+    this.phone,
+  });
+
+  final String registrationNumber;
+  final String vehicleType;
+  final String flatNumber;
+  final String? personName;
+  final String? phone;
+}
+
+class VehicleRegisterRow {
+  const VehicleRegisterRow({
+    required this.registrationNumber,
+    required this.vehicleType,
+    required this.flatNumber,
+    this.parkingSlot,
+  });
+
+  final String registrationNumber;
+  final String vehicleType;
+  final String flatNumber;
+  final String? parkingSlot;
 }
 
 /// One role held (or invited) in the association; a person with two roles appears twice.
@@ -123,12 +186,14 @@ class Person {
     this.invited = false,
     this.mobile,
     this.flatNumber,
+    this.birthDate,
     this.designations = const [],
     this.monitorCategories = const [],
     this.monitorFrom,
     this.monitorUntil,
     this.assignedBy,
     this.since,
+    this.supportFlags = const [],
   });
 
   final String id;
@@ -138,12 +203,42 @@ class Person {
   final bool invited;
   final String? mobile;
   final String? flatNumber;
+  final DateTime? birthDate;
   final List<String> designations;
   final List<String> monitorCategories;
   final DateTime? monitorFrom;
   final DateTime? monitorUntil;
   final String? assignedBy;
   final DateTime? since;
+  final List<MemberSupportFlag> supportFlags;
+
+  AgeCategory? get ageCategory {
+    final dob = birthDate;
+    if (dob == null) return null;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    var age = today.year - dob.year;
+    if (today.month < dob.month || (today.month == dob.month && today.day < dob.day)) age--;
+    if (age < 18) return AgeCategory.child;
+    if (age >= 60) return AgeCategory.seniorCitizen;
+    return AgeCategory.adult;
+  }
+}
+
+enum AgeCategory {
+  child('Child'),
+  adult('Adult'),
+  seniorCitizen('Senior citizen');
+
+  const AgeCategory(this.label);
+  final String label;
+}
+
+enum MemberSupportFlag {
+  wheelchairAssisted('Wheelchair assistance');
+
+  const MemberSupportFlag(this.label);
+  final String label;
 }
 
 class IdDocument {
@@ -205,8 +300,8 @@ enum TicketStatus {
   pendingReview('Awaiting Secretary review'),
   newTicket('New'),
   assigned('Assigned'),
-  inProgress('In progress'),
-  onHold('On hold'),
+  inProgress('In Progress'),
+  onHold('On Hold'),
   planned('Planned (future)'),
   resolved('Resolved'),
   closed('Closed'),
@@ -335,6 +430,7 @@ class ChecklistItem {
     this.note = '',
     this.hasVoiceNote = false,
     this.proofRequired = false,
+    this.photoProofPaths = const [],
     this.rejectedReason,
   });
 
@@ -346,12 +442,14 @@ class ChecklistItem {
   final String note;
   final bool hasVoiceNote;
   final bool proofRequired;
+  final List<String> photoProofPaths;
   final String? rejectedReason;
 
   ChecklistItem copyWith({
     bool? done,
     String? note,
     bool? hasVoiceNote,
+    List<String>? photoProofPaths,
     String? rejectedReason,
     bool clearRejection = false,
   }) => ChecklistItem(
@@ -363,6 +461,7 @@ class ChecklistItem {
     note: note ?? this.note,
     hasVoiceNote: hasVoiceNote ?? this.hasVoiceNote,
     proofRequired: proofRequired,
+    photoProofPaths: photoProofPaths ?? this.photoProofPaths,
     rejectedReason: clearRejection ? null : (rejectedReason ?? this.rejectedReason),
   );
 }
@@ -475,6 +574,28 @@ class ApprovalRequest {
   );
 }
 
+class MembershipTransitionItem {
+  const MembershipTransitionItem({
+    required this.id,
+    required this.phase,
+    required this.label,
+    required this.required,
+    required this.completed,
+    this.completedBy,
+    this.completedAt,
+    this.note = '',
+  });
+
+  final String id;
+  final String phase;
+  final String label;
+  final bool required;
+  final bool completed;
+  final String? completedBy;
+  final DateTime? completedAt;
+  final String note;
+}
+
 class DueLine {
   const DueLine({
     this.id,
@@ -528,6 +649,7 @@ class Expense {
     this.comment,
     this.dbId,
     this.billPaths = const [],
+    this.eventId,
   });
 
   /// Display reference, e.g. EXP-1001; [dbId] is the database key in cloud mode.
@@ -544,6 +666,7 @@ class Expense {
   final String? comment;
   final String? dbId;
   final List<String> billPaths;
+  final String? eventId;
 
   Expense copyWith({ExpenseStatus? status, bool? flagged, String? comment, int? documents}) => Expense(
     id: id,
@@ -559,6 +682,7 @@ class Expense {
     comment: comment ?? this.comment,
     dbId: dbId,
     billPaths: billPaths,
+    eventId: eventId,
   );
 }
 
@@ -590,6 +714,65 @@ class PaymentRecord {
   final String mode;
   final String? reference;
   final String? head;
+}
+
+class MonthlyStatement {
+  const MonthlyStatement({
+    required this.id,
+    required this.periodStart,
+    required this.periodEnd,
+    required this.status,
+    required this.snapshot,
+    required this.createdBy,
+    this.treasurerApprovedBy,
+    this.secretaryApprovedBy,
+    this.presidentApprovedBy,
+    this.rejectionNote,
+  });
+
+  final String id;
+  final DateTime periodStart;
+  final DateTime periodEnd;
+  final String status;
+  final Map<String, dynamic> snapshot;
+  final String createdBy;
+  final String? treasurerApprovedBy;
+  final String? secretaryApprovedBy;
+  final String? presidentApprovedBy;
+  final String? rejectionNote;
+}
+
+enum IncomeCategoryStatus { pending, active, rejected, sentBack }
+
+class IncomeCategory {
+  const IncomeCategory({required this.id, required this.name, required this.status, required this.requestRef});
+
+  final String id;
+  final String name;
+  final IncomeCategoryStatus status;
+  final String requestRef;
+}
+
+class IncomeEntry {
+  const IncomeEntry({
+    required this.id,
+    required this.categoryId,
+    required this.categoryName,
+    required this.receivedOn,
+    required this.amount,
+    required this.recordedBy,
+    this.source,
+    this.description = '',
+  });
+
+  final String id;
+  final String categoryId;
+  final String categoryName;
+  final DateTime receivedOn;
+  final int amount;
+  final String recordedBy;
+  final String? source;
+  final String description;
 }
 
 const paymentModes = {
@@ -631,6 +814,28 @@ class FundRequest {
   final String? dueDay;
 }
 
+class FundRequestRecord {
+  const FundRequestRecord({
+    required this.id,
+    required this.title,
+    required this.type,
+    required this.status,
+    required this.momRef,
+    this.amount,
+    this.basis = '',
+    this.dueDay,
+  });
+
+  final String id;
+  final String title;
+  final String type;
+  final String status;
+  final String momRef;
+  final int? amount;
+  final String basis;
+  final String? dueDay;
+}
+
 enum MeetingMode { inPerson, online, hybrid }
 
 enum Rsvp { pending, accepted, tentative, declined }
@@ -651,6 +856,7 @@ class Meeting {
     this.invited = 0,
     this.myRsvp = Rsvp.pending,
     this.minutesStatus,
+    this.minutesText,
   });
 
   final String id;
@@ -667,6 +873,7 @@ class Meeting {
   final int invited;
   final Rsvp myRsvp;
   final String? minutesStatus;
+  final String? minutesText;
 
   Meeting withRsvp(Rsvp r) {
     int a = accepted, t = tentative, d = declined;
@@ -693,8 +900,27 @@ class Meeting {
       invited: invited,
       myRsvp: r,
       minutesStatus: minutesStatus,
+      minutesText: minutesText,
     );
   }
+
+  Meeting copyWith({DateTime? at, String? minutesStatus, String? minutesText}) => Meeting(
+    id: id,
+    type: type,
+    title: title,
+    at: at ?? this.at,
+    mode: mode,
+    agenda: agenda,
+    platform: platform,
+    venue: venue,
+    accepted: accepted,
+    tentative: tentative,
+    declined: declined,
+    invited: invited,
+    myRsvp: myRsvp,
+    minutesStatus: minutesStatus ?? this.minutesStatus,
+    minutesText: minutesText ?? this.minutesText,
+  );
 }
 
 class Notice {
@@ -703,4 +929,269 @@ class Notice {
   final String body;
   final DateTime date;
   final bool important;
+}
+
+class AppNotification {
+  const AppNotification({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    this.actionPath,
+    this.readAt,
+  });
+
+  final String id;
+  final String title;
+  final String body;
+  final DateTime createdAt;
+  final String? actionPath;
+  final DateTime? readAt;
+}
+
+enum StaffType {
+  housekeeping('Housekeeping'),
+  stpOperator('STP operator'),
+  security('Security');
+
+  const StaffType(this.label);
+  final String label;
+}
+
+enum AttendanceStatus {
+  present('Present'),
+  absent('Absent'),
+  leave('Leave');
+
+  const AttendanceStatus(this.label);
+  final String label;
+}
+
+class StaffMember {
+  const StaffMember({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.area,
+    this.active = true,
+    this.employerType = StaffEmployerType.association,
+    this.agencyName,
+    this.monthlySalary,
+    this.idProofPath,
+  });
+
+  final String id;
+  final String name;
+  final StaffType type;
+  final String area;
+  final bool active;
+  final StaffEmployerType employerType;
+  final String? agencyName;
+  final int? monthlySalary;
+  final String? idProofPath;
+}
+
+enum StaffEmployerType { association, agency }
+
+class StaffAttendance {
+  const StaffAttendance({
+    required this.staffId,
+    required this.date,
+    required this.status,
+    required this.markedBy,
+    this.note = '',
+  });
+
+  final String staffId;
+  final DateTime date;
+  final AttendanceStatus status;
+  final String markedBy;
+  final String note;
+}
+
+class FlatHousekeepingWorker {
+  const FlatHousekeepingWorker({
+    required this.id,
+    required this.flatNumber,
+    required this.name,
+    required this.idProofPath,
+    required this.usualIn,
+    required this.usualOut,
+    required this.residesInFlat,
+    this.active = true,
+  });
+
+  final String id;
+  final String flatNumber;
+  final String name;
+  final String idProofPath;
+  final String usualIn;
+  final String usualOut;
+  final bool residesInFlat;
+  final bool active;
+}
+
+enum VisitorStatus {
+  expected('Expected'),
+  checkedIn('Checked in'),
+  checkedOut('Checked out'),
+  cancelled('Cancelled');
+
+  const VisitorStatus(this.label);
+  final String label;
+}
+
+class VisitorRequest {
+  const VisitorRequest({
+    required this.id,
+    required this.hostFlat,
+    required this.guestName,
+    required this.expectedAt,
+    required this.status,
+    this.guestPhone,
+    this.vehicleNumber,
+    this.flatCarNumber,
+    this.flatBikeNumber,
+    this.parkingSlot,
+    this.note = '',
+    this.hostName = '',
+  });
+
+  final String id;
+  final String hostFlat;
+  final String guestName;
+  final DateTime expectedAt;
+  final VisitorStatus status;
+  final String? guestPhone;
+  final String? vehicleNumber;
+  final String? flatCarNumber;
+  final String? flatBikeNumber;
+  final String? parkingSlot;
+  final String note;
+  final String hostName;
+}
+
+class AssociationRegisterItem {
+  const AssociationRegisterItem({
+    required this.id,
+    required this.type,
+    required this.name,
+    required this.category,
+    required this.status,
+    required this.createdAt,
+    this.vendor,
+    this.purchaseDate,
+    this.warrantyEnd,
+    this.amcEnd,
+    this.expiresOn,
+    this.expectedLifeYears,
+    this.replacementCost,
+    this.details = const {},
+  });
+
+  final String id;
+  final String type;
+  final String name;
+  final String category;
+  final String status;
+  final DateTime createdAt;
+  final String? vendor;
+  final DateTime? purchaseDate;
+  final DateTime? warrantyEnd;
+  final DateTime? amcEnd;
+  final DateTime? expiresOn;
+  final int? expectedLifeYears;
+  final int? replacementCost;
+  final Map<String, dynamic> details;
+}
+
+class Amenity {
+  const Amenity({required this.id, required this.name, required this.rules, required this.fee, required this.requiresApproval});
+
+  final String id;
+  final String name;
+  final String rules;
+  final int fee;
+  final bool requiresApproval;
+}
+
+enum AmenityBookingStatus { pending, approved, rejected, cancelled, completed }
+
+enum AmenityPaymentStatus { unpaid, paid, waived, refunded }
+
+class AmenityBooking {
+  const AmenityBooking({
+    required this.id,
+    required this.amenityName,
+    required this.flatNumber,
+    required this.hostName,
+    required this.startsAt,
+    required this.endsAt,
+    required this.status,
+    required this.paymentStatus,
+    required this.amountDue,
+    this.guestCount = 0,
+    this.note = '',
+  });
+
+  final String id;
+  final String amenityName;
+  final String flatNumber;
+  final String hostName;
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final AmenityBookingStatus status;
+  final AmenityPaymentStatus paymentStatus;
+  final int amountDue;
+  final int guestCount;
+  final String note;
+}
+
+class EmergencyContact {
+  const EmergencyContact({required this.id, required this.label, required this.name, required this.phone, required this.category, this.notes = ''});
+  final String id;
+  final String label;
+  final String name;
+  final String phone;
+  final String category;
+  final String notes;
+}
+
+class CommunityEvent {
+  const CommunityEvent({required this.id, required this.title, required this.type, required this.startsAt, required this.endsAt, required this.location, this.description = '', this.budget, this.status = 'scheduled', this.photoPaths = const [], this.fundRequestId, this.fundRequestTitle});
+  final String id;
+  final String title;
+  final String type;
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final String location;
+  final String description;
+  final int? budget;
+  final String status;
+  final List<String> photoPaths;
+  final String? fundRequestId;
+  final String? fundRequestTitle;
+}
+
+class MeetingAction {
+  const MeetingAction({required this.id, required this.momRef, required this.title, required this.owner, required this.status, this.dueDate, this.eventId});
+  final String id;
+  final String momRef;
+  final String title;
+  final String owner;
+  final String status;
+  final DateTime? dueDate;
+  final String? eventId;
+}
+
+class MarketplacePost {
+  const MarketplacePost({required this.id, required this.type, required this.title, required this.description, required this.contact, required this.expiresAt, required this.author, this.price});
+  final String id;
+  final String type;
+  final String title;
+  final String description;
+  final String contact;
+  final DateTime expiresAt;
+  final String author;
+  final int? price;
 }

@@ -5,13 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../backend/backend.dart';
+import '../../backend/community_repo.dart';
 import '../../backend/directory_repo.dart' show friendlyError;
+import '../../backend/upload_preparation.dart' show maxSourceUploadBytes;
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
 import '../../widgets/common.dart';
-
-const _maxBillBytes = 5 * 1024 * 1024;
 
 typedef PickedFile = ({Uint8List bytes, String ext, String name});
 
@@ -26,15 +26,17 @@ Future<PickedFile?> pickBill(BuildContext context) async {
   );
   if (files.isEmpty) return null;
   final f = files.first;
-  final bytes = await f.readAsBytes();
-  if (bytes.length > _maxBillBytes) {
-    if (context.mounted) toast(context, 'That file is larger than 5 MB');
+  final size = await f.length();
+  if (size == null || size > maxSourceUploadBytes(f.extension ?? '')) {
+    if (context.mounted) toast(context, 'File exceeds the supported source size');
     return null;
   }
+  final bytes = await f.readAsBytes();
   return (bytes: bytes, ext: f.extension ?? 'jpg', name: f.name);
 }
 
-DateTime _fyStart(DateTime now) => DateTime(now.month >= 4 ? now.year : now.year - 1, 4, 1);
+DateTime _fyStart(DateTime now, int startMonth) =>
+  DateTime(now.month >= startMonth ? now.year : now.year - 1, startMonth, 1);
 
 Future<DateTime?> _pickDate(BuildContext context, DateTime initial) =>
     showDatePicker(context: context, initialDate: initial, firstDate: DateTime(2015), lastDate: DateTime(2040));
@@ -100,7 +102,9 @@ Future<void> showOpeningBalanceForm(BuildContext context, WidgetRef ref) async {
   final cur = ref.read(duesProvider).opening;
   final account = TextEditingController(text: cur?.account ?? 'Bank account');
   final amount = TextEditingController(text: cur?.amount.toString() ?? '');
-  var asOf = cur?.asOf ?? _fyStart(DateTime.now());
+  final fiscalStart = ref.read(sessionProvider)?.user.association?.settings['fiscal_year_start_month'];
+  final fiscalMonth = fiscalStart is num ? fiscalStart.toInt().clamp(1, 12).toInt() : 4;
+  var asOf = cur?.asOf ?? _fyStart(DateTime.now(), fiscalMonth);
   final ok = await _form(
     context,
     title: 'Opening balance',
@@ -160,7 +164,9 @@ Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
   final rates = {
     for (final t in types) t: TextEditingController(text: backendEnabled ? '' : maintenanceRates[t]?.toString() ?? ''),
   };
-  var due = DateTime(now.year, now.month, 10);
+  final configuredDueDay = ref.read(sessionProvider)?.user.association?.settings['default_due_day'];
+  final defaultDueDay = configuredDueDay is num ? configuredDueDay.toInt().clamp(1, 28).toInt() : 10;
+  var due = DateTime(now.year, now.month, defaultDueDay);
   int rate(String t) => int.tryParse(rates[t]!.text) ?? 0;
   final ok = await _form(
     context,
@@ -214,6 +220,92 @@ Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
         if (rate(t) > 0) t: rate(t),
     });
     return n == 0 ? 'No new dues: every flat already has "$name"' : 'Raised "$name" for $n flats';
+  });
+}
+
+Future<void> showRaiseDuesPerSqftForm(BuildContext context, WidgetRef ref) async {
+  final now = DateTime.now();
+  final head = TextEditingController(text: 'Per-square-foot assessment – ${DateFormat('MMM yyyy').format(now)}');
+  final rateController = TextEditingController();
+  var dueDate = DateTime(now.year, now.month, 10);
+  final ok = await _form(
+    context,
+    title: 'Raise dues per square foot',
+    action: 'Raise',
+    validate: () {
+      if (head.text.trim().isEmpty) return 'Enter a dues name';
+      final rate = double.tryParse(rateController.text.trim());
+      if (rate == null || rate <= 0) return 'Enter a positive rate per square foot';
+      return null;
+    },
+    fields: (set) => [
+      TextField(controller: head, decoration: const InputDecoration(labelText: 'Name *')),
+      TextField(
+        controller: rateController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
+        decoration: const InputDecoration(labelText: 'Rate per sq ft *', prefixText: '₹ '),
+      ),
+      OutlinedButton.icon(
+        icon: const Icon(Icons.event),
+        label: Text('Due by ${dateFmt.format(dueDate)}'),
+        onPressed: () async {
+          final selected = await _pickDate(context, dueDate);
+          if (selected != null) set(() => dueDate = selected);
+        },
+      ),
+      const Text('Each flat is charged by recorded area; amounts are rounded to the nearest rupee.', style: _note),
+    ],
+  );
+  if (ok != true || !context.mounted) return;
+  final feeHead = head.text.trim();
+  await _run(context, () async {
+    final count = await ref.read(duesProvider.notifier).raiseDuesPerSqft(
+      feeHead,
+      dueDate,
+      double.parse(rateController.text.trim()),
+    );
+    return count == 0 ? 'No new dues were created' : 'Raised "$feeHead" for $count flats';
+  });
+}
+
+Future<void> showFixedLateFeeForm(BuildContext context, WidgetRef ref) async {
+  final feeName = TextEditingController(text: 'Late fee – ${DateFormat('MMM yyyy').format(DateTime.now())}');
+  final amount = TextEditingController();
+  var dueDate = DateTime.now().add(const Duration(days: 7));
+  final ok = await _form(
+    context,
+    title: 'Apply fixed late fee',
+    action: 'Apply',
+    validate: () {
+      if (feeName.text.trim().isEmpty) return 'Enter a fee name';
+      if ((int.tryParse(amount.text.trim()) ?? 0) <= 0) return 'Enter a positive fixed amount';
+      return null;
+    },
+    fields: (set) => [
+      TextField(controller: feeName, decoration: const InputDecoration(labelText: 'Fee name *')),
+      TextField(
+        controller: amount,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: const InputDecoration(labelText: 'Fixed amount per flat *', prefixText: '₹ '),
+      ),
+      OutlinedButton.icon(
+        icon: const Icon(Icons.event),
+        label: Text('Due by ${dateFmt.format(dueDate)}'),
+        onPressed: () async {
+          final selected = await _pickDate(context, dueDate);
+          if (selected != null) set(() => dueDate = selected);
+        },
+      ),
+      const Text('Applied once to each flat with a past-due unpaid charge. The fee name prevents duplicate application.', style: _note),
+    ],
+  );
+  if (ok != true || !context.mounted) return;
+  final name = feeName.text.trim();
+  await _run(context, () async {
+    final count = await ref.read(duesProvider.notifier).applyFixedLateFee(name, dueDate, int.parse(amount.text.trim()));
+    return count == 0 ? 'No overdue flats were charged' : 'Applied "$name" to $count flats';
   });
 }
 
@@ -308,8 +400,15 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
 
 Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
   final s = ref.read(sessionProvider)!;
+  var events = <CommunityEvent>[];
+  if (backendEnabled) {
+    try {
+      events = await CommunityRepo.events();
+    } catch (_) {}
+  }
   var date = DateUtils.dateOnly(DateTime.now());
   var category = expenseCategories.first;
+  String? eventId;
   final vendor = TextEditingController();
   final description = TextEditingController();
   final amount = TextEditingController();
@@ -339,6 +438,17 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
         items: [for (final c in expenseCategories) DropdownMenuItem(value: c, child: Text(c))],
         onChanged: (v) => set(() => category = v ?? category),
       ),
+      if (events.isNotEmpty)
+        DropdownButtonFormField<String?>(
+          initialValue: eventId,
+          decoration: const InputDecoration(labelText: 'Community event (optional)'),
+          items: [
+            const DropdownMenuItem<String?>(value: null, child: Text('Not linked to an event')),
+            for (final event in events)
+              DropdownMenuItem<String?>(value: event.id, child: Text(event.title, maxLines: 1, overflow: TextOverflow.ellipsis)),
+          ],
+          onChanged: (value) => set(() => eventId = value),
+        ),
       TextField(
         controller: vendor,
         decoration: const InputDecoration(labelText: 'Vendor / payee *'),
@@ -385,6 +495,7 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
           enteredBy: s.user.name,
           bill: bill?.bytes,
           ext: bill?.ext,
+          eventId: eventId,
         );
     return 'Expense submitted to the Treasurer';
   });

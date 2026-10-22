@@ -15,9 +15,19 @@ final _complaints = NavItem('/complaints', Icons.report_problem_outlined, (l) =>
 final _checklist = NavItem('/checklist', Icons.checklist_rtl, (l) => l.checklist);
 final _approvals = NavItem('/approvals', Icons.verified_outlined, (l) => l.approvals);
 final _finance = NavItem('/finance', Icons.account_balance_wallet_outlined, (l) => l.finance);
+final _statements = NavItem('/statements', Icons.description_outlined, (_) => 'Statements');
 final _dues = NavItem('/dues', Icons.payments_outlined, (l) => l.myDues);
 final _meetings = NavItem('/meetings', Icons.groups_outlined, (l) => l.meetings);
 final _directory = NavItem('/directory', Icons.apartment_outlined, (l) => l.directory);
+final _attendance = NavItem('/attendance', Icons.fact_check_outlined, (_) => 'Attendance');
+final _householdStaff = NavItem('/household-staff', Icons.cleaning_services_outlined, (_) => 'Household staff');
+final _visitors = NavItem('/visitors', Icons.directions_walk_outlined, (_) => 'Visitors');
+final _archive = NavItem('/archive', Icons.inventory_2_outlined, (_) => 'Archive');
+final _registers = NavItem('/registers', Icons.inventory_2_outlined, (_) => 'Assets & expiry');
+final _amenities = NavItem('/amenities', Icons.meeting_room_outlined, (_) => 'Amenities');
+final _community = NavItem('/community', Icons.hub_outlined, (_) => 'Community');
+final _associationDocs = NavItem('/association-documents', Icons.folder_shared_outlined, (_) => 'Association documents');
+final _associationSettings = NavItem('/association-settings', Icons.settings_outlined, (_) => 'Association settings');
 final _notices = NavItem('/notices', Icons.campaign_outlined, (l) => l.notices);
 
 /// On mobile, items beyond the fourth go under "More" when a role has more than five.
@@ -29,14 +39,17 @@ List<NavItem> navFor(Role r, {bool membershipDesk = false}) {
 }
 
 List<NavItem> _baseNav(Role r) => switch (r) {
-  Role.president => [_home, _approvals, _complaints, _finance, _meetings, _directory],
-  Role.secretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings, _directory],
-  Role.treasurer || Role.jointTreasurer => [_home, _finance, _approvals, _complaints, _meetings],
-  Role.vicePresident => [_home, _approvals, _complaints, _finance, _meetings],
-  Role.jointSecretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings, _directory],
-  Role.ecMember || Role.monitor => [_home, _checklist, _complaints, _finance, _meetings],
-  Role.owner => [_home, _dues, _complaints, _meetings, _notices],
-  Role.resident => [_home, _complaints, _notices],
-  Role.caretaker => [_home, _checklist, _complaints, _notices],
-  Role.auditor => [_home, _finance],
+  Role.admin => [_home, _approvals, _complaints, _finance, _directory, _attendance, _visitors, _archive, _registers, _amenities, _community, _associationDocs, _associationSettings],
+  Role.president => [_home, _approvals, _complaints, _finance, _meetings, _directory, _attendance, _visitors, _archive, _registers, _amenities, _community, _associationDocs],
+  Role.secretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings, _directory, _attendance, _visitors, _archive, _registers, _amenities, _community, _associationDocs],
+  Role.treasurer || Role.jointTreasurer => [_home, _finance, _approvals, _complaints, _meetings, _visitors, _registers, _amenities, _community, _associationDocs],
+  Role.vicePresident => [_home, _approvals, _complaints, _finance, _meetings, _attendance, _visitors, _registers, _amenities, _community, _associationDocs],
+  Role.jointSecretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings, _directory, _attendance, _visitors, _registers, _amenities, _community, _associationDocs],
+  Role.ecMember => [_home, _checklist, _complaints, _finance, _meetings, _visitors, _community, _associationDocs],
+  Role.monitor => [_home, _checklist, _attendance, _complaints, _finance, _meetings, _visitors, _community, _associationDocs],
+  Role.owner => [_home, _dues, _statements, _complaints, _meetings, _householdStaff, _visitors, _amenities, _community, _associationDocs, _notices],
+  Role.resident => [_home, _complaints, _householdStaff, _visitors, _amenities, _community, _associationDocs, _notices],
+  Role.caretaker => [_home, _checklist, _attendance, _visitors, _complaints, _community, _associationDocs, _notices],
+  Role.security => [_home, _visitors, _community, _associationDocs],
+  Role.auditor => [_home, _finance, _registers, _community, _associationDocs],
 };

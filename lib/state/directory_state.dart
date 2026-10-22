@@ -9,9 +9,18 @@ import 'app_state.dart';
 import 'demo_data.dart';
 
 class DirectoryState {
-  const DirectoryState({this.flats = const [], this.people = const [], this.loading = false, this.error});
+  const DirectoryState({
+    this.flats = const [],
+    this.people = const [],
+    this.ownedFlatNumbers = const {},
+    this.myFlatNumbers = const {},
+    this.loading = false,
+    this.error,
+  });
   final List<FlatInfo> flats;
   final List<Person> people;
+  final Set<String> ownedFlatNumbers;
+  final Set<String> myFlatNumbers;
   final bool loading;
   final String? error;
 
@@ -28,8 +37,20 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
 
   @override
   DirectoryState build() {
-    if (!backendEnabled) return DirectoryState(flats: _demoFlatInfos(), people: _demoPeople());
-    if (ref.watch(sessionProvider.select((s) => s?.user.id)) != null) refresh();
+    if (!backendEnabled) {
+      return DirectoryState(
+        flats: _demoFlatInfos(),
+        people: _demoPeople(),
+        ownedFlatNumbers: {
+          for (final u in demoUsers)
+            if (u.roles.contains(Role.owner) && u.flatNumber != null) u.flatNumber!,
+        },
+        myFlatNumbers: ref.read(sessionProvider)?.user.flatNumber == null
+          ? const {}
+          : {ref.read(sessionProvider)!.user.flatNumber!},
+      );
+    }
+    if (ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId))).$1 != null) refresh();
     return const DirectoryState(loading: true);
   }
 
@@ -38,9 +59,17 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
     try {
       final flats = await DirectoryRepo.flats();
       final people = await DirectoryRepo.people();
-      state = DirectoryState(flats: flats, people: people);
+      final ownedFlatNumbers = await DirectoryRepo.ownedFlatNumbers();
+      final myFlatNumbers = await DirectoryRepo.myFlatNumbers();
+      state = DirectoryState(flats: flats, people: people, ownedFlatNumbers: ownedFlatNumbers, myFlatNumbers: myFlatNumbers);
     } catch (e) {
-      state = DirectoryState(flats: state.flats, people: state.people, error: friendlyError(e));
+      state = DirectoryState(
+        flats: state.flats,
+        people: state.people,
+        ownedFlatNumbers: state.ownedFlatNumbers,
+        myFlatNumbers: state.myFlatNumbers,
+        error: friendlyError(e),
+      );
     }
   }
 
@@ -62,6 +91,9 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
         type: f.type,
         sqft: f.sqft,
         occupancy: f.occupancy,
+        carNumber: f.carNumber,
+        bikeNumber: f.bikeNumber,
+        parkingSlot: f.parkingSlot,
       ),
     ]..sort((a, b) => a.number.compareTo(b.number));
     _set(flats: list);
@@ -82,6 +114,7 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
       mobile: p.mobile,
       role: p.role,
       flatNumber: p.flatNumber,
+      birthDate: p.birthDate,
       designations: p.designations,
       monitorCategories: p.monitorCategories,
       monitorFrom: p.monitorFrom,
@@ -89,6 +122,7 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
       assignedBy: p.monitorCategories.isEmpty ? null : 'You',
       invited: !existing,
       since: DateTime.now(),
+      supportFlags: p.supportFlags,
     );
     _set(people: [...state.people, added]);
     return existing ? 'member' : 'invited';
@@ -116,6 +150,7 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
               mobile: x.mobile,
               role: x.role,
               flatNumber: x.flatNumber,
+              birthDate: x.birthDate,
               invited: x.invited,
               since: x.since,
               designations: designations,
@@ -123,11 +158,42 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
               monitorFrom: from,
               monitorUntil: until,
               assignedBy: areas.isEmpty ? null : 'You',
+              supportFlags: x.supportFlags,
             )
           else
             x,
       ],
     );
+  }
+
+  Future<void> setBirthDate(Person person, DateTime birthDate) async {
+    if (backendEnabled) {
+      await DirectoryRepo.setBirthDate(person, birthDate);
+      return refresh();
+    }
+    _set(people: [
+      for (final current in state.people)
+        if (current.id == person.id)
+          Person(
+            id: current.id,
+            name: current.name,
+            email: current.email,
+            mobile: current.mobile,
+            role: current.role,
+            flatNumber: current.flatNumber,
+            birthDate: birthDate,
+            invited: current.invited,
+            designations: current.designations,
+            monitorCategories: current.monitorCategories,
+            monitorFrom: current.monitorFrom,
+            monitorUntil: current.monitorUntil,
+            assignedBy: current.assignedBy,
+            since: current.since,
+            supportFlags: current.supportFlags,
+          )
+        else
+          current,
+    ]);
   }
 
   Future<void> removePerson(Person p) async {
@@ -136,6 +202,53 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
       return refresh();
     }
     _set(people: state.people.where((x) => x.id != p.id).toList());
+  }
+
+  Future<void> createMembershipChange({
+    required String requestId,
+    required FlatInfo flat,
+    required String type,
+    required String name,
+    required String email,
+    required String mobile,
+    DateTime? birthDate,
+    required String leasePeriod,
+    required int familyCount,
+  }) async {
+    if (backendEnabled) {
+      await DirectoryRepo.createMembershipChange(
+        requestId: requestId,
+        flatId: flat.id!,
+        type: type,
+        name: name,
+        email: email,
+        mobile: mobile,
+        birthDate: birthDate,
+        leasePeriod: leasePeriod,
+        familyCount: familyCount,
+      );
+    }
+  }
+
+  Future<void> uploadMembershipProof({
+    required String requestId,
+    required String name,
+    required String email,
+    required String flatId,
+    required String type,
+    required Uint8List bytes,
+    required String ext,
+  }) async {
+    if (backendEnabled) {
+      await DirectoryRepo.uploadRequestProof(
+        requestId: requestId,
+        person: Person(id: '', name: name, email: email, role: Role.resident),
+        flatId: flatId,
+        type: type,
+        bytes: bytes,
+        ext: ext,
+      );
+    }
   }
 
   Future<List<IdDocument>> docs(Person p) async {

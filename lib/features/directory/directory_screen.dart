@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
 import '../../backend/directory_repo.dart' show friendlyError;
+import '../../backend/upload_preparation.dart' show maxSourceUploadBytes;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
@@ -14,8 +15,7 @@ import '../../widgets/common.dart';
 
 enum _Tab { flats, people, monitors }
 
-const _assignerRoles = {Role.president, Role.secretary, Role.jointSecretary};
-const _maxIdBytes = 5 * 1024 * 1024;
+const _assignerRoles = {Role.admin, Role.president, Role.secretary, Role.jointSecretary};
 
 String _occLabel(Occupancy o) => switch (o) {
   Occupancy.ownerOccupied => 'Owner-occupied',
@@ -142,7 +142,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
         else
           ...switch (tab) {
             _Tab.flats => _flats(st),
-            _Tab.people => _people(st, canAssign),
+            _Tab.people => _people(context, st, canAssign),
             _Tab.monitors => _monitors(st, canAssign),
           },
       ],
@@ -185,6 +185,8 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                     ].join(' · '),
                     _names('Owner', st.at(f.number, Role.owner)) ?? 'Owner: not added',
                     _names('Resident', st.at(f.number, Role.resident)),
+                    if (f.carNumber != null) 'Car: ${f.carNumber}${f.parkingSlot == null ? '' : ' · slot ${f.parkingSlot}'}',
+                    if (f.bikeNumber != null) 'Bike: ${f.bikeNumber}${f.parkingSlot == null ? '' : ' · slot ${f.parkingSlot}'}',
                   ].whereType<String>().join('\n'),
                 ),
                 isThreeLine: true,
@@ -201,6 +203,9 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     final block = TextEditingController(text: f?.block);
     final type = TextEditingController(text: f?.type ?? '2BHK');
     final sqft = TextEditingController(text: f?.sqft?.toString());
+    final carNumber = TextEditingController(text: f?.carNumber);
+    final bikeNumber = TextEditingController(text: f?.bikeNumber);
+    final parkingSlot = TextEditingController(text: f?.parkingSlot);
     var occ = f?.occupancy ?? Occupancy.ownerOccupied;
     String? err;
     final ok = await showDialog<bool>(
@@ -231,6 +236,20 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(labelText: 'Area (sq ft)'),
+                  ),
+                  TextField(
+                    controller: carNumber,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(labelText: 'Car registration number (optional)'),
+                  ),
+                  TextField(
+                    controller: bikeNumber,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(labelText: 'Bike registration number (optional)'),
+                  ),
+                  TextField(
+                    controller: parkingSlot,
+                    decoration: const InputDecoration(labelText: 'Parking slot (optional)'),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Occupancy>(
@@ -269,6 +288,9 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
               type: type.text.trim().isEmpty ? '2BHK' : type.text.trim(),
               sqft: int.tryParse(sqft.text),
               occupancy: occ,
+              carNumber: carNumber.text.trim().isEmpty ? null : carNumber.text.trim().toUpperCase(),
+              bikeNumber: bikeNumber.text.trim().isEmpty ? null : bikeNumber.text.trim().toUpperCase(),
+              parkingSlot: parkingSlot.text.trim().isEmpty ? null : parkingSlot.text.trim(),
             ),
           ),
       'Flat ${number.text.trim()} saved',
@@ -277,7 +299,8 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
 
   // ---------------------------------------------------------------- People
 
-  List<Widget> _people(DirectoryState st, bool canAssign) {
+  List<Widget> _people(BuildContext context, DirectoryState st, bool canAssign) {
+    final l = AppLocalizations.of(context);
     final q = query.trim().toLowerCase();
     final list = st.people.where((p) {
       final inFilter = switch (filter) {
@@ -335,7 +358,10 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                   subtitle: Text(
                     '${p.role.label}${p.flatNumber != null ? ' · ${p.flatNumber}' : ''}'
                     '${p.monitorCategories.isNotEmpty ? ' · ${p.monitorCategories.join(', ')}' : ''}'
-                    '${p.designations.isNotEmpty ? ' · ${p.designations.join(', ')}' : ''}\n${p.email}',
+                    '${p.designations.isNotEmpty ? ' · ${p.designations.join(', ')}' : ''}'
+                    '${p.supportFlags.isNotEmpty ? ' · ${p.supportFlags.map((flag) => flag.label).join(', ')}' : ''}\n${p.email}'
+                    '${p.mobile == null ? '' : ' · ${p.mobile}'}'
+                    '${p.role == Role.owner || p.role == Role.resident ? ' · ${_localizedAgeCategory(p.ageCategory, l)}' : ''}',
                   ),
                   isThreeLine: true,
                   trailing: p.invited ? const Pill('Invited', color: AppColors.amber) : null,
@@ -351,6 +377,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     final name = TextEditingController();
     final email = TextEditingController();
     final mobile = TextEditingController();
+    DateTime? birthDate;
     final roles = canAssign ? Role.values : const [Role.owner, Role.resident];
     var role = Role.owner;
     String? flat = st.flats.firstOrNull?.number;
@@ -358,11 +385,15 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     DateTime? from = DateUtils.dateOnly(DateTime.now());
     DateTime? until;
     var desk = false;
+    var supportFlags = <MemberSupportFlag>{};
     String? err;
     bool needsFlat() => role == Role.owner || role == Role.resident;
     String? validate() {
       if (name.text.trim().isEmpty) return 'Name is required';
       if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.text.trim())) return 'Enter a valid email';
+      if (needsFlat() && !RegExp(r'^[+0-9() -]{5,24}$').hasMatch(mobile.text.trim())) {
+        return 'Enter a valid phone number for the owner or resident';
+      }
       if (needsFlat() && flat == null) return 'Choose a flat';
       if (role == Role.monitor && areas.isEmpty) return 'Choose at least one monitor area';
       if (role == Role.monitor && until == null) return 'Choose an end date for the monitor assignment';
@@ -394,8 +425,23 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                   TextField(
                     controller: mobile,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(labelText: 'Mobile'),
+                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
+                    decoration: InputDecoration(labelText: needsFlat() ? 'Mobile *' : 'Mobile'),
                   ),
+                  if (needsFlat())
+                    TextButton.icon(
+                      onPressed: () async {
+                        final selected = await showDatePicker(
+                          context: ctx,
+                          initialDate: birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
+                          firstDate: DateTime(1900),
+                          lastDate: DateUtils.dateOnly(DateTime.now()),
+                        );
+                        if (selected != null) set(() => birthDate = selected);
+                      },
+                      icon: const Icon(Icons.cake_outlined),
+                      label: Text(birthDate == null ? 'Date of birth (optional)' : 'Date of birth · ${dateFmt.format(birthDate!)}'),
+                    ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Role>(
                     initialValue: role,
@@ -407,7 +453,10 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                           child: Text(r == Role.resident ? 'Resident (tenant / family)' : r.label),
                         ),
                     ],
-                    onChanged: (v) => set(() => role = v ?? role),
+                    onChanged: (v) => set(() {
+                      role = v ?? role;
+                      if (role != Role.owner && role != Role.resident) supportFlags.clear();
+                    }),
                   ),
                   if (needsFlat())
                     DropdownButtonFormField<String>(
@@ -416,6 +465,23 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                       items: [for (final f in st.flats) DropdownMenuItem(value: f.number, child: Text(f.number))],
                       onChanged: (v) => set(() => flat = v),
                     ),
+                  if (role == Role.owner || role == Role.resident) ...[
+                    const SizedBox(height: 8),
+                    const Align(alignment: Alignment.centerLeft, child: Text('Member support details (optional)')),
+                    for (final flag in MemberSupportFlag.values)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: supportFlags.contains(flag),
+                        onChanged: (value) => set(() {
+                          if (value == true) {
+                            supportFlags.add(flag);
+                          } else {
+                            supportFlags.remove(flag);
+                          }
+                        }),
+                        title: Text(flag.label),
+                      ),
+                  ],
                   if (role == Role.ecMember || role == Role.monitor)
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
@@ -471,10 +537,12 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
       mobile: mobile.text.trim(),
       role: role,
       flatNumber: needsFlat() ? flat : null,
+      birthDate: needsFlat() ? birthDate : null,
       designations: desk ? const [DemoUser.membershipDesk] : const [],
       monitorCategories: isMonitor ? areas : const [],
       monitorFrom: isMonitor ? from : null,
       monitorUntil: isMonitor ? until : null,
+      supportFlags: supportFlags.toList(),
     );
     try {
       final r = await ref.read(directoryProvider.notifier).addPerson(p);
@@ -506,6 +574,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
 
   Future<void> _editDetails(Person p) async {
     var areas = [...p.monitorCategories];
+    var birthDate = p.birthDate;
     var from = p.monitorFrom ?? (p.role == Role.monitor ? DateUtils.dateOnly(DateTime.now()) : null);
     var until = p.monitorUntil;
     var desk = p.designations.contains(DemoUser.membershipDesk);
@@ -529,6 +598,20 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                     title: const Text(DemoUser.membershipDesk),
                     subtitle: const Text('Can add owners and residents and start membership changes'),
                   ),
+                  if (p.role == Role.owner || p.role == Role.resident)
+                    TextButton.icon(
+                      onPressed: () async {
+                        final selected = await showDatePicker(
+                          context: ctx,
+                          initialDate: birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
+                          firstDate: DateTime(1900),
+                          lastDate: DateUtils.dateOnly(DateTime.now()),
+                        );
+                        if (selected != null) set(() => birthDate = selected);
+                      },
+                      icon: const Icon(Icons.cake_outlined),
+                      label: Text(birthDate == null ? 'Set date of birth (optional)' : 'DOB · ${dateFmt.format(birthDate!)} · ${_ageLabel(birthDate!, AppLocalizations.of(context))}'),
+                    ),
                   if (p.role == Role.monitor)
                     _AreaPicker(
                       areas: areas,
@@ -570,15 +653,17 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     ];
     final isMonitor = p.role == Role.monitor;
     await _run(
-      () => ref
-          .read(directoryProvider.notifier)
-          .setDetails(
+      () async {
+        final notifier = ref.read(directoryProvider.notifier);
+        await notifier.setDetails(
             p,
             designations,
             isMonitor ? areas : const [],
             from: isMonitor ? from : null,
             until: isMonitor ? until : null,
-          ),
+          );
+        if (birthDate != null && birthDate != p.birthDate) await notifier.setBirthDate(p, birthDate!);
+      },
       'Saved changes for ${p.name}',
     );
   }
@@ -708,6 +793,22 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     ];
   }
 }
+
+String _ageLabel(DateTime birthDate, AppLocalizations l) {
+  var age = DateTime.now().year - birthDate.year;
+  final today = DateTime.now();
+  if (today.month < birthDate.month || (today.month == birthDate.month && today.day < birthDate.day)) age--;
+  if (age < 18) return l.child;
+  if (age >= 60) return l.seniorCitizen;
+  return l.adult;
+}
+
+String _localizedAgeCategory(AgeCategory? category, AppLocalizations l) => switch (category) {
+  AgeCategory.child => l.child,
+  AgeCategory.adult => l.adult,
+  AgeCategory.seniorCitizen => l.seniorCitizen,
+  null => l.ageNotRecorded,
+};
 
 class _ErrorText extends StatelessWidget {
   const _ErrorText(this.text);
@@ -871,8 +972,11 @@ class _PersonDialogState extends ConsumerState<_PersonDialog> {
     final f = files.first;
     setState(() => busy = true);
     try {
+      final size = await f.length();
+      if (size == null || size > maxSourceUploadBytes(f.extension ?? '')) {
+        return _toast('File exceeds the supported source size');
+      }
       final bytes = await f.readAsBytes();
-      if (bytes.length > _maxIdBytes) return _toast('That file is larger than 5 MB');
       await ref.read(directoryProvider.notifier).uploadDoc(p, type, last4.text.trim(), bytes, f.extension ?? 'jpg');
       setState(() => docs = _load());
       _toast('ID proof uploaded');

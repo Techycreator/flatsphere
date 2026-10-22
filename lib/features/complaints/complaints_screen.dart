@@ -28,10 +28,11 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
     final now = ref.watch(clockProvider);
     final role = ref.watch(sessionProvider)!.activeRole;
     var list = visibleComplaints(ref);
-    final open = list.where((c) => c.slaApplies).toList();
+    final tracked = list.where((c) => !c.kind.isEnhancement && !c.inReview).toList();
+    final open = tracked.where((c) => c.status.isOpen).toList();
     final review = list.where((c) => c.inReview).toList();
     final enh = list.where((c) => c.kind.isEnhancement && c.status != TicketStatus.rejected && !c.inReview).toList();
-    int count(SlaColor col) => open.where((c) => slaFor(c, now).color == col).length;
+    int count(SlaColor col) => tracked.where((c) => slaFor(c, now).color == col).length;
     final staff = role.isCommittee || role == Role.caretaker;
 
     if (_special == 'review') {
@@ -39,15 +40,21 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
     } else if (_special == 'enh') {
       list = enh;
     } else {
-      list = list.where((c) => !c.kind.isEnhancement && !c.inReview).toList();
+      list = tracked;
       if (_openOnly) list = list.where((c) => c.status.isOpen).toList();
-      if (_sla != null) list = list.where((c) => c.slaApplies && slaFor(c, now).color == _sla).toList();
+      if (_sla != null) list = list.where((c) => slaFor(c, now).color == _sla).toList();
     }
     if (_query.isNotEmpty) {
       final q = _query.toLowerCase();
       list = list.where((c) => '${c.title} ${c.id} ${c.flatNumber} ${c.category}'.toLowerCase().contains(q)).toList();
     }
-    int rank(Complaint c) => c.slaApplies ? slaFor(c, now).color.index : -1;
+    int rank(Complaint c) => switch (slaFor(c, now).color) {
+      SlaColor.red => 5,
+      SlaColor.amber => 4,
+      SlaColor.blue => 3,
+      SlaColor.green => 2,
+      SlaColor.grey => 1,
+    };
     list.sort((a, b) => rank(b).compareTo(rank(a)));
 
     return PageBody(
@@ -79,9 +86,11 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
               onSelected: (_) => setState(() => _sla = _special = null),
             ),
             for (final (col, name, color) in const [
-              (SlaColor.green, 'Green', Color(0xFF16A34A)),
-              (SlaColor.amber, 'Amber', Color(0xFFF59E0B)),
-              (SlaColor.red, 'Red', Color(0xFFDC2626)),
+              (SlaColor.blue, 'Open / Within SLA', Color(0xFF2563EB)),
+              (SlaColor.amber, 'Attention Needed', Color(0xFFF59E0B)),
+              (SlaColor.red, 'Overdue', Color(0xFFDC2626)),
+              (SlaColor.green, 'Resolved', Color(0xFF16A34A)),
+              (SlaColor.grey, 'Closed', Color(0xFF64748B)),
             ])
               ChoiceChip(
                 avatar: CircleAvatar(backgroundColor: color, radius: 6),
@@ -90,6 +99,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
                 onSelected: (_) => setState(() {
                   _special = null;
                   _sla = _sla == col ? null : col;
+                  _openOnly = col == SlaColor.blue || col == SlaColor.amber || col == SlaColor.red;
                 }),
               ),
             if (staff)

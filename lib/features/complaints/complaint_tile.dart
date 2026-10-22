@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/theme.dart';
 import '../../models/models.dart';
 import '../../models/sla.dart';
 import '../../state/app_state.dart';
@@ -36,7 +37,7 @@ class ComplaintTile extends ConsumerWidget {
               Pill(c.kind.label, color: Colors.teal, icon: Icons.lightbulb_outline)
             else
               CriticalityPill(c.criticality, ai: c.aiSuggested),
-            Pill(c.status.label, color: c.inReview ? Colors.purple : Colors.blueGrey),
+            Pill(c.status.label, color: c.inReview ? Colors.purple : AppColors.complaintStatus(c.status)),
           ],
         ),
       ),
@@ -51,7 +52,9 @@ class ComplaintTile extends ConsumerWidget {
     return switch (c.status) {
       TicketStatus.rejected => const Icon(Icons.cancel_outlined, color: Colors.grey),
       TicketStatus.planned => const Icon(Icons.event_note_outlined, color: Colors.teal),
-      _ => const Icon(Icons.check_circle, color: Colors.green),
+      TicketStatus.closed => const Icon(Icons.cancel_outlined, color: Colors.blueGrey),
+      TicketStatus.resolved => const Icon(Icons.check_circle, color: AppColors.green),
+      _ => const Icon(Icons.circle_outlined, color: Colors.blue),
     };
   }
 
@@ -59,14 +62,10 @@ class ComplaintTile extends ConsumerWidget {
     if (c.slaApplies) return _slaColor(sla);
     if (c.inReview) return Colors.purple.shade200;
     if (c.kind.isEnhancement && c.status.isOpen) return Colors.teal.shade200;
-    return Colors.grey.shade300;
+    return AppColors.complaintStatus(c.status).withValues(alpha: 0.35);
   }
 
-  Color _slaColor(SlaInfo s) => switch (s.color) {
-    SlaColor.green => const Color(0xFF16A34A),
-    SlaColor.amber => const Color(0xFFF59E0B),
-    SlaColor.red => const Color(0xFFDC2626),
-  };
+  Color _slaColor(SlaInfo s) => AppColors.sla(s.color);
 }
 
 /// Complaints the active role is allowed to see.

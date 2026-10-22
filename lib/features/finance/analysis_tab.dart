@@ -1,30 +1,68 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
+import '../../l10n/app_localizations.dart';
+import '../../models/models.dart';
+import '../../state/app_state.dart';
 import '../../widgets/common.dart';
 import 'analysis_data.dart';
 
 enum _Mode { yoy, mom }
 
-class AnalysisTab extends StatefulWidget {
+class AnalysisTab extends ConsumerStatefulWidget {
   const AnalysisTab({super.key});
 
   @override
-  State<AnalysisTab> createState() => _AnalysisTabState();
+  ConsumerState<AnalysisTab> createState() => _AnalysisTabState();
 }
 
-class _AnalysisTabState extends State<AnalysisTab> {
+class _AnalysisTabState extends ConsumerState<AnalysisTab> {
   _Mode _mode = _Mode.yoy;
-  String _category = 'All expenses';
-
-  List<CategorySeries> get _all => [totalExpense, ...expenseSeries, totalIncome, ...incomeSeries];
-  CategorySeries get _series => _all.firstWhere((s) => s.name == _category);
+  String _category = 'expense:all';
 
   @override
   Widget build(BuildContext context) {
-    final s = _series;
+    final session = ref.watch(sessionProvider)!;
+    final l = AppLocalizations.of(context);
+    final expenses = ref.watch(expensesProvider).where((e) => e.status == ExpenseStatus.approved).toList();
+    final income = ref.watch(incomeProvider).entries;
+    final dues = ref.watch(duesProvider);
+    final today = DateUtils.dateOnly(DateTime.now());
+    final setting = session.user.association?.settings['fiscal_year_start_month'];
+    final fiscalMonth = setting is num ? setting.toInt().clamp(1, 12).toInt() : 4;
+    final fiscalYear = today.month >= fiscalMonth ? today.year : today.year - 1;
+    final currentStart = DateTime(fiscalYear, fiscalMonth, 1);
+    final previousStart = DateTime(fiscalYear - 1, fiscalMonth, 1);
+    final closedMonths = ((today.year - fiscalYear) * 12 + today.month - fiscalMonth + 1).clamp(1, 12).toInt();
+    final currentFyName = 'FY $fiscalYear-${(fiscalYear + 1).toString().substring(2)}';
+    final previousFyName = 'FY ${fiscalYear - 1}-${fiscalYear.toString().substring(2)}';
+    final expenseCategories = expenses.map((e) => e.category).toSet().toList()..sort();
+    final incomeCategories = income.map((e) => e.categoryName).toSet().toList()..sort();
+    final dueCategories = dues.payments.map((p) => p.head ?? 'Advance').toSet().toList()..sort();
+    final categories = <(String, String)>[
+      ('expense:all', 'All expenses'),
+      for (final name in expenseCategories) ('expense:$name', 'Expense · $name'),
+      ('income:all', 'All income'),
+      for (final name in incomeCategories) ('income:$name', 'Income · $name'),
+      for (final name in dueCategories) ('dues:$name', 'Dues · $name'),
+    ];
+    if (!categories.any((item) => item.$1 == _category)) _category = categories.first.$1;
+    final series = _liveSeries(
+      _category,
+      expenses,
+      income,
+      dues.payments,
+      currentStart,
+      previousStart,
+      fiscalMonth,
+    );
+    final currentTotal = series.current.take(closedMonths).fold(0.0, (sum, value) => sum + value);
+    final previousTotal = series.previous.take(closedMonths).fold(0.0, (sum, value) => sum + value);
     final theme = Theme.of(context);
+    final hasData = currentTotal != 0 || previousTotal != 0;
     return PageBody(
       children: [
         Card(
@@ -45,68 +83,153 @@ class _AnalysisTabState extends State<AnalysisTab> {
           children: [
             SegmentedButton<_Mode>(
               segments: const [
-                ButtonSegment(value: _Mode.yoy, label: Text('Year on year'), icon: Icon(Icons.compare_arrows)),
-                ButtonSegment(value: _Mode.mom, label: Text('Month on month'), icon: Icon(Icons.calendar_month)),
+                ButtonSegment(value: _Mode.yoy, label: Text(l.analysisYearOnYear), icon: Icon(Icons.compare_arrows)),
+                ButtonSegment(value: _Mode.mom, label: Text(l.analysisMonthOnMonth), icon: Icon(Icons.calendar_month)),
               ],
               selected: {_mode},
               onSelectionChanged: (v) => setState(() => _mode = v.first),
             ),
             SizedBox(
-              width: 280,
+              width: 340,
               child: DropdownButtonFormField<String>(
                 initialValue: _category,
                 isDense: true,
-                decoration: const InputDecoration(labelText: 'Category', isDense: true),
-                items: [for (final c in _all) DropdownMenuItem(value: c.name, child: Text(c.name))],
-                onChanged: (v) => setState(() => _category = v!),
+                decoration: InputDecoration(labelText: l.analysisCategory, isDense: true),
+                items: [for (final item in categories) DropdownMenuItem(value: item.$1, child: Text(item.$2))],
+                onChanged: (v) => setState(() => _category = v ?? _category),
               ),
             ),
             TextButton.icon(
-              onPressed: () => toast(context, 'Analysis exported to Excel and PDF'),
+              onPressed: () => toast(context, l.analysisExportHint),
               icon: const Icon(Icons.download),
               label: const Text('Export'),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        _mode == _Mode.yoy ? _YoY(series: s) : _MoM(series: s),
+        if (hasData)
+          StatGrid(
+            children: [
+              StatCard(label: '$currentFyName · to date', value: inr.format(currentTotal), icon: Icons.today),
+              StatCard(label: '$previousFyName · same period', value: inr.format(previousTotal), icon: Icons.history),
+              StatCard(
+                label: 'Change',
+                value: '${_pct(currentTotal, previousTotal) >= 0 ? '+' : ''}${_pct(currentTotal, previousTotal).toStringAsFixed(1)}%',
+                icon: Icons.trending_up,
+              ),
+            ],
+          )
+        else
+          EmptyState(l.noAnalysisData, icon: Icons.bar_chart_outlined),
         const SizedBox(height: 16),
-        TwoCol(
-          left: SectionCard(
-            title: 'Insights',
-            child: _Insights(onPick: (c) => setState(() => _category = c)),
-          ),
-          right: const SectionCard(title: 'Budget vs actual ($currentFy, Apr–Sep)', child: _Budget()),
+        SectionCard(
+          title: '${series.name} · $currentFyName vs $previousFyName',
+          child: !hasData
+              ? const Text('Figures appear here as transactions are recorded.')
+              : SizedBox(
+                  height: 280,
+                  child: _mode == _Mode.yoy
+                      ? LineChart(
+                          LineChartData(
+                            gridData: const FlGridData(drawVerticalLine: false),
+                            borderData: FlBorderData(show: false),
+                            titlesData: _titles((index) => _monthLabel(fiscalMonth, index.toInt())),
+                            lineBarsData: [
+                              LineChartBarData(
+                                spots: [for (var i = 0; i < 12; i++) FlSpot(i.toDouble(), series.previous[i])],
+                                color: Colors.blueGrey.shade300,
+                                barWidth: 2,
+                                dashArray: const [6, 4],
+                                dotData: const FlDotData(show: false),
+                              ),
+                              LineChartBarData(
+                                spots: [for (var i = 0; i < 12; i++) FlSpot(i.toDouble(), series.current[i])],
+                                color: theme.colorScheme.primary,
+                                barWidth: 3,
+                                isCurved: true,
+                                dotData: const FlDotData(show: true),
+                              ),
+                            ],
+                          ),
+                        )
+                      : BarChart(
+                          BarChartData(
+                            gridData: const FlGridData(drawVerticalLine: false),
+                            borderData: FlBorderData(show: false),
+                            titlesData: _titles((index) => _monthLabel(fiscalMonth, index.toInt())),
+                            barGroups: [
+                              for (var i = 0; i < 12; i++)
+                                BarChartGroupData(
+                                  x: i,
+                                  barRods: [
+                                    BarChartRodData(toY: series.previous[i], color: Colors.blueGrey.shade300, width: 7),
+                                    BarChartRodData(toY: series.current[i], color: theme.colorScheme.primary, width: 7),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+                ),
         ),
         const SizedBox(height: 16),
         SectionCard(
-          title: 'Category comparison – $currentFy vs $previousFy (Apr–Sep)',
-          child: _CategoryTable(selected: _category, onPick: (c) => setState(() => _category = c)),
-        ),
-        const SizedBox(height: 16),
-        TwoCol(
-          left: const SectionCard(title: 'Collection efficiency (% collected by month end)', child: _CollectionChart()),
-          right: SectionCard(
-            title: 'Cost per flat (monthly average)',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  inr.format(totalExpense.currToDate() / closedMonths / flatCount),
-                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  '$currentFy (Apr–Sep) · last year ${inr.format(totalExpense.prevToDate() / closedMonths / flatCount)}',
-                ),
-                const SizedBox(height: 8),
-                _ChangeChip(totalExpense.currToDate(), totalExpense.prevToDate(), higherIsBad: true),
-              ],
-            ),
-          ),
+          title: l.budgetVsActual,
+          child: Text(l.noBudgetRecorded),
         ),
       ],
     );
   }
+
+  CategorySeries _liveSeries(
+    String key,
+    List<Expense> expenses,
+    Iterable<IncomeEntry> income,
+    List<PaymentRecord> payments,
+    DateTime currentStart,
+    DateTime previousStart,
+    int fiscalMonth,
+  ) {
+    final isExpense = key.startsWith('expense:');
+    final isIncome = key.startsWith('income:');
+    final filter = key.substring(key.indexOf(':') + 1);
+    final current = List<double>.filled(12, 0);
+    final previous = List<double>.filled(12, 0);
+    void add(DateTime date, num amount, String category) {
+      final start = date.isBefore(currentStart) ? previousStart : currentStart;
+      if (date.isBefore(start) || !date.isBefore(DateTime(start.year + 1, fiscalMonth, 1))) return;
+      final monthIndex = (date.month - fiscalMonth + 12) % 12;
+      final values = start == currentStart ? current : previous;
+      values[monthIndex] += amount.toDouble();
+    }
+
+    if (isExpense) {
+      for (final item in expenses) {
+        if (filter == 'all' || filter == item.category) add(item.date, item.amount, item.category);
+      }
+    } else if (isIncome) {
+      for (final item in income) {
+        if (filter == 'all' || filter == item.categoryName) add(item.receivedOn, item.amount, item.categoryName);
+      }
+      if (filter == 'all') {
+        for (final item in payments) {
+          add(item.paidOn, item.amount, 'Dues');
+        }
+      }
+    } else {
+      for (final item in payments) {
+        if (filter == item.head || (filter == 'Advance' && item.head == null)) add(item.paidOn, item.amount, item.head ?? 'Advance');
+      }
+    }
+    return CategorySeries(
+      isExpense ? (filter == 'all' ? 'All expenses' : filter) :
+          isIncome ? (filter == 'all' ? 'All income' : filter) : filter,
+      previous,
+      current,
+    );
+  }
+
+  String _monthLabel(int fiscalMonth, int index) =>
+      DateFormat('MMM').format(DateTime(2020, ((fiscalMonth - 1 + index) % 12) + 1, 1));
 }
 
 double _pct(double now, double before) => before == 0 ? 0 : (now - before) / before * 100;

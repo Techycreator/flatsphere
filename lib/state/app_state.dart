@@ -6,7 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/backend.dart';
 import '../backend/approvals_repo.dart';
 import '../backend/complaints_repo.dart';
+import '../backend/checklist_repo.dart';
 import '../backend/finance_repo.dart';
+import '../backend/birthday_repo.dart';
+import '../backend/meetings_repo.dart';
+import '../backend/notifications_repo.dart';
 import '../models/models.dart';
 import 'demo_data.dart';
 
@@ -23,11 +27,30 @@ class LocaleNotifier extends Notifier<Locale> {
 
 final sessionProvider = NotifierProvider<SessionNotifier, Session?>(SessionNotifier.new);
 
+final birthdayWishProvider = FutureProvider.autoDispose<bool>((ref) async {
+  final member = ref.watch(sessionProvider.select((session) => (session?.user.id, session?.user.associationId)));
+  if (!backendEnabled || member.$1 == null || member.$2 == null) return false;
+  return BirthdayRepo.claimIfDue();
+});
+
+final appNotificationsProvider = FutureProvider.autoDispose<List<AppNotification>>((ref) async {
+  final member = ref.watch(sessionProvider.select((session) => (session?.user.id, session?.user.associationId)));
+  if (!backendEnabled || member.$1 == null || member.$2 == null) return const [];
+  return NotificationsRepo.load();
+});
+
 class SessionNotifier extends Notifier<Session?> {
   @override
   Session? build() => null;
 
   void login(DemoUser u) => state = Session(user: u, activeRole: u.roles.first);
+
+  Future<void> switchAssociation(String associationId) async {
+    if (!backendEnabled) return;
+    final user = await AuthService.loadUser(associationId: associationId);
+    if (user == null) throw StateError('No active membership in that association');
+    state = Session(user: user, activeRole: user.roles.first);
+  }
   void switchRole(Role r) => state = state?.copyWith(activeRole: r);
   void logout() {
     if (backendEnabled) AuthService.signOut();
@@ -41,7 +64,7 @@ class ComplaintsNotifier extends Notifier<List<Complaint>> {
   @override
   List<Complaint> build() {
     if (!backendEnabled) return buildDemoComplaints(ref.read(clockProvider));
-    if (ref.watch(sessionProvider.select((s) => s?.user.id)) != null) refresh();
+    if (ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId))).$1 != null) refresh();
     return const [];
   }
 
@@ -64,26 +87,95 @@ class ComplaintsNotifier extends Notifier<List<Complaint>> {
     state = [for (final c in state) c.id == id ? after : c];
     if (backendEnabled) ComplaintsRepo.update(before, after).catchError((_) => refresh());
   }
+
+  Future<void> setStatus(String id, TicketStatus status, String note) async {
+    if (backendEnabled) {
+      await ComplaintsRepo.setStatus(id, status, note);
+      return refresh();
+    }
+    update(
+      id,
+      (complaint) => complaint.copyWith(
+        status: status,
+        remarks: [
+          ...complaint.remarks,
+          TicketRemark(by: ref.read(sessionProvider)?.user.name ?? 'Demo user', at: DateTime.now(), text: '[${status.label}] $note'),
+        ],
+      ),
+    );
+  }
 }
 
 class ChecklistState {
-  const ChecklistState({required this.items, this.submitted = false, this.approved = false});
+  const ChecklistState({required this.items, this.submitted = false, this.approved = false, this.error});
   final List<ChecklistItem> items;
   final bool submitted;
   final bool approved;
+  final String? error;
 
   int get doneCount => items.where((i) => i.done).length;
   double get progress => items.isEmpty ? 0 : doneCount / items.length;
+
+  ChecklistState copyWith({List<ChecklistItem>? items, bool? submitted, bool? approved, String? error, bool clearError = false}) =>
+      ChecklistState(
+        items: items ?? this.items,
+        submitted: submitted ?? this.submitted,
+        approved: approved ?? this.approved,
+        error: clearError ? null : (error ?? this.error),
+      );
 }
 
 final checklistProvider = NotifierProvider<ChecklistNotifier, ChecklistState>(ChecklistNotifier.new);
 
 class ChecklistNotifier extends Notifier<ChecklistState> {
   @override
-  ChecklistState build() => ChecklistState(items: buildDemoChecklist());
+  ChecklistState build() {
+    if (backendEnabled) {
+      final session = ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId)));
+      if (session.$1 != null) refreshProofs(DateUtils.dateOnly(DateTime.now()));
+    }
+    return ChecklistState(items: buildDemoChecklist());
+  }
+
+  Future<void> refreshProofs(DateTime date) async {
+    if (!backendEnabled) return;
+    try {
+      final proofs = await ChecklistRepo.proofs(date);
+      state = state.copyWith(
+        items: [for (final item in state.items) item.copyWith(photoProofPaths: proofs[item.id] ?? const [])],
+        clearError: true,
+      );
+    } catch (e) {
+      state = state.copyWith(error: '$e');
+    }
+  }
+
+  Future<void> uploadPhotoProof(String itemId, DateTime date, Uint8List bytes) async {
+    final role = ref.read(sessionProvider)?.activeRole;
+    if (role != Role.caretaker || state.submitted || state.approved) {
+      throw StateError('Only the caretaker can add proofs before submission');
+    }
+    final item = state.items.where((i) => i.id == itemId).firstOrNull;
+    if (item == null || !item.proofRequired) throw StateError('This checklist item does not require photo proof');
+    final proofPath = backendEnabled
+        ? await ChecklistRepo.uploadPhoto(itemId: itemId, date: date, source: bytes)
+        : 'demo:${DateTime.now().microsecondsSinceEpoch}';
+    state = state.copyWith(
+      items: [
+        for (final current in state.items)
+          if (current.id == itemId)
+            current.copyWith(photoProofPaths: [...current.photoProofPaths, proofPath])
+          else
+            current,
+      ],
+      clearError: true,
+    );
+  }
+
+  Future<String?> proofUrl(String path) async => backendEnabled ? ChecklistRepo.viewUrl(path) : null;
 
   void _items(List<ChecklistItem> items) =>
-      state = ChecklistState(items: items, submitted: state.submitted, approved: state.approved);
+      state = state.copyWith(items: items);
 
   void toggle(String id, bool done) {
     if (state.approved) return;
@@ -126,9 +218,15 @@ class ApprovalsNotifier extends Notifier<List<ApprovalRequest>> {
     return 'APR-${(maxN + 1).toString().padLeft(3, '0')}';
   }
 
-  void add(ApprovalRequest a) {
+  Future<String?> add(ApprovalRequest a) async {
+    if (backendEnabled) {
+      final id = await ApprovalsRepo.insert(a);
+      state = [a, ...state];
+      ref.invalidate(appNotificationsProvider);
+      return id;
+    }
     state = [a, ...state];
-    if (backendEnabled) ApprovalsRepo.insert(a).catchError((_) => refresh());
+    return null;
   }
 
   /// Records [d] on the current step if it belongs to [role]/[userName].
@@ -138,6 +236,7 @@ class ApprovalsNotifier extends Notifier<List<ApprovalRequest>> {
         await ApprovalsRepo.decide(id, d, comment);
       } finally {
         await refresh();
+        ref.invalidate(appNotificationsProvider);
       }
       return;
     }
@@ -214,7 +313,7 @@ class DuesNotifier extends Notifier<DuesState> {
   @override
   DuesState build() {
     if (!backendEnabled) return DuesState(lines: buildDemoDues(ref.read(clockProvider)));
-    if (ref.watch(sessionProvider.select((s) => s?.user.id)) != null) refresh();
+    if (ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId))).$1 != null) refresh();
     return const DuesState(lines: []);
   }
 
@@ -275,6 +374,40 @@ class DuesNotifier extends Notifier<DuesState> {
       for (final f in demoFlats)
         if ((rates[f.type] ?? 0) > 0 && !state.lines.any((l) => l.flatNumber == f.number && l.head == head))
           DueLine(flatNumber: f.number, head: head, amount: rates[f.type]!, paid: 0, dueDate: dueDate),
+    ];
+    state = state.copyWith(lines: [...state.lines, ...added]);
+    return added.length;
+  }
+
+  Future<int> raiseDuesPerSqft(String head, DateTime dueDate, double ratePerSqft) async {
+    if (backendEnabled) {
+      final count = await FinanceRepo.raiseDuesPerSqft(head, dueDate, ratePerSqft);
+      await refresh();
+      return count;
+    }
+    final added = [
+      for (final flat in demoFlats)
+        if (flat.sqft > 0 && !state.lines.any((line) => line.flatNumber == flat.number && line.head == head))
+          DueLine(flatNumber: flat.number, head: head, amount: (flat.sqft * ratePerSqft).round(), paid: 0, dueDate: dueDate),
+    ];
+    state = state.copyWith(lines: [...state.lines, ...added]);
+    return added.length;
+  }
+
+  Future<int> applyFixedLateFee(String head, DateTime dueDate, int amount) async {
+    if (backendEnabled) {
+      final count = await FinanceRepo.applyFixedLateFee(head, dueDate, amount);
+      await refresh();
+      return count;
+    }
+    final overdue = {
+      for (final line in state.lines)
+        if (!line.isPaid && line.dueDate.isBefore(DateTime.now())) line.flatNumber,
+    };
+    final added = [
+      for (final flat in overdue)
+        if (!state.lines.any((line) => line.flatNumber == flat && line.head == head))
+          DueLine(flatNumber: flat, head: head, amount: amount, paid: 0, dueDate: dueDate),
     ];
     state = state.copyWith(lines: [...state.lines, ...added]);
     return added.length;
@@ -348,13 +481,132 @@ final bankBalanceProvider = Provider<int?>((ref) {
   return o.amount + inflow - outflow;
 });
 
+class IncomeState {
+  const IncomeState({this.categories = const [], this.entries = const [], this.loading = false, this.error});
+
+  final List<IncomeCategory> categories;
+  final List<IncomeEntry> entries;
+  final bool loading;
+  final String? error;
+
+  IncomeState copyWith({List<IncomeCategory>? categories, List<IncomeEntry>? entries, bool? loading, String? error}) =>
+      IncomeState(
+        categories: categories ?? this.categories,
+        entries: entries ?? this.entries,
+        loading: loading ?? this.loading,
+        error: error,
+      );
+}
+
+final incomeProvider = NotifierProvider<IncomeNotifier, IncomeState>(IncomeNotifier.new);
+
+class IncomeNotifier extends Notifier<IncomeState> {
+  @override
+  IncomeState build() {
+    if (!backendEnabled) {
+      return IncomeState(
+        categories: const [
+          IncomeCategory(
+            id: 'demo-advertisement',
+            name: 'Advertisement',
+            status: IncomeCategoryStatus.active,
+            requestRef: 'DEMO',
+          ),
+          IncomeCategory(
+            id: 'demo-sponsorship',
+            name: 'Sponsorship',
+            status: IncomeCategoryStatus.active,
+            requestRef: 'DEMO',
+          ),
+          IncomeCategory(
+            id: 'demo-rental',
+            name: 'Hall rental',
+            status: IncomeCategoryStatus.active,
+            requestRef: 'DEMO',
+          ),
+        ],
+      );
+    }
+    final user = ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId)));
+    if (user.$1 != null) refresh();
+    return IncomeState(loading: user.$1 != null);
+  }
+
+  Future<void> refresh() async {
+    if (!backendEnabled) return;
+    try {
+      final data = await FinanceRepo.income();
+      state = IncomeState(categories: data.categories, entries: data.entries);
+    } catch (e) {
+      state = state.copyWith(loading: false, error: '$e');
+    }
+  }
+
+  Future<String> requestCategory(String name) async {
+    final requestRef = ref.read(approvalsProvider.notifier).nextId();
+    if (backendEnabled) {
+      final createdRef = await FinanceRepo.requestIncomeCategory(name, requestRef);
+      await refresh();
+      await ref.read(approvalsProvider.notifier).refresh();
+      return createdRef;
+    }
+    state = state.copyWith(
+      categories: [
+        IncomeCategory(
+          id: 'demo-${DateTime.now().microsecondsSinceEpoch}',
+          name: name.trim(),
+          status: IncomeCategoryStatus.pending,
+          requestRef: requestRef,
+        ),
+        ...state.categories,
+      ],
+    );
+    return requestRef;
+  }
+
+  Future<void> record({
+    required String categoryId,
+    required DateTime receivedOn,
+    required int amount,
+    required String source,
+    required String description,
+  }) async {
+    if (backendEnabled) {
+      await FinanceRepo.recordIncome(
+        categoryId: categoryId,
+        receivedOn: receivedOn,
+        amount: amount,
+        source: source,
+        description: description,
+      );
+      return refresh();
+    }
+    final category = state.categories.firstWhere((c) => c.id == categoryId && c.status == IncomeCategoryStatus.active);
+    state = state.copyWith(
+      entries: [
+        IncomeEntry(
+          id: 'demo-${DateTime.now().microsecondsSinceEpoch}',
+          categoryId: category.id,
+          categoryName: category.name,
+          receivedOn: receivedOn,
+          amount: amount,
+          source: source.trim().isEmpty ? null : source.trim(),
+          description: description.trim(),
+          recordedBy: ref.read(sessionProvider)?.user.name ?? 'Demo user',
+        ),
+        ...state.entries,
+      ],
+    );
+  }
+}
+
 final expensesProvider = NotifierProvider<ExpensesNotifier, List<Expense>>(ExpensesNotifier.new);
 
 class ExpensesNotifier extends Notifier<List<Expense>> {
   @override
   List<Expense> build() {
     if (!backendEnabled) return buildDemoExpenses(ref.read(clockProvider));
-    if (ref.watch(sessionProvider.select((s) => s?.user.id)) != null) refresh();
+    if (ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId))).$1 != null) refresh();
     return const [];
   }
 
@@ -378,6 +630,7 @@ class ExpensesNotifier extends Notifier<List<Expense>> {
     required String enteredBy,
     Uint8List? bill,
     String? ext,
+    String? eventId,
   }) async {
     if (backendEnabled) {
       await FinanceRepo.addExpense(
@@ -388,6 +641,7 @@ class ExpensesNotifier extends Notifier<List<Expense>> {
         amount: amount,
         bill: bill,
         ext: ext,
+        eventId: eventId,
       );
       return refresh();
     }
@@ -402,6 +656,7 @@ class ExpensesNotifier extends Notifier<List<Expense>> {
         status: ExpenseStatus.awaitingTreasurer,
         enteredBy: enteredBy,
         documents: bill == null ? 0 : 1,
+        eventId: eventId,
       ),
       ...state,
     ];
@@ -442,10 +697,66 @@ final meetingsProvider = NotifierProvider<MeetingsNotifier, List<Meeting>>(Meeti
 
 class MeetingsNotifier extends Notifier<List<Meeting>> {
   @override
-  List<Meeting> build() => buildDemoMeetings(ref.read(clockProvider));
+  List<Meeting> build() {
+    if (!backendEnabled) return buildDemoMeetings(ref.read(clockProvider));
+    if (ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId))).$1 != null) refresh();
+    return const [];
+  }
 
-  void rsvp(String id, Rsvp r) => state = [for (final m in state) m.id == id ? m.withRsvp(r) : m];
-  void add(Meeting m) => state = [...state, m]..sort((a, b) => a.at.compareTo(b.at));
+  Future<void> refresh() async {
+    if (backendEnabled) state = await MeetingsRepo.load();
+  }
+
+  Future<void> rsvp(String id, Rsvp r) async {
+    if (backendEnabled) {
+      await MeetingsRepo.rsvp(id, r);
+      return refresh();
+    }
+    state = [for (final m in state) m.id == id ? m.withRsvp(r) : m];
+  }
+
+  Future<void> add(Meeting m) async {
+    if (backendEnabled) {
+      await MeetingsRepo.create(m);
+      await refresh();
+      ref.invalidate(appNotificationsProvider);
+      return;
+    }
+    state = [...state, m]..sort((a, b) => a.at.compareTo(b.at));
+  }
+
+  Future<void> saveMinutes(String id, String text) async {
+    if (backendEnabled) {
+      await MeetingsRepo.saveMinutes(id, text);
+      return refresh();
+    }
+    state = [for (final meeting in state) meeting.id == id ? meeting.copyWith(minutesStatus: 'draft', minutesText: text) : meeting];
+  }
+
+  Future<void> submitMinutes(String id) async {
+    if (backendEnabled) {
+      await MeetingsRepo.submitMinutes(id);
+      return refresh();
+    }
+    state = [for (final meeting in state) meeting.id == id ? meeting.copyWith(minutesStatus: 'pending_approval') : meeting];
+  }
+
+  Future<void> approveMinutes(String id) async {
+    if (backendEnabled) {
+      await MeetingsRepo.approveMinutes(id);
+      return refresh();
+    }
+    state = [for (final meeting in state) meeting.id == id ? meeting.copyWith(minutesStatus: 'approved') : meeting];
+  }
+
+  Future<void> reschedule(String id, DateTime at) async {
+    if (backendEnabled) {
+      await MeetingsRepo.reschedule(id, at);
+      return refresh();
+    }
+    state = [for (final meeting in state) meeting.id == id ? meeting.copyWith(at: at) : meeting]
+      ..sort((a, b) => a.at.compareTo(b.at));
+  }
 }
 
 final noticesProvider = Provider<List<Notice>>((ref) => buildDemoNotices(ref.read(clockProvider)));

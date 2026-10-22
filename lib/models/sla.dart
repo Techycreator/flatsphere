@@ -1,6 +1,6 @@
 import 'models.dart';
 
-enum SlaColor { green, amber, red }
+enum SlaColor { blue, amber, red, green, grey }
 
 /// Default SLA policy from the spec (Section 7.2). Secretary can change via W5.
 class SlaThreshold {
@@ -24,6 +24,13 @@ class SlaInfo {
 }
 
 SlaInfo slaFor(Complaint c, DateTime now) {
+  if (c.status == TicketStatus.resolved) return const SlaInfo(SlaColor.green, 'Resolved');
+  if (c.status == TicketStatus.closed || c.status == TicketStatus.rejected) {
+    return const SlaInfo(SlaColor.grey, 'Closed');
+  }
+  if (c.inReview || c.status == TicketStatus.planned || c.kind.isEnhancement) {
+    return const SlaInfo(SlaColor.blue, 'Open');
+  }
   final t = defaultSlaPolicy[c.criticality]!;
   final from = c.acceptedAt ?? c.createdAt;
   if (t.inHours) {
@@ -32,7 +39,7 @@ SlaInfo slaFor(Complaint c, DateTime now) {
         ? SlaColor.red
         : h >= t.amberAfter
         ? SlaColor.amber
-        : SlaColor.green;
+        : SlaColor.blue;
     return SlaInfo(color, '$h h');
   }
   final start = DateTime(from.year, from.month, from.day);
@@ -42,7 +49,7 @@ SlaInfo slaFor(Complaint c, DateTime now) {
       ? SlaColor.red
       : days >= t.amberAfter
       ? SlaColor.amber
-      : SlaColor.green;
+      : SlaColor.blue;
   return SlaInfo(color, 'Day $days');
 }
 

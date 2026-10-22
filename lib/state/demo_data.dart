@@ -355,6 +355,7 @@ List<ChecklistItem> buildDemoChecklist() => const [
     title: 'Generator diesel level',
     category: 'Caretaker functions',
     timeWindow: 'Before 10:00 AM',
+    proofRequired: true,
   ),
   ChecklistItem(
     id: 'c5',

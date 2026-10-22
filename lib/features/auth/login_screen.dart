@@ -102,7 +102,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ],
             ),
             const SizedBox(height: 4),
-            Text(associationName, style: theme.textTheme.bodyMedium),
+            Text(backendEnabled ? 'Sign in to your association' : associationName, style: theme.textTheme.bodyMedium),
             const SizedBox(height: 20),
             TextField(
               controller: _mobile,

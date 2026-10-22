@@ -15,6 +15,7 @@ Future<void> initBackend() async {
 SupabaseClient get db => Supabase.instance.client;
 
 const _roleByDb = {
+  'admin': Role.admin,
   'president': Role.president,
   'secretary': Role.secretary,
   'treasurer': Role.treasurer,
@@ -26,6 +27,7 @@ const _roleByDb = {
   'owner': Role.owner,
   'resident': Role.resident,
   'caretaker': Role.caretaker,
+  'security': Role.security,
   'auditor': Role.auditor,
 };
 
@@ -38,15 +40,33 @@ class AuthService {
   static Future<void> signOut() => db.auth.signOut();
 
   /// Builds the signed-in user's roles from active memberships; null if none.
-  static Future<DemoUser?> loadUser() async {
+  static Future<DemoUser?> loadUser({String? associationId}) async {
     final u = db.auth.currentUser;
     if (u == null) return null;
     final profile = await db.from('profiles').select('full_name').eq('id', u.id).maybeSingle();
     final rows = await db
         .from('memberships')
-        .select('role, designations, monitor_categories, monitor_until, assigned_by, flats(number)')
+        .select('association_id, role, designations, monitor_categories, monitor_until, assigned_by, flats(number)')
         .eq('user_id', u.id)
         .isFilter('ended_at', null);
+    if (rows.isEmpty) return null;
+    final associationRows = await db.rpc('my_associations') as List;
+    final associations = [
+      for (final row in associationRows)
+        AssociationInfo(
+          id: row['id'] as String,
+          name: row['name'] as String,
+          state: row['state'] as String? ?? '',
+          city: row['city'] as String?,
+          settings: Map<String, dynamic>.from(row['settings'] as Map? ?? const {}),
+        ),
+    ];
+    final availableIds = associations.map((a) => a.id).toSet();
+    final selectedId = associationId != null && availableIds.contains(associationId)
+        ? associationId
+        : (await db.rpc('my_association') as String?) ?? associations.first.id;
+    if (!availableIds.contains(selectedId)) throw StateError('No active membership for the selected association');
+    await db.rpc('set_active_association', params: {'assoc': selectedId});
     final roles = <Role>{};
     final designations = <String>{};
     final categories = <String>{};
@@ -54,6 +74,7 @@ class AuthService {
     DateTime? monitorUntil;
     String? assignedBy;
     for (final r in rows) {
+      if (r['association_id'] != selectedId) continue;
       if (r['role'] == 'monitor') {
         monitorUntil = DateTime.tryParse(r['monitor_until'] as String? ?? '');
         assignedBy = r['assigned_by'] as String?;
@@ -75,6 +96,8 @@ class AuthService {
       monitorCategories: categories.toList(),
       monitorUntil: monitorUntil,
       monitorAssignedBy: assignedBy,
+      associationId: selectedId,
+      associations: associations,
     );
   }
 }
