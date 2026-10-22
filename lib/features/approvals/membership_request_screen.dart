@@ -27,6 +27,23 @@ enum MembershipRequestType {
   static MembershipRequestType? parse(String s) => values.where((v) => v.name == s).firstOrNull;
 }
 
+class _FamilyDependentDraft {
+  final name = TextEditingController();
+  final email = TextEditingController();
+  DateTime? dateOfBirth;
+
+  void dispose() {
+    name.dispose();
+    email.dispose();
+  }
+}
+
+int _ageOn(DateTime birthDate, DateTime today) {
+  var age = today.year - birthDate.year;
+  if (today.month < birthDate.month || (today.month == birthDate.month && today.day < birthDate.day)) age--;
+  return age;
+}
+
 class MembershipRequestScreen extends ConsumerStatefulWidget {
   const MembershipRequestScreen({super.key, required this.type});
   final MembershipRequestType type;
@@ -40,10 +57,9 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
   final _newName = TextEditingController();
   final _email = TextEditingController();
   final _mobile = TextEditingController();
-  DateTime? _birthDate;
   final _deed = TextEditingController();
   final _lease = TextEditingController(text: '1 Nov 2026 – 31 Oct 2027');
-  int _family = 1;
+  final List<_FamilyDependentDraft> _familyMembers = [];
   bool _docs = false;
   bool _police = false;
   bool _submitting = false;
@@ -56,6 +72,14 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
   final _for = TextEditingController(text: '7');
   final _against = TextEditingController(text: '1');
   final _abstain = TextEditingController(text: '0');
+
+  @override
+  void dispose() {
+    for (final member in _familyMembers) {
+      member.dispose();
+    }
+    super.dispose();
+  }
 
   Future<void> _pickProofs() async {
     final files = await FilePicker.pickFiles(
@@ -89,6 +113,34 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
             _proofs.isEmpty)) {
       toast(context, 'Enter a valid email and phone number, and attach at least one ID proof');
       return;
+    }
+    if (widget.type == MembershipRequestType.resident) {
+      final settings = ref.read(sessionProvider)!.user.association?.settings ?? const <String, dynamic>{};
+      final minimumAgeSetting = settings['family_min_login_age'];
+      final minimumAge = minimumAgeSetting is num ? minimumAgeSetting.toInt() : 12;
+      final limitSetting = settings['family_member_limit'];
+      final familyLimit = limitSetting is num ? limitSetting.toInt() : 5;
+      if (_familyMembers.length > familyLimit) {
+        toast(context, 'This association allows at most $familyLimit family members');
+        return;
+      }
+      for (final member in _familyMembers) {
+        final birthDate = member.dateOfBirth;
+        final email = member.email.text.trim();
+        if (member.name.text.trim().isEmpty || birthDate == null) {
+          toast(context, 'Enter a name and date of birth for every family member');
+          return;
+        }
+        if (_ageOn(birthDate, DateUtils.dateOnly(DateTime.now())) >= minimumAge &&
+            !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+          toast(context, 'An eligible family member needs a unique email address for login');
+          return;
+        }
+        if (email.isNotEmpty && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+          toast(context, 'Enter a valid family-member email address');
+          return;
+        }
+      }
     }
     final notifier = ref.read(approvalsProvider.notifier);
     final id = notifier.nextId();
@@ -141,7 +193,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
             'Flat': '$_flat (owner: $flatOwner)',
             'Owner consent': ownerSelf ? 'Given – request raised by the owner' : 'Requested in the owner\'s app',
             'Outgoing resident': outgoingResident ?? 'None (vacant / owner-occupied)',
-            'Incoming resident': '${_newName.text.trim()} + $_family family member(s)',
+            'Incoming resident': '${_newName.text.trim()} + ${_familyMembers.length} family member(s)',
             'Lease': _lease.text.trim(),
             'ID proofs': _proofs.isNotEmpty ? '${_proofs.length} proof(s) attached' : 'Pending upload',
             'Police verification': _police ? 'Form submitted' : 'Pending',
@@ -188,9 +240,15 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
           name: _newName.text.trim(),
           email: _email.text.trim(),
           mobile: _mobile.text.trim(),
-          birthDate: _birthDate,
           leasePeriod: _lease.text.trim(),
-          familyCount: _family,
+          familyMembers: [
+            for (final member in _familyMembers)
+              (
+                name: member.name.text.trim(),
+                dateOfBirth: member.dateOfBirth!,
+                email: member.email.text.trim().isEmpty ? null : member.email.text.trim(),
+              ),
+          ],
         );
         for (final proof in _proofs) {
           final bytes = await proof.file.xFile.readAsBytes();
@@ -222,6 +280,11 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
     final ownerSelf = t == MembershipRequestType.resident && s.activeRole == Role.owner;
     final canSelfRequest = (t == MembershipRequestType.owner && s.activeRole == Role.owner) ||
       (t == MembershipRequestType.resident && (s.activeRole == Role.owner || s.activeRole == Role.resident));
+    final settings = s.user.association?.settings ?? const <String, dynamic>{};
+    final minimumAgeSetting = settings['family_min_login_age'];
+    final minimumLoginAge = minimumAgeSetting is num ? minimumAgeSetting.toInt() : 12;
+    final limitSetting = settings['family_member_limit'];
+    final familyLimit = limitSetting is num ? limitSetting.toInt() : 5;
     final directory = ref.watch(directoryProvider);
     if (directory.loading) {
       return Scaffold(
@@ -348,20 +411,6 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
                       decoration: const InputDecoration(labelText: 'New owner phone *', prefixText: '+91 '),
                     ),
-                    TextButton.icon(
-                      onPressed: _submitting ? null : () async {
-                        final selected = await showDatePicker(
-                          context: context,
-                          initialDate: _birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
-                          firstDate: DateTime(1900),
-                          lastDate: DateUtils.dateOnly(DateTime.now()),
-                        );
-                        if (selected != null && mounted) setState(() => _birthDate = selected);
-                      },
-                      icon: const Icon(Icons.cake_outlined),
-                      label: Text(_birthDate == null ? 'Date of birth (optional)' : 'Date of birth · ${dateFmt.format(_birthDate!)}'),
-                    ),
-                    const SizedBox(height: 12),
                     TextField(
                       controller: _deed,
                       decoration: const InputDecoration(labelText: 'Sale deed / registration number'),
@@ -387,39 +436,79 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
                       decoration: const InputDecoration(labelText: 'Incoming resident phone *', prefixText: '+91 '),
                     ),
-                    TextButton.icon(
-                      onPressed: _submitting ? null : () async {
-                        final selected = await showDatePicker(
-                          context: context,
-                          initialDate: _birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
-                          firstDate: DateTime(1900),
-                          lastDate: DateUtils.dateOnly(DateTime.now()),
-                        );
-                        if (selected != null && mounted) setState(() => _birthDate = selected);
-                      },
-                      icon: const Icon(Icons.cake_outlined),
-                      label: Text(_birthDate == null ? 'Date of birth (optional)' : 'Date of birth · ${dateFmt.format(_birthDate!)}'),
-                    ),
-                    const SizedBox(height: 12),
                     TextField(
                       controller: _lease,
                       decoration: const InputDecoration(labelText: 'Lease period'),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Expanded(child: Text('Family members (logins for age 12+)')),
-                        IconButton(
-                          onPressed: _family > 0 ? () => setState(() => _family--) : null,
-                          icon: const Icon(Icons.remove_circle_outline),
+                    if (canSelfRequest) ...[
+                      const SizedBox(height: 12),
+                      Text(AppLocalizations.of(context).familyDobPrivacyNotice),
+                      const SizedBox(height: 8),
+                      for (var index = 0; index < _familyMembers.length; index++)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(child: Text('Family member ${index + 1}', style: Theme.of(context).textTheme.titleSmall)),
+                                    IconButton(
+                                      tooltip: 'Remove family member',
+                                      onPressed: _submitting ? null : () => setState(() {
+                                        _familyMembers.removeAt(index).dispose();
+                                      }),
+                                      icon: const Icon(Icons.delete_outline),
+                                    ),
+                                  ],
+                                ),
+                                TextField(
+                                  controller: _familyMembers[index].name,
+                                  textCapitalization: TextCapitalization.words,
+                                  decoration: const InputDecoration(labelText: 'Family member name *'),
+                                ),
+                                TextButton.icon(
+                                  onPressed: _submitting ? null : () async {
+                                    final selected = await showDatePicker(
+                                      context: context,
+                                      initialDate: _familyMembers[index].dateOfBirth ?? DateTime.now().subtract(const Duration(days: 365 * 10)),
+                                      firstDate: DateTime(1900),
+                                      lastDate: DateUtils.dateOnly(DateTime.now()),
+                                    );
+                                    if (selected != null && mounted) {
+                                      setState(() => _familyMembers[index].dateOfBirth = selected);
+                                    }
+                                  },
+                                  icon: const Icon(Icons.cake_outlined),
+                                  label: Text(_familyMembers[index].dateOfBirth == null
+                                      ? 'Date of birth *'
+                                      : 'Date of birth · ${dateFmt.format(_familyMembers[index].dateOfBirth!)}'),
+                                ),
+                                TextField(
+                                  controller: _familyMembers[index].email,
+                                  keyboardType: TextInputType.emailAddress,
+                                  decoration: InputDecoration(
+                                    labelText: 'Login email (required from age $minimumLoginAge)',
+                                    helperText: 'An owner or resident can add the email when this member is eligible.',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        Text('$_family'),
-                        IconButton(
-                          onPressed: _family < 30 ? () => setState(() => _family++) : null,
-                          icon: const Icon(Icons.add_circle_outline),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                          onPressed: _submitting || _familyMembers.length >= familyLimit
+                              ? null
+                              : () => setState(() => _familyMembers.add(_FamilyDependentDraft())),
+                          icon: const Icon(Icons.person_add_alt_1_outlined),
+                          label: Text('Add family member (${_familyMembers.length}/$familyLimit)'),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
                       value: _police,

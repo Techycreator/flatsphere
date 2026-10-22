@@ -19,6 +19,7 @@ final _statements = NavItem('/statements', Icons.description_outlined, (_) => 'S
 final _dues = NavItem('/dues', Icons.payments_outlined, (l) => l.myDues);
 final _meetings = NavItem('/meetings', Icons.groups_outlined, (l) => l.meetings);
 final _directory = NavItem('/directory', Icons.apartment_outlined, (l) => l.directory);
+final _familyAccounts = NavItem('/family-accounts', Icons.family_restroom_outlined, (_) => 'Family accounts');
 final _attendance = NavItem('/attendance', Icons.fact_check_outlined, (l) => l.attendance);
 final _householdStaff = NavItem('/household-staff', Icons.cleaning_services_outlined, (l) => l.householdStaff);
 final _visitors = NavItem('/visitors', Icons.directions_walk_outlined, (l) => l.visitors);
@@ -47,8 +48,8 @@ List<NavItem> _baseNav(Role r) => switch (r) {
   Role.jointSecretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings, _directory, _attendance, _visitors, _registers, _amenities, _community, _associationDocs],
   Role.ecMember => [_home, _checklist, _complaints, _finance, _meetings, _visitors, _community, _associationDocs],
   Role.monitor => [_home, _checklist, _attendance, _complaints, _finance, _meetings, _visitors, _community, _associationDocs],
-  Role.owner => [_home, _dues, _statements, _complaints, _meetings, _householdStaff, _visitors, _amenities, _community, _associationDocs, _notices],
-  Role.resident => [_home, _complaints, _householdStaff, _visitors, _amenities, _community, _associationDocs, _notices],
+  Role.owner => [_home, _familyAccounts, _dues, _statements, _complaints, _meetings, _householdStaff, _visitors, _amenities, _community, _associationDocs, _notices],
+  Role.resident => [_home, _familyAccounts, _complaints, _householdStaff, _visitors, _amenities, _community, _associationDocs, _notices],
   Role.caretaker => [_home, _checklist, _attendance, _visitors, _complaints, _community, _associationDocs, _notices],
   Role.security => [_home, _visitors, _community, _associationDocs],
   Role.auditor => [_home, _finance, _registers, _community, _associationDocs],

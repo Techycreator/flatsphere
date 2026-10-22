@@ -153,6 +153,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get brandColor => 'Brand color';
 
+    @override
+    String get familyDobPrivacyNotice =>
+          'Family dates of birth are securely stored and visible only to the owner/resident account that submits them. No other account, including association staff, can view them.';
+
   @override
   String get operatingDefaults => 'Operating defaults';
 

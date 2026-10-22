@@ -42,4 +42,12 @@ class AssociationSettingsRepo {
     'p_fiscal_year_start_month': fiscalYearStartMonth,
     'p_default_due_day': defaultDueDay,
   });
+
+  static Future<void> updateFamilyRules({
+    required int minimumLoginAge,
+    required int memberLimit,
+  }) => db.rpc('update_family_account_rules', params: {
+    'p_min_login_age': minimumLoginAge,
+    'p_member_limit': memberLimit,
+  });
 }

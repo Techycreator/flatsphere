@@ -22,6 +22,8 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
   late final TextEditingController _brand;
   late final TextEditingController _fiscalMonth;
   late final TextEditingController _dueDay;
+  late final TextEditingController _familyMinimumAge;
+  late final TextEditingController _familyMemberLimit;
   bool _saving = false;
 
   @override
@@ -35,6 +37,8 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
     _brand = TextEditingController(text: settings['brand_primary'] as String? ?? '#26746A');
     _fiscalMonth = TextEditingController(text: '${settings['fiscal_year_start_month'] ?? 4}');
     _dueDay = TextEditingController(text: '${settings['default_due_day'] ?? 10}');
+    _familyMinimumAge = TextEditingController(text: '${settings['family_min_login_age'] ?? 12}');
+    _familyMemberLimit = TextEditingController(text: '${settings['family_member_limit'] ?? 5}');
   }
 
   @override
@@ -45,6 +49,8 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
     _brand.dispose();
     _fiscalMonth.dispose();
     _dueDay.dispose();
+    _familyMinimumAge.dispose();
+    _familyMemberLimit.dispose();
     super.dispose();
   }
 
@@ -55,8 +61,12 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
     final brand = _brand.text.trim();
     final fiscalMonth = int.tryParse(_fiscalMonth.text.trim());
     final dueDay = int.tryParse(_dueDay.text.trim());
+    final minimumLoginAge = int.tryParse(_familyMinimumAge.text.trim());
+    final familyMemberLimit = int.tryParse(_familyMemberLimit.text.trim());
     if (name.isEmpty || state.isEmpty || !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(brand) ||
-        fiscalMonth == null || fiscalMonth < 1 || fiscalMonth > 12 || dueDay == null || dueDay < 1 || dueDay > 28) {
+      fiscalMonth == null || fiscalMonth < 1 || fiscalMonth > 12 || dueDay == null || dueDay < 1 || dueDay > 28 ||
+      minimumLoginAge == null || minimumLoginAge < 1 || minimumLoginAge > 21 ||
+      familyMemberLimit == null || familyMemberLimit < 0 || familyMemberLimit > 30) {
       toast(context, 'Check the required fields and their ranges');
       return;
     }
@@ -71,6 +81,10 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
         brandPrimary: brand,
         fiscalYearStartMonth: fiscalMonth,
         defaultDueDay: dueDay,
+      );
+      await AssociationSettingsRepo.updateFamilyRules(
+        minimumLoginAge: minimumLoginAge,
+        memberLimit: familyMemberLimit,
       );
       await ref.read(sessionProvider.notifier).switchAssociation(associationId);
       if (mounted) toast(context, AppLocalizations.of(context).settingsSaved);
@@ -201,6 +215,32 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
                 decoration: InputDecoration(labelText: '${l.defaultDueDay} *', helperText: 'Choose 1 to 28'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SectionCard(
+          title: 'Family account rules',
+          child: Column(
+            children: [
+              TextField(
+                controller: _familyMinimumAge,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
+                decoration: const InputDecoration(
+                  labelText: 'Minimum age for an individual login',
+                  helperText: 'Age on the birthday; choose 1 to 21',
+                ),
+              ),
+              TextField(
+                controller: _familyMemberLimit,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
+                decoration: const InputDecoration(
+                  labelText: 'Maximum additional family members',
+                  helperText: 'Counts all dependents, including those below login age; choose 0 to 30',
+                ),
               ),
             ],
           ),

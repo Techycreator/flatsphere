@@ -119,22 +119,50 @@ class DirectoryRepo {
     required String name,
     required String email,
     required String mobile,
-    DateTime? birthDate,
     required String leasePeriod,
-    required int familyCount,
+    required List<({String name, DateTime dateOfBirth, String? email})> familyMembers,
   }) async {
-    await db.from('membership_changes').insert({
-      'request_id': requestId,
-      'flat_id': flatId,
-      'change_type': type,
-      'incoming_name': name.trim(),
-      'incoming_email': email.trim().toLowerCase(),
-      'incoming_mobile': mobile.trim().isEmpty ? null : mobile.trim(),
-      'incoming_birth_date': _date(birthDate),
-      'lease_period': leasePeriod.trim().isEmpty ? null : leasePeriod.trim(),
-      'family_count': familyCount,
+    await db.rpc('create_membership_change_with_family', params: {
+      'p_request': requestId,
+      'p_flat': flatId,
+      'p_type': type,
+      'p_name': name.trim(),
+      'p_email': email.trim().toLowerCase(),
+      'p_mobile': mobile.trim(),
+      'p_lease': leasePeriod.trim(),
+      'p_family': [
+        for (final member in familyMembers)
+          {
+            'full_name': member.name.trim(),
+            'date_of_birth': _date(member.dateOfBirth),
+            'email': (member.email?.trim().isEmpty ?? true) ? null : member.email!.trim().toLowerCase(),
+          },
+      ],
     });
   }
+
+  static Future<List<FamilyMemberRecord>> familyMembers() async {
+    final rows = await db.from('family_members')
+        .select('id,full_name,date_of_birth,email,approved_at,flats(number)')
+        .isFilter('archived_at', null)
+        .order('created_at');
+    return [
+      for (final row in rows)
+        FamilyMemberRecord(
+          id: row['id'] as String,
+          name: row['full_name'] as String,
+          dateOfBirth: DateTime.parse(row['date_of_birth'] as String),
+          email: row['email'] as String?,
+          approved: row['approved_at'] != null,
+          flatNumber: (row['flats'] as Map?)?['number'] as String? ?? '',
+        ),
+    ];
+  }
+
+  static Future<void> updateFamilyMemberEmail(String id, String email) => db.rpc(
+    'update_family_member_email',
+    params: {'p_member': id, 'p_email': email.trim().toLowerCase()},
+  );
 
   static Future<void> uploadRequestProof({
     required String requestId,

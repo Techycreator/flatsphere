@@ -120,6 +120,8 @@ abstract class AppLocalizations {
 
   String get brandColor;
 
+  String get familyDobPrivacyNotice;
+
   /// No description provided for @dashboard.
   ///
   /// In en, this message translates to:

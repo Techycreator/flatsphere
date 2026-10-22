@@ -211,9 +211,8 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
     required String name,
     required String email,
     required String mobile,
-    DateTime? birthDate,
     required String leasePeriod,
-    required int familyCount,
+    required List<({String name, DateTime dateOfBirth, String? email})> familyMembers,
   }) async {
     if (backendEnabled) {
       await DirectoryRepo.createMembershipChange(
@@ -223,9 +222,8 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
         name: name,
         email: email,
         mobile: mobile,
-        birthDate: birthDate,
         leasePeriod: leasePeriod,
-        familyCount: familyCount,
+        familyMembers: familyMembers,
       );
     }
   }

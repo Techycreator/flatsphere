@@ -225,6 +225,24 @@ class Person {
   }
 }
 
+class FamilyMemberRecord {
+  const FamilyMemberRecord({
+    required this.id,
+    required this.name,
+    required this.dateOfBirth,
+    required this.flatNumber,
+    required this.approved,
+    this.email,
+  });
+
+  final String id;
+  final String name;
+  final DateTime dateOfBirth;
+  final String flatNumber;
+  final bool approved;
+  final String? email;
+}
+
 enum AgeCategory {
   child('Child'),
   adult('Adult'),

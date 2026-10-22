@@ -190,5 +190,6 @@
   "associationName": "Association name",
   "state": "State",
   "city": "City",
-  "brandColor": "Brand color"
+  "brandColor": "Brand color",
+  "familyDobPrivacyNotice": "Family dates of birth are securely stored and visible only to the owner/resident account that submits them. No other account, including association staff, can view them."
 }

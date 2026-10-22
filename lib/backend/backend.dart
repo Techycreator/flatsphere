@@ -45,6 +45,7 @@ class AuthService {
   static Future<DemoUser?> loadUser({String? associationId}) async {
     final u = db.auth.currentUser;
     if (u == null) return null;
+    await db.rpc('claim_eligible_family_members');
     final profile = await db.from('profiles').select('full_name').eq('id', u.id).maybeSingle();
     final rows = await db
         .from('memberships')

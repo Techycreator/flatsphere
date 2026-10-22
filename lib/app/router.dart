@@ -17,6 +17,7 @@ import '../features/complaints/raise_complaint_screen.dart';
 import '../features/community/community_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/directory/directory_screen.dart';
+import '../features/directory/family_accounts_screen.dart';
 import '../features/finance/finance_screen.dart';
 import '../features/registers/association_register_screen.dart';
 import '../features/registers/association_documents_screen.dart';
@@ -119,6 +120,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/dues', pageBuilder: (_, _) => _page(const MyDuesScreen())),
           GoRoute(path: '/meetings', pageBuilder: (_, _) => _page(const MeetingsScreen())),
           GoRoute(path: '/directory', pageBuilder: (_, _) => _page(const DirectoryScreen())),
+          GoRoute(path: '/family-accounts', pageBuilder: (_, _) => _page(const FamilyAccountsScreen())),
           GoRoute(path: '/notices', pageBuilder: (_, _) => _page(const NoticesScreen())),
         ],
       ),

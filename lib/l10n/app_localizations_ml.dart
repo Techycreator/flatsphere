@@ -153,6 +153,10 @@ class AppLocalizationsMl extends AppLocalizations {
   @override
   String get brandColor => 'ബ്രാൻഡ് നിറം';
 
+    @override
+    String get familyDobPrivacyNotice =>
+          'കുടുംബാംഗങ്ങളുടെ ജനനത്തീയതികൾ സുരക്ഷിതമായി സൂക്ഷിക്കുന്നു. അത് നൽകിയ ഉടമ/താമസക്കാരന്റെ അക്കൗണ്ടിന് മാത്രമേ കാണാനാകൂ. അസോസിയേഷൻ ജീവനക്കാർ ഉൾപ്പെടെ മറ്റാർക്കും കാണാനാകില്ല.';
+
   @override
   String get operatingDefaults => 'പ്രവർത്തന ക്രമീകരണങ്ങൾ';
 
