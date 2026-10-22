@@ -17,7 +17,7 @@ class FinanceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionProvider)!.activeRole;
-    final full = role == Role.treasurer || role == Role.president || role == Role.secretary || role == Role.auditor;
+    final full = role.isOfficeBearer || role == Role.auditor;
     final tabs = <(String, Widget)>[
       ('Overview', const _Overview()),
       ('Analysis', const AnalysisTab()),

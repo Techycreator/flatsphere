@@ -23,6 +23,8 @@ class AppShell extends ConsumerWidget {
     final selected = idx < 0 ? 0 : idx;
     final width = MediaQuery.sizeOf(context).width;
     final wide = width >= 840;
+    final barItems = items.length > 5 ? items.take(4).toList() : items;
+    final moreItems = items.skip(barItems.length).toList();
     final pendingForMe = ref
         .watch(approvalsProvider)
         .where((a) => a.awaits(session.activeRole, session.user.name))
@@ -82,11 +84,38 @@ class AppShell extends ConsumerWidget {
       bottomNavigationBar: wide
           ? null
           : NavigationBar(
-              selectedIndex: selected,
-              onDestinationSelected: (i) => context.go(items[i].path),
+              selectedIndex: selected < barItems.length ? selected : barItems.length,
+              onDestinationSelected: (i) =>
+                  i < barItems.length ? context.go(barItems[i].path) : _showMore(context, moreItems, l),
               labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-              destinations: [for (final i in items) NavigationDestination(icon: Icon(i.icon), label: i.label(l))],
+              destinations: [
+                for (final i in barItems) NavigationDestination(icon: Icon(i.icon), label: i.label(l)),
+                if (moreItems.isNotEmpty) NavigationDestination(icon: const Icon(Icons.more_horiz), label: l.more),
+              ],
             ),
+    );
+  }
+
+  void _showMore(BuildContext context, List<NavItem> more, AppLocalizations l) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final i in more)
+              ListTile(
+                leading: Icon(i.icon),
+                title: Text(i.label(l)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.go(i.path);
+                },
+              ),
+          ],
+        ),
+      ),
     );
   }
 

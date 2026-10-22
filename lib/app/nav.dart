@@ -19,20 +19,20 @@ final _dues = NavItem('/dues', Icons.payments_outlined, (l) => l.myDues);
 final _meetings = NavItem('/meetings', Icons.groups_outlined, (l) => l.meetings);
 final _notices = NavItem('/notices', Icons.campaign_outlined, (l) => l.notices);
 
-/// Max 5 items per role so the mobile bottom bar stays usable.
-/// A designated Membership-desk EC member/monitor gets Approvals in place of Meetings.
+/// On mobile, items beyond the fourth go under "More" when a role has more than five.
+/// A designated Membership-desk EC member/monitor also gets Approvals.
 List<NavItem> navFor(Role r, {bool membershipDesk = false}) {
   final base = _baseNav(r);
   if (!membershipDesk || base.contains(_approvals)) return base;
-  return [base.first, _approvals, ...base.skip(1).take(base.length - 2)];
+  return [base.first, _approvals, ...base.skip(1)];
 }
 
 List<NavItem> _baseNav(Role r) => switch (r) {
   Role.president => [_home, _approvals, _complaints, _finance, _meetings],
-  Role.secretary => [_home, _approvals, _complaints, _checklist, _meetings],
+  Role.secretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings],
   Role.treasurer => [_home, _finance, _approvals, _complaints, _meetings],
   Role.vicePresident => [_home, _approvals, _complaints, _finance, _meetings],
-  Role.jointSecretary => [_home, _approvals, _complaints, _checklist, _finance],
+  Role.jointSecretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings],
   Role.ecMember || Role.monitor => [_home, _checklist, _complaints, _finance, _meetings],
   Role.owner => [_home, _dues, _complaints, _meetings, _notices],
   Role.resident => [_home, _complaints, _notices],

@@ -63,6 +63,9 @@ void main() {
       expect(canAccess(Role.auditor, '/complaints'), isFalse);
       expect(canAccess(Role.auditor, '/finance'), isTrue);
       expect(canAccess(Role.ecMember, '/approvals/new/owner'), isFalse);
+      expect(canAccess(Role.secretary, '/finance/analysis'), isTrue);
+      expect(canAccess(Role.jointSecretary, '/finance'), isTrue);
+      expect(canAccess(Role.vicePresident, '/finance'), isTrue);
       expect(canAccess(Role.ecMember, '/approvals/new/owner', membershipDesk: true), isTrue);
       expect(canAccess(Role.ecMember, '/meetings', membershipDesk: true), isTrue);
       expect(navFor(Role.ecMember, membershipDesk: true).map((i) => i.path), contains('/approvals'));

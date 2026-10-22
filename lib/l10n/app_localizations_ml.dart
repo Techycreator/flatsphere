@@ -37,6 +37,9 @@ class AppLocalizationsMl extends AppLocalizations {
   String get notices => 'അറിയിപ്പുകൾ';
 
   @override
+  String get more => 'കൂടുതൽ';
+
+  @override
   String get login => 'ലോഗിൻ';
 
   @override
