@@ -83,7 +83,7 @@ class _AnalysisTabState extends ConsumerState<AnalysisTab> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             SegmentedButton<_Mode>(
-              segments: const [
+              segments: [
                 ButtonSegment(value: _Mode.yoy, label: Text(l.analysisYearOnYear), icon: Icon(Icons.compare_arrows)),
                 ButtonSegment(value: _Mode.mom, label: Text(l.analysisMonthOnMonth), icon: Icon(Icons.calendar_month)),
               ],

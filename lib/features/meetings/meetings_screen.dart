@@ -83,7 +83,7 @@ class MeetingsScreen extends ConsumerWidget {
                   TextField(controller: title, decoration: InputDecoration(labelText: '${l.meetingTitle} *')),
                   const SizedBox(height: 12),
                   SegmentedButton<MeetingMode>(
-                    segments: const [
+                    segments: [
                       ButtonSegment(value: MeetingMode.inPerson, label: Text(l.inPerson)),
                       ButtonSegment(value: MeetingMode.online, label: Text(l.online)),
                       ButtonSegment(value: MeetingMode.hybrid, label: Text(l.hybrid)),
