@@ -34,7 +34,7 @@ insert into workflow_type_steps (workflow_type_id,step_no,label,role_required,ac
 select id,1,'Secretary approval','secretary','approval' from workflow_types where code='W25' and version=1
 on conflict (workflow_type_id,step_no) do nothing;
 insert into workflow_type_steps (workflow_type_id,step_no,label,action_type)
-select id,2,'Confirm amenity reservation',null,'execute' from workflow_types where code='W25' and version=1
+select id,2,'Confirm amenity reservation','execute' from workflow_types where code='W25' and version=1
 on conflict (workflow_type_id,step_no) do nothing;
 
 create table amenity_bookings (
