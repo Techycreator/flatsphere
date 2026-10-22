@@ -32,7 +32,10 @@ class ComplaintsNotifier extends Notifier<List<Complaint>> {
   @override
   List<Complaint> build() => buildDemoComplaints(ref.read(clockProvider));
 
-  String nextId() => 'CMP-2026-${(143 + state.length - 6).toString().padLeft(4, '0')}';
+  String nextId() {
+    final maxN = state.map((c) => int.tryParse(c.id.split('-').last) ?? 0).fold(0, (a, b) => a > b ? a : b);
+    return 'CMP-2026-${(maxN + 1).toString().padLeft(4, '0')}';
+  }
 
   void add(Complaint c) => state = [c, ...state];
 
@@ -83,13 +86,21 @@ class ApprovalsNotifier extends Notifier<List<ApprovalRequest>> {
   @override
   List<ApprovalRequest> build() => buildDemoApprovals(ref.read(clockProvider));
 
-  void decide(String id, Role role, Decision d, String? comment) {
+  String nextId() {
+    final maxN = state.map((a) => int.tryParse(a.id.split('-').last) ?? 0).fold(0, (a, b) => a > b ? a : b);
+    return 'APR-${(maxN + 1).toString().padLeft(3, '0')}';
+  }
+
+  void add(ApprovalRequest a) => state = [a, ...state];
+
+  /// Records [d] on the current step if it belongs to [role]/[userName].
+  void decide(String id, Role role, String userName, Decision d, String? comment) {
     state = [
       for (final a in state)
-        if (a.id == id)
+        if (a.id == id && a.currentStep != null && a.currentStep!.matches(role, userName))
           a.copyWith(steps: [
             for (final s in a.steps)
-              if (s.role == role && s.decision == Decision.pending) s.copyWith(decision: d, comment: comment) else s,
+              if (identical(s, a.currentStep)) s.copyWith(decision: d, comment: comment, decidedBy: '$userName (${role.label})') else s,
           ])
         else
           a,

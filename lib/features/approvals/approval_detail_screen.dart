@@ -18,7 +18,7 @@ class ApprovalDetailScreen extends ConsumerWidget {
     if (a == null) return const Scaffold(body: EmptyState('Request not found'));
     final s = ref.watch(sessionProvider)!;
     final isInitiator = a.initiatorName.contains(s.user.name);
-    final myTurn = a.currentStep?.role == s.activeRole && !isInitiator;
+    final myTurn = a.awaits(s.activeRole, s.user.name);
     final notifier = ref.read(approvalsProvider.notifier);
     final theme = Theme.of(context);
 
@@ -30,24 +30,10 @@ class ApprovalDetailScreen extends ConsumerWidget {
       }
       if (d == Decision.approved && a.highRisk) {
         if (!context.mounted) return;
-        final ok = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Confirm with OTP'),
-            content: const Column(mainAxisSize: MainAxisSize.min, children: [
-              Text('High-risk approval. An OTP was sent to your registered mobile.'),
-              SizedBox(height: 12),
-              TextField(maxLength: 6, decoration: InputDecoration(labelText: 'OTP (demo: any 6 digits)')),
-            ]),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l.approve)),
-            ],
-          ),
-        );
+        final ok = await showDialog<bool>(context: context, builder: (ctx) => _OtpDialog(approveLabel: l.approve));
         if (ok != true) return;
       }
-      notifier.decide(a.id, s.activeRole, d, comment);
+      notifier.decide(a.id, s.activeRole, s.user.name, d, comment);
       if (context.mounted) toast(context, 'Decision recorded. All approvers and the initiator have been notified.');
     }
 
@@ -112,8 +98,8 @@ class ApprovalDetailScreen extends ConsumerWidget {
                     Decision.pending => Colors.grey,
                   },
                 ),
-                title: Text('${st.role.label} – ${st.name}${st.onBehalfOf != null ? ' (on behalf of ${st.onBehalfOf})' : ''}'),
-                subtitle: Text([st.decision.name, ?st.comment].join(' · ')),
+                title: Text('${st.role == Role.owner ? 'Owner consent' : st.label} – ${st.name}${st.onBehalfOf != null ? ' (in place of ${st.onBehalfOf})' : ''}'),
+                subtitle: Text([st.decision.name, if (st.decidedBy != null) 'by ${st.decidedBy}', ?st.comment].join(' · ')),
               ),
           ]),
         ),
@@ -143,6 +129,49 @@ class ApprovalDetailScreen extends ConsumerWidget {
           ),
         ],
       ]),
+    );
+  }
+}
+
+class _OtpDialog extends StatefulWidget {
+  const _OtpDialog({required this.approveLabel});
+  final String approveLabel;
+
+  @override
+  State<_OtpDialog> createState() => _OtpDialogState();
+}
+
+class _OtpDialogState extends State<_OtpDialog> {
+  final _ctrl = TextEditingController();
+
+  bool get _valid => RegExp(r'^\d{6}$').hasMatch(_ctrl.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Confirm with OTP'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('High-risk approval. An OTP was sent to your registered mobile.'),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _ctrl,
+          autofocus: true,
+          maxLength: 6,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'OTP (demo: any 6 digits)',
+            errorText: _ctrl.text.isNotEmpty && !_valid ? 'Enter all 6 digits' : null,
+          ),
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) {
+            if (_valid) Navigator.pop(context, true);
+          },
+        ),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FilledButton(onPressed: _valid ? () => Navigator.pop(context, true) : null, child: Text(widget.approveLabel)),
+      ],
     );
   }
 }

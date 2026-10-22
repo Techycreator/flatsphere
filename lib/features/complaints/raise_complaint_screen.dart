@@ -21,8 +21,10 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
   final _title = TextEditingController();
   final _desc = TextEditingController();
   TicketType _type = TicketType.maintenance;
+  ReportKind _kind = ReportKind.complaint;
+  final _cost = TextEditingController();
   String? _category;
-  bool _commonArea = false;
+  bool? _commonAreaChoice;
   bool _private = false;
   int _photos = 0;
   bool _voice = false;
@@ -30,6 +32,14 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
   Criticality? _override;
 
   AiSuggestion? get _ai => suggestCriticality('${_title.text} ${_desc.text}');
+
+  /// EC members and the caretaker report common-area issues (spec 7.5).
+  bool get _staff {
+    final r = ref.read(sessionProvider)!.activeRole;
+    return r.isCommittee || r == Role.caretaker;
+  }
+
+  bool get _commonArea => _commonAreaChoice ?? _staff;
 
   void _submit() {
     final s = ref.read(sessionProvider)!;
@@ -40,6 +50,12 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
     final ai = _ai;
     final notifier = ref.read(complaintsProvider.notifier);
     final id = notifier.nextId();
+    final crit = _override ?? ai?.criticality ?? Criticality.medium;
+    final now = DateTime.now();
+    final role = s.activeRole;
+    final needsReview = _staff && _commonArea && role != Role.secretary;
+    final bypass = needsReview && _kind == ReportKind.complaint && crit == Criticality.critical;
+    final status = !needsReview || bypass ? TicketStatus.newTicket : TicketStatus.pendingReview;
     notifier.add(Complaint(
       id: id,
       flatNumber: _commonArea ? 'Common' : (s.user.flatNumber ?? 'Common'),
@@ -47,17 +63,23 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
       category: _category ?? ai?.category ?? 'Other',
       title: _title.text.trim(),
       description: _desc.text.trim(),
-      criticality: _override ?? ai?.criticality ?? Criticality.medium,
+      criticality: crit,
       aiSuggested: _override == null && ai != null,
-      status: TicketStatus.newTicket,
-      createdAt: DateTime.now(),
+      status: status,
+      createdAt: now,
+      kind: _kind,
+      acceptedAt: status == TicketStatus.newTicket ? now : null,
+      estimatedCost: int.tryParse(_cost.text.replaceAll(RegExp(r'[^0-9]'), '')),
+      remarks: bypass
+          ? [TicketRemark(by: 'System', at: now, text: 'Critical – skipped review and sent straight to the caretaker. Secretary notified.')]
+          : const [],
       raisedBy: s.user.name,
       photoCount: _photos,
       hasVoiceNote: _voice,
       isPrivate: _private,
       location: _commonArea ? 'Common area' : 'Inside flat',
     ));
-    toast(context, 'Ticket $id created. Caretaker and committee notified.');
+    toast(context, status == TicketStatus.pendingReview ? '$id sent to the Secretary for review.' : 'Ticket $id created. Caretaker and committee notified.');
     context.go('/complaints/$id');
   }
 
@@ -72,7 +94,21 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              SegmentedButton<TicketType>(
+              if (_staff) ...[
+                Text('What are you reporting?', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                SegmentedButton<ReportKind>(
+                  segments: const [
+                    ButtonSegment(value: ReportKind.complaint, label: Text('Complaint'), icon: Icon(Icons.report_outlined)),
+                    ButtonSegment(value: ReportKind.enhancementImmediate, label: Text('Enhancement – now'), icon: Icon(Icons.bolt)),
+                    ButtonSegment(value: ReportKind.enhancementFuture, label: Text('Enhancement – later'), icon: Icon(Icons.event_note_outlined)),
+                  ],
+                  selected: {_kind},
+                  onSelectionChanged: (v) => setState(() => _kind = v.first),
+                ),
+                const SizedBox(height: 16),
+              ],
+              if (!_kind.isEnhancement) SegmentedButton<TicketType>(
                 segments: const [
                   ButtonSegment(value: TicketType.maintenance, label: Text('Maintenance request'), icon: Icon(Icons.build_outlined)),
                   ButtonSegment(value: TicketType.complaint, label: Text('Complaint'), icon: Icon(Icons.report_outlined)),
@@ -92,7 +128,21 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
                 onChanged: (v) => setState(() => _category = v),
               ),
               const SizedBox(height: 8),
-              SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('This is in a common area'), value: _commonArea, onChanged: (v) => setState(() => _commonArea = v)),
+              if (_staff)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Common area'),
+                  subtitle: Text(_commonArea && ref.read(sessionProvider)!.activeRole != Role.secretary
+                      ? 'Goes to the Secretary for review first (critical complaints skip review)'
+                      : 'Inside my flat'),
+                  value: _commonArea,
+                  onChanged: (v) => setState(() => _commonAreaChoice = v),
+                ),
+              if (_kind.isEnhancement) ...[
+                const SizedBox(height: 8),
+                TextField(controller: _cost, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Estimated cost (optional)', prefixText: '₹ ')),
+                const SizedBox(height: 8),
+              ],
               SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Private (only committee and caretaker can see)'), value: _private, onChanged: (v) => setState(() => _private = v)),
               const Divider(),
               Wrap(spacing: 8, runSpacing: 8, children: [
@@ -115,7 +165,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
                 ),
               ]),
               const SizedBox(height: 16),
-              if (ai != null)
+              if (ai != null && !_kind.isEnhancement)
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(12)),

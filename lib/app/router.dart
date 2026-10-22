@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/approvals/approval_detail_screen.dart';
 import '../features/approvals/approvals_screen.dart';
+import '../features/approvals/membership_request_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/checklist/checklist_screen.dart';
 import '../features/complaints/complaint_detail_screen.dart';
@@ -15,9 +16,18 @@ import '../features/finance/my_dues_screen.dart';
 import '../features/meetings/meetings_screen.dart';
 import '../features/notices/notices_screen.dart';
 import '../features/shell/app_shell.dart';
+import '../models/models.dart';
 import '../state/app_state.dart';
+import 'nav.dart';
 
 Page<void> _page(Widget child) => NoTransitionPage(child: child);
+
+/// Route guard: a role may only open sections in its own menu (deep links included).
+/// Owners may also open approvals that need their consent (W21).
+bool canAccess(Role role, String location) {
+  final allowed = [...navFor(role).map((i) => i.path), if (role == Role.owner) '/approvals'];
+  return allowed.any((p) => location == p || location.startsWith('$p/'));
+}
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier(0);
@@ -28,11 +38,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/login',
     refreshListenable: refresh,
     redirect: (context, state) {
-      final loggedIn = ref.read(sessionProvider) != null;
+      final session = ref.read(sessionProvider);
       final atLogin = state.matchedLocation == '/login';
-      if (!loggedIn) return atLogin ? null : '/login';
+      if (session == null) return atLogin ? null : '/login';
       if (atLogin) return '/home';
-      return null;
+      return canAccess(session.activeRole, state.matchedLocation) ? null : '/home';
     },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
@@ -53,6 +63,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/approvals',
             pageBuilder: (_, _) => _page(const ApprovalsScreen()),
             routes: [
+              GoRoute(
+                path: 'new/:type',
+                builder: (_, s) {
+                  final t = MembershipRequestType.parse(s.pathParameters['type']!);
+                  return t == null ? const ApprovalsScreen() : MembershipRequestScreen(type: t);
+                },
+              ),
               GoRoute(path: ':id', builder: (_, s) => ApprovalDetailScreen(id: s.pathParameters['id']!)),
             ],
           ),

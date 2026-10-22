@@ -45,7 +45,7 @@ class _SlaSummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider);
-    final open = ref.watch(complaintsProvider).where((c) => c.status.isOpen).toList();
+    final open = ref.watch(complaintsProvider).where((c) => c.slaApplies).toList();
     int n(SlaColor c) => open.where((x) => slaFor(x, now).color == c).length;
     Widget seg(SlaColor c, String label) => Expanded(
           flex: n(c) == 0 ? 1 : n(c) * 3,
@@ -74,7 +74,7 @@ class _ApprovalsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(sessionProvider)!;
-    final mine = ref.watch(approvalsProvider).where((a) => a.currentStep?.role == s.activeRole && !a.initiatorName.contains(s.user.name)).toList();
+    final mine = ref.watch(approvalsProvider).where((a) => a.awaits(s.activeRole, s.user.name)).toList();
     return SectionCard(
       title: 'Awaiting your approval (${mine.length})',
       action: TextButton(onPressed: () => context.go('/approvals'), child: Text(AppLocalizations.of(context).viewAll)),
@@ -116,8 +116,9 @@ class _PresidentDash extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider);
-    final pending = ref.watch(approvalsProvider).where((a) => a.currentStep?.role == Role.president).length;
-    final red = ref.watch(complaintsProvider).where((c) => c.status.isOpen && slaFor(c, now).color == SlaColor.red).length;
+    final s = ref.watch(sessionProvider)!;
+    final pending = ref.watch(approvalsProvider).where((a) => a.awaits(s.activeRole, s.user.name)).length;
+    final red = ref.watch(complaintsProvider).where((c) => c.slaApplies && slaFor(c, now).color == SlaColor.red).length;
     final dues = ref.watch(duesProvider).lines;
     final total = dues.fold(0, (a, x) => a + x.amount);
     final paid = dues.fold(0, (a, x) => a + x.paid);
@@ -158,12 +159,15 @@ class _SecretaryDash extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final role = ref.watch(sessionProvider)!.activeRole;
+    final session = ref.watch(sessionProvider)!;
+    final role = session.activeRole;
     final now = ref.watch(clockProvider);
-    final open = ref.watch(complaintsProvider).where((c) => c.status.isOpen).toList();
+    final all = ref.watch(complaintsProvider);
+    final open = all.where((c) => c.slaApplies).toList();
+    final review = all.where((c) => c.inReview).toList();
     int n(SlaColor c) => open.where((x) => slaFor(x, now).color == c).length;
     final cl = ref.watch(checklistProvider);
-    final pending = ref.watch(approvalsProvider).where((a) => a.currentStep?.role == role).length;
+    final pending = ref.watch(approvalsProvider).where((a) => a.awaits(role, session.user.name)).length;
     final byCat = <String, (int, int)>{};
     for (final i in cl.items) {
       final v = byCat[i.category] ?? (0, 0);
@@ -174,9 +178,16 @@ class _SecretaryDash extends ConsumerWidget {
         StatCard(label: 'Pending approvals', value: '$pending', icon: Icons.verified_outlined, onTap: () => context.go('/approvals')),
         StatCard(label: 'Open complaints', value: '${open.length}', icon: Icons.report_problem_outlined, color: AppColors.amber, sub: 'G ${n(SlaColor.green)} · A ${n(SlaColor.amber)} · R ${n(SlaColor.red)}', onTap: () => context.go('/complaints')),
         StatCard(label: "Today's checklist", value: '${(cl.progress * 100).round()}%', icon: Icons.checklist_rtl, color: AppColors.green, sub: '${cl.doneCount} of ${cl.items.length} done', onTap: () => context.go('/checklist')),
-        const StatCard(label: 'Monitor coverage', value: '5 / 8', icon: Icons.visibility_outlined, color: Colors.indigo, sub: 'No monitor: Security, Pool, Party hall'),
+        StatCard(label: 'Reports to review', value: '${review.length}', icon: Icons.rate_review_outlined, color: Colors.purple, sub: 'From EC members and caretaker', onTap: () => context.go('/complaints')),
       ]),
       const SizedBox(height: 16),
+      if (review.isNotEmpty && (role == Role.secretary || role == Role.jointSecretary)) ...[
+        SectionCard(
+          title: 'Common-area reports awaiting your review',
+          child: Column(children: [for (final c in review) ComplaintTile(complaint: c)]),
+        ),
+        const SizedBox(height: 16),
+      ],
       const TwoCol(left: SectionCard(title: 'Complaints by SLA', child: _SlaSummary()), right: _ApprovalsCard()),
       const SizedBox(height: 16),
       TwoCol(
@@ -260,7 +271,15 @@ class _OwnerDash extends ConsumerWidget {
     final pending = ref.watch(duesProvider).pendingFor(s.user.flatNumber ?? '');
     final mine = visibleComplaints(ref);
     final notices = ref.watch(noticesProvider);
+    final consents = ref.watch(approvalsProvider).where((a) => a.awaits(Role.owner, s.user.name)).toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (consents.isNotEmpty) ...[
+        SectionCard(
+          title: 'Needs your consent as flat owner',
+          child: Column(children: [for (final a in consents) ApprovalTile(request: a)]),
+        ),
+        const SizedBox(height: 16),
+      ],
       StatGrid(children: [
         StatCard(label: 'My pending dues', value: inr.format(pending), icon: Icons.payments_outlined, color: pending > 0 ? AppColors.red : AppColors.green, sub: pending > 0 ? 'Tap to pay now' : 'All paid', onTap: () => context.go('/dues')),
         StatCard(label: 'My open complaints', value: '${mine.where((c) => c.status.isOpen).length}', icon: Icons.report_problem_outlined, onTap: () => context.go('/complaints')),

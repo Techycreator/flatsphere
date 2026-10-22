@@ -25,8 +25,9 @@ class SlaInfo {
 
 SlaInfo slaFor(Complaint c, DateTime now) {
   final t = defaultSlaPolicy[c.criticality]!;
+  final from = c.acceptedAt ?? c.createdAt;
   if (t.inHours) {
-    final h = now.difference(c.createdAt).inHours;
+    final h = now.difference(from).inHours;
     final color = h >= t.redAfter
         ? SlaColor.red
         : h >= t.amberAfter
@@ -34,7 +35,7 @@ SlaInfo slaFor(Complaint c, DateTime now) {
             : SlaColor.green;
     return SlaInfo(color, '$h h');
   }
-  final start = DateTime(c.createdAt.year, c.createdAt.month, c.createdAt.day);
+  final start = DateTime(from.year, from.month, from.day);
   final today = DateTime(now.year, now.month, now.day);
   final days = today.difference(start).inDays;
   final color = days >= t.redAfter

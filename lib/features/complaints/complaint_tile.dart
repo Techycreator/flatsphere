@@ -18,18 +18,36 @@ class ComplaintTile extends ConsumerWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       onTap: () => context.go('/complaints/${c.id}'),
-      leading: Container(width: 6, height: 44, decoration: BoxDecoration(color: c.status.isOpen ? _slaColor(sla) : Colors.grey.shade300, borderRadius: BorderRadius.circular(3))),
+      leading: Container(width: 6, height: 44, decoration: BoxDecoration(color: _barColor(c, sla), borderRadius: BorderRadius.circular(3))),
       title: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
         child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
           Text('${c.id} · ${c.flatNumber} · ${c.category}', style: Theme.of(context).textTheme.bodySmall),
-          CriticalityPill(c.criticality, ai: c.aiSuggested),
-          Pill(c.status.label, color: Colors.blueGrey),
+          if (c.kind.isEnhancement) Pill(c.kind.label, color: Colors.teal, icon: Icons.lightbulb_outline) else CriticalityPill(c.criticality, ai: c.aiSuggested),
+          Pill(c.status.label, color: c.inReview ? Colors.purple : Colors.blueGrey),
         ]),
       ),
-      trailing: c.status.isOpen ? SlaPill(sla) : const Icon(Icons.check_circle, color: Colors.green),
+      trailing: _trailing(c, sla),
     );
+  }
+
+  Widget _trailing(Complaint c, SlaInfo sla) {
+    if (c.slaApplies) return SlaPill(sla);
+    if (c.inReview) return const Pill('Review', color: Colors.purple, icon: Icons.rate_review_outlined);
+    if (c.status.isOpen) return const Icon(Icons.lightbulb_outline, color: Colors.teal);
+    return switch (c.status) {
+      TicketStatus.rejected => const Icon(Icons.cancel_outlined, color: Colors.grey),
+      TicketStatus.planned => const Icon(Icons.event_note_outlined, color: Colors.teal),
+      _ => const Icon(Icons.check_circle, color: Colors.green),
+    };
+  }
+
+  Color _barColor(Complaint c, SlaInfo sla) {
+    if (c.slaApplies) return _slaColor(sla);
+    if (c.inReview) return Colors.purple.shade200;
+    if (c.kind.isEnhancement && c.status.isOpen) return Colors.teal.shade200;
+    return Colors.grey.shade300;
   }
 
   Color _slaColor(SlaInfo s) => switch (s.color) {

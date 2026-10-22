@@ -19,6 +19,7 @@ class ComplaintDetailScreen extends ConsumerWidget {
     final role = session.activeRole;
     final sla = slaFor(c, ref.watch(clockProvider));
     final canManage = role.isOfficeBearer || role == Role.caretaker || role == Role.monitor;
+    final reviewer = role == Role.secretary || role == Role.jointSecretary;
     final isRaiser = c.raisedBy == session.user.name || c.flatNumber == session.user.flatNumber;
     final notifier = ref.read(complaintsProvider.notifier);
     final theme = Theme.of(context);
@@ -52,10 +53,12 @@ class ComplaintDetailScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 8, runSpacing: 8, children: [
-                if (c.status.isOpen) SlaPill(sla),
-                CriticalityPill(c.criticality, ai: c.aiSuggested),
-                Pill(c.status.label, color: Colors.blueGrey),
-                Pill(c.type == TicketType.maintenance ? 'Maintenance' : 'Complaint', color: theme.colorScheme.primary),
+                if (c.slaApplies) SlaPill(sla),
+                if (!c.kind.isEnhancement) CriticalityPill(c.criticality, ai: c.aiSuggested),
+                Pill(c.status.label, color: c.inReview ? Colors.purple : Colors.blueGrey),
+                c.kind.isEnhancement
+                    ? Pill(c.kind.label, color: Colors.teal, icon: Icons.lightbulb_outline)
+                    : Pill(c.type == TicketType.maintenance ? 'Maintenance' : 'Complaint', color: theme.colorScheme.primary),
                 if (c.isPrivate) const Pill('Private', color: Colors.purple, icon: Icons.lock_outline),
               ]),
               const SizedBox(height: 12),
@@ -67,6 +70,8 @@ class ComplaintDetailScreen extends ConsumerWidget {
               _kv('Category', c.category),
               _kv('Raised by', '${c.raisedBy} · ${dateTimeFmt.format(c.createdAt)}'),
               _kv('Assigned to', c.assignee ?? 'Not assigned'),
+              if (c.estimatedCost != null) _kv('Estimated cost', inr.format(c.estimatedCost)),
+              if (c.acceptedAt != null && c.flatNumber == 'Common') _kv('Accepted', dateTimeFmt.format(c.acceptedAt!)),
               if (c.aiSuggested) _kv('AI note', 'Criticality suggested by AI from the description. Staff can override.'),
               if (c.photoCount > 0 || c.hasVoiceNote) ...[
                 const SizedBox(height: 12),
@@ -85,7 +90,82 @@ class ComplaintDetailScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
-        if (canManage && c.status.isOpen)
+        if (c.inReview && !reviewer)
+          Card(
+            color: Colors.purple.withValues(alpha: 0.05),
+            child: ListTile(
+              leading: const Icon(Icons.rate_review_outlined, color: Colors.purple),
+              title: const Text('Waiting for Secretary review'),
+              subtitle: Text(DateTime.now().difference(c.createdAt).inHours >= 24
+                  ? 'Waiting more than 24 hours – reminder sent to the Secretary.'
+                  : 'The Secretary will check, edit if needed, and accept it as a complaint or enhancement.'),
+            ),
+          ),
+        if (c.inReview && reviewer)
+          SectionCard(
+            title: 'Secretary review',
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text('Raised by ${c.raisedBy} as "${c.kind.label}". Check and edit the details before it is formally pursued.', style: theme.textTheme.bodySmall),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                OutlinedButton.icon(onPressed: () => _editDetails(context, ref, c), icon: const Icon(Icons.edit_outlined), label: const Text('Edit details')),
+                PopupMenuButton<Criticality>(
+                  tooltip: 'Accept as complaint',
+                  onSelected: (cr) => notifier.update(id, (x) => x.copyWith(
+                        kind: ReportKind.complaint,
+                        criticality: cr,
+                        status: TicketStatus.newTicket,
+                        acceptedAt: DateTime.now(),
+                        remarks: [...x.remarks, TicketRemark(by: '${session.user.name} (${role.label})', at: DateTime.now(), text: 'Accepted as complaint (${cr.label}). SLA clock started.')],
+                      )),
+                  itemBuilder: (_) => [for (final cr in Criticality.values) PopupMenuItem(value: cr, child: Text('Accept as complaint – ${cr.label}'))],
+                  child: const Chip(avatar: Icon(Icons.check, size: 18), label: Text('Accept as complaint')),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => notifier.update(id, (x) => x.copyWith(
+                        kind: ReportKind.enhancementImmediate,
+                        status: TicketStatus.newTicket,
+                        acceptedAt: DateTime.now(),
+                        remarks: [...x.remarks, TicketRemark(by: '${session.user.name} (${role.label})', at: DateTime.now(), text: 'Accepted as immediate enhancement.')],
+                      )),
+                  icon: const Icon(Icons.bolt),
+                  label: const Text('Enhancement – now'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => notifier.update(id, (x) => x.copyWith(
+                        kind: ReportKind.enhancementFuture,
+                        status: TicketStatus.planned,
+                        acceptedAt: DateTime.now(),
+                        remarks: [...x.remarks, TicketRemark(by: '${session.user.name} (${role.label})', at: DateTime.now(), text: 'Moved to future enhancements (for budget / AGM).')],
+                      )),
+                  icon: const Icon(Icons.event_note_outlined),
+                  label: const Text('Enhancement – later'),
+                ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(foregroundColor: AppColors.red),
+                  onPressed: () async {
+                    final reason = await promptText(context, title: 'Reject or merge', hint: 'Reason, e.g. duplicate of CMP-2026-0142');
+                    if (reason != null) addRemark('Rejected: $reason', status: TicketStatus.rejected);
+                  },
+                  icon: const Icon(Icons.close),
+                  label: const Text('Reject / merge'),
+                ),
+              ]),
+            ]),
+          ),
+        if (c.status == TicketStatus.planned && reviewer)
+          SectionCard(
+            title: 'Future enhancement',
+            child: Wrap(spacing: 8, children: [
+              FilledButton.tonalIcon(
+                onPressed: () => addRemark('Moved to immediate enhancements.', status: TicketStatus.newTicket),
+                icon: const Icon(Icons.bolt),
+                label: const Text('Pursue now'),
+              ),
+              TextButton.icon(onPressed: () => toast(context, 'Added to the next General Body agenda'), icon: const Icon(Icons.groups_outlined), label: const Text('Add to AGM agenda')),
+            ]),
+          ),
+        if (canManage && c.status.isOpen && !c.inReview)
           SectionCard(
             title: 'Actions',
             child: Wrap(spacing: 8, runSpacing: 8, children: [
@@ -137,7 +217,7 @@ class ComplaintDetailScreen extends ConsumerWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _event(context, 'Created by ${c.raisedBy}', c.createdAt),
             for (final r in c.remarks) _event(context, '${r.by}: ${r.text}', r.at),
-            if (c.status.isOpen && sla.color != SlaColor.green && c.remarks.isEmpty)
+            if (c.slaApplies && sla.color != SlaColor.green && c.remarks.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text('⚠ No progress remark yet. A remark is mandatory for Amber/Red tickets.',
@@ -147,6 +227,36 @@ class ComplaintDetailScreen extends ConsumerWidget {
         ),
       ]),
     );
+  }
+
+  Future<void> _editDetails(BuildContext context, WidgetRef ref, Complaint c) async {
+    final title = TextEditingController(text: c.title);
+    final desc = TextEditingController(text: c.description);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit details'),
+        content: SizedBox(
+          width: 460,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: title, decoration: const InputDecoration(labelText: 'Title')),
+            const SizedBox(height: 12),
+            TextField(controller: desc, maxLines: 4, decoration: const InputDecoration(labelText: 'Details / Secretary inputs')),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final s = ref.read(sessionProvider)!;
+    ref.read(complaintsProvider.notifier).update(c.id, (x) => x.copyWith(
+          title: title.text.trim(),
+          description: desc.text.trim(),
+          remarks: [...x.remarks, TicketRemark(by: '${s.user.name} (${s.activeRole.label})', at: DateTime.now(), text: 'Edited details during review.')],
+        ));
   }
 
   Widget _kv(String k, String v) => Padding(

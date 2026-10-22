@@ -1,3 +1,4 @@
+import 'package:flatsphere/app/router.dart';
 import 'package:flatsphere/main.dart';
 import 'package:flatsphere/models/models.dart';
 import 'package:flatsphere/models/sla.dart';
@@ -48,5 +49,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Welcome, Anitha'), findsOneWidget);
     expect(find.text('Secretary view · Flat A-203'), findsOneWidget);
+  });
+
+  group('route guard', () {
+    test('resident cannot deep-link to finance or dues', () {
+      expect(canAccess(Role.resident, '/finance'), isFalse);
+      expect(canAccess(Role.resident, '/dues'), isFalse);
+      expect(canAccess(Role.resident, '/complaints/new'), isTrue);
+    });
+    test('owner can open approvals for consent; auditor limited to finance', () {
+      expect(canAccess(Role.owner, '/approvals/APR-034'), isTrue);
+      expect(canAccess(Role.auditor, '/complaints'), isFalse);
+      expect(canAccess(Role.auditor, '/finance'), isTrue);
+    });
+  });
+
+  test('W21 owner-consent step only matches the named owner; either/or step matches both roles', () {
+    const owner = ApproverStep(role: Role.owner, name: 'Priya Varghese');
+    expect(owner.matches(Role.owner, 'Priya Varghese'), isTrue);
+    expect(owner.matches(Role.owner, 'Someone Else'), isFalse);
+    const either = ApproverStep(role: Role.secretary, alternateRole: Role.president, name: 'x');
+    expect(either.matches(Role.president, 'Rajesh Menon'), isTrue);
+    expect(either.matches(Role.treasurer, 'Thomas Kurian'), isFalse);
+  });
+
+  test('items awaiting Secretary review and enhancements have no SLA colour', () {
+    final c = _c(Criticality.medium, DateTime(2026, 10, 1));
+    expect(c.slaApplies, isTrue);
+    expect(c.copyWith(status: TicketStatus.pendingReview).slaApplies, isFalse);
+    expect(c.copyWith(kind: ReportKind.enhancementImmediate).slaApplies, isFalse);
   });
 }

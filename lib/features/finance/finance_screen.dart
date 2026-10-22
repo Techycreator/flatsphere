@@ -6,6 +6,7 @@ import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
 import '../../widgets/common.dart';
+import 'analysis_tab.dart';
 import 'charts.dart';
 
 const bankBalance = 485320;
@@ -19,6 +20,7 @@ class FinanceScreen extends ConsumerWidget {
     final full = role == Role.treasurer || role == Role.president || role == Role.secretary || role == Role.auditor;
     final tabs = <(String, Widget)>[
       ('Overview', const _Overview()),
+      ('Analysis', const AnalysisTab()),
       if (full) ('Dues & follow-ups', const _DuesTab()),
       if (full) ('Expenses', const _ExpensesTab()),
       ('Fund requests', const _FundRequestsTab()),

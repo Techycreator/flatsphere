@@ -18,6 +18,7 @@ class ComplaintsScreen extends ConsumerStatefulWidget {
 
 class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
   SlaColor? _sla;
+  String? _special;
   bool _openOnly = true;
   String _query = '';
 
@@ -27,26 +28,37 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
     final now = ref.watch(clockProvider);
     final role = ref.watch(sessionProvider)!.activeRole;
     var list = visibleComplaints(ref);
-    final open = list.where((c) => c.status.isOpen).toList();
+    final open = list.where((c) => c.slaApplies).toList();
+    final review = list.where((c) => c.inReview).toList();
+    final enh = list.where((c) => c.kind.isEnhancement && c.status != TicketStatus.rejected && !c.inReview).toList();
     int count(SlaColor col) => open.where((c) => slaFor(c, now).color == col).length;
+    final staff = role.isCommittee || role == Role.caretaker;
 
-    if (_openOnly) list = list.where((c) => c.status.isOpen).toList();
-    if (_sla != null) list = list.where((c) => c.status.isOpen && slaFor(c, now).color == _sla).toList();
+    if (_special == 'review') {
+      list = review;
+    } else if (_special == 'enh') {
+      list = enh;
+    } else {
+      list = list.where((c) => !c.kind.isEnhancement && !c.inReview).toList();
+      if (_openOnly) list = list.where((c) => c.status.isOpen).toList();
+      if (_sla != null) list = list.where((c) => c.slaApplies && slaFor(c, now).color == _sla).toList();
+    }
     if (_query.isNotEmpty) {
       final q = _query.toLowerCase();
       list = list.where((c) => '${c.title} ${c.id} ${c.flatNumber} ${c.category}'.toLowerCase().contains(q)).toList();
     }
-    list.sort((a, b) => slaFor(b, now).color.index.compareTo(slaFor(a, now).color.index));
+    int rank(Complaint c) => c.slaApplies ? slaFor(c, now).color.index : -1;
+    list.sort((a, b) => rank(b).compareTo(rank(a)));
 
     return PageBody(children: [
       Row(children: [
         Expanded(child: Text(l.complaints, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700))),
         if (role != Role.auditor)
-          FilledButton.icon(onPressed: () => context.go('/complaints/new'), icon: const Icon(Icons.add), label: Text(l.raiseComplaint)),
+          FilledButton.icon(onPressed: () => context.go('/complaints/new'), icon: const Icon(Icons.add), label: Text(staff ? 'Report issue' : l.raiseComplaint)),
       ]),
       const SizedBox(height: 12),
       Wrap(spacing: 8, runSpacing: 8, children: [
-        ChoiceChip(label: Text('All open (${open.length})'), selected: _sla == null, onSelected: (_) => setState(() => _sla = null)),
+        ChoiceChip(label: Text('All open (${open.length})'), selected: _sla == null && _special == null, onSelected: (_) => setState(() => _sla = _special = null)),
         for (final (col, name, color) in const [
           (SlaColor.green, 'Green', Color(0xFF16A34A)),
           (SlaColor.amber, 'Amber', Color(0xFFF59E0B)),
@@ -55,10 +67,27 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
           ChoiceChip(
             avatar: CircleAvatar(backgroundColor: color, radius: 6),
             label: Text('$name (${count(col)})'),
-            selected: _sla == col,
-            onSelected: (_) => setState(() => _sla = _sla == col ? null : col),
+            selected: _sla == col && _special == null,
+            onSelected: (_) => setState(() {
+              _special = null;
+              _sla = _sla == col ? null : col;
+            }),
           ),
-        FilterChip(label: const Text('Open only'), selected: _openOnly, onSelected: (v) => setState(() => _openOnly = v)),
+        if (staff)
+          ChoiceChip(
+            avatar: const Icon(Icons.rate_review_outlined, size: 16),
+            label: Text('Awaiting review (${review.length})'),
+            selected: _special == 'review',
+            onSelected: (_) => setState(() => _special = _special == 'review' ? null : 'review'),
+          ),
+        if (staff)
+          ChoiceChip(
+            avatar: const Icon(Icons.lightbulb_outline, size: 16),
+            label: Text('Enhancements (${enh.length})'),
+            selected: _special == 'enh',
+            onSelected: (_) => setState(() => _special = _special == 'enh' ? null : 'enh'),
+          ),
+        if (_special == null) FilterChip(label: const Text('Open only'), selected: _openOnly, onSelected: (v) => setState(() => _openOnly = v)),
       ]),
       const SizedBox(height: 12),
       TextField(
@@ -74,7 +103,7 @@ class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
               ]),
       ),
       const SizedBox(height: 8),
-      Text('SLA (Medium): Green day 0 · Amber days 1–5 · Red after 5 days. Critical issues are measured in hours.',
+      Text('SLA (Medium): Green day 0 · Amber days 1–5 · Red after 5 days. Critical issues are measured in hours. Common-area reports start their SLA when the Secretary accepts them.',
           style: Theme.of(context).textTheme.bodySmall),
     ]);
   }

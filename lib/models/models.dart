@@ -39,6 +39,7 @@ class DemoUser {
     required this.roles,
     this.flatNumber,
     this.monitorCategories = const [],
+    this.designations = const [],
   });
 
   final String id;
@@ -47,6 +48,13 @@ class DemoUser {
   final List<Role> roles;
   final String? flatNumber;
   final List<String> monitorCategories;
+  final List<String> designations;
+
+  static const membershipDesk = 'Membership desk';
+
+  /// President, Secretary or an EC member designated (W6-style) for membership changes.
+  bool canInitiateMembership(Role active) =>
+      active == Role.president || active == Role.secretary || (active.isCommittee && designations.contains(membershipDesk));
 }
 
 class Session {
@@ -94,17 +102,31 @@ enum Criticality {
 enum TicketType { maintenance, complaint }
 
 enum TicketStatus {
+  pendingReview('Awaiting Secretary review'),
   newTicket('New'),
   assigned('Assigned'),
   inProgress('In progress'),
   onHold('On hold'),
+  planned('Planned (future)'),
   resolved('Resolved'),
-  closed('Closed');
+  closed('Closed'),
+  rejected('Rejected');
 
   const TicketStatus(this.label);
   final String label;
 
-  bool get isOpen => this != TicketStatus.resolved && this != TicketStatus.closed;
+  bool get isOpen => !const {TicketStatus.resolved, TicketStatus.closed, TicketStatus.rejected, TicketStatus.planned}.contains(this);
+}
+
+enum ReportKind {
+  complaint('Complaint'),
+  enhancementImmediate('Enhancement – immediate'),
+  enhancementFuture('Enhancement – future');
+
+  const ReportKind(this.label);
+  final String label;
+
+  bool get isEnhancement => this != ReportKind.complaint;
 }
 
 class TicketRemark {
@@ -133,6 +155,9 @@ class Complaint {
     this.hasVoiceNote = false,
     this.isPrivate = false,
     this.location = 'Inside flat',
+    this.kind = ReportKind.complaint,
+    this.acceptedAt,
+    this.estimatedCost,
   });
 
   final String id;
@@ -152,6 +177,16 @@ class Complaint {
   final bool hasVoiceNote;
   final bool isPrivate;
   final String location;
+  final ReportKind kind;
+
+  /// When the Secretary accepted a common-area report; the SLA clock starts here.
+  final DateTime? acceptedAt;
+  final int? estimatedCost;
+
+  bool get inReview => status == TicketStatus.pendingReview;
+
+  /// SLA colours apply only to accepted, open complaints (not enhancements or items in review).
+  bool get slaApplies => status.isOpen && !inReview && !kind.isEnhancement;
 
   Complaint copyWith({
     TicketStatus? status,
@@ -159,14 +194,20 @@ class Complaint {
     String? assignee,
     List<TicketRemark>? remarks,
     bool? aiSuggested,
+    ReportKind? kind,
+    DateTime? acceptedAt,
+    String? title,
+    String? description,
+    String? category,
+    int? estimatedCost,
   }) =>
       Complaint(
         id: id,
         flatNumber: flatNumber,
         type: type,
-        category: category,
-        title: title,
-        description: description,
+        category: category ?? this.category,
+        title: title ?? this.title,
+        description: description ?? this.description,
         criticality: criticality ?? this.criticality,
         status: status ?? this.status,
         createdAt: createdAt,
@@ -178,6 +219,9 @@ class Complaint {
         hasVoiceNote: hasVoiceNote,
         isPrivate: isPrivate,
         location: location,
+        kind: kind ?? this.kind,
+        acceptedAt: acceptedAt ?? this.acceptedAt,
+        estimatedCost: estimatedCost ?? this.estimatedCost,
       );
 }
 
@@ -233,6 +277,8 @@ class ApproverStep {
     this.decision = Decision.pending,
     this.comment,
     this.onBehalfOf,
+    this.alternateRole,
+    this.decidedBy,
   });
 
   final Role role;
@@ -241,12 +287,26 @@ class ApproverStep {
   final String? comment;
   final String? onBehalfOf;
 
-  ApproverStep copyWith({Decision? decision, String? comment}) => ApproverStep(
+  /// "Either/or" step, e.g. Secretary OR President.
+  final Role? alternateRole;
+  final String? decidedBy;
+
+  String get label => alternateRole == null ? role.label : '${role.label} or ${alternateRole!.label}';
+
+  /// Owner-consent steps are bound to a named owner; other steps to the role.
+  bool matches(Role active, String userName) {
+    if (active != role && active != alternateRole) return false;
+    return role != Role.owner || name == userName;
+  }
+
+  ApproverStep copyWith({Decision? decision, String? comment, String? decidedBy}) => ApproverStep(
         role: role,
         name: name,
         decision: decision ?? this.decision,
         comment: comment ?? this.comment,
         onBehalfOf: onBehalfOf,
+        alternateRole: alternateRole,
+        decidedBy: decidedBy ?? this.decidedBy,
       );
 }
 
@@ -264,6 +324,7 @@ class ApprovalRequest {
     this.momRef,
     this.highRisk = false,
     this.flagged = false,
+    this.category = 'General',
   });
 
   final String id;
@@ -278,6 +339,10 @@ class ApprovalRequest {
   final String? momRef;
   final bool highRisk;
   final bool flagged;
+  final String category;
+
+  bool awaits(Role active, String userName) =>
+      currentStep?.matches(active, userName) == true && !initiatorName.contains(userName);
 
   Decision get overall {
     if (steps.any((s) => s.decision == Decision.rejected)) return Decision.rejected;
@@ -307,6 +372,7 @@ class ApprovalRequest {
         momRef: momRef,
         highRisk: highRisk,
         flagged: flagged ?? this.flagged,
+        category: category,
       );
 }
 

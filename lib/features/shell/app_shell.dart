@@ -23,7 +23,7 @@ class AppShell extends ConsumerWidget {
     final selected = idx < 0 ? 0 : idx;
     final width = MediaQuery.sizeOf(context).width;
     final wide = width >= 840;
-    final pendingForMe = ref.watch(approvalsProvider).where((a) => a.currentStep?.role == session.activeRole).length;
+    final pendingForMe = ref.watch(approvalsProvider).where((a) => a.awaits(session.activeRole, session.user.name)).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -77,8 +77,8 @@ class AppShell extends ConsumerWidget {
   }
 
   void _showNotifications(BuildContext context, WidgetRef ref) {
-    final role = ref.read(sessionProvider)!.activeRole;
-    final pending = ref.read(approvalsProvider).where((a) => a.currentStep?.role == role).toList();
+    final s = ref.read(sessionProvider)!;
+    final pending = ref.read(approvalsProvider).where((a) => a.awaits(s.activeRole, s.user.name)).toList();
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
