@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/backend.dart';
 import '../backend/approvals_repo.dart';
 import '../backend/complaints_repo.dart';
+import '../backend/finance_repo.dart';
 import '../models/models.dart';
 import 'demo_data.dart';
 
@@ -163,12 +166,44 @@ class ApprovalsNotifier extends Notifier<List<ApprovalRequest>> {
 
 /// Reminder limits from spec Section 8.3: 1 per flat per day, 1 bulk run per day.
 class DuesState {
-  const DuesState({required this.lines, this.reminded = const {}, this.bulkSentAt});
+  const DuesState({
+    required this.lines,
+    this.reminded = const {},
+    this.bulkSentAt,
+    this.payments = const [],
+    this.flats = const [],
+    this.opening,
+    this.error,
+  });
   final List<DueLine> lines;
   final Map<String, DateTime> reminded;
   final DateTime? bulkSentAt;
+  final List<PaymentRecord> payments;
+
+  /// Cloud mode only (demo screens use the demo flat list).
+  final List<FlatInfo> flats;
+  final OpeningBalance? opening;
+  final String? error;
 
   int pendingFor(String flat) => lines.where((l) => l.flatNumber == flat).fold(0, (s, l) => s + l.pending);
+
+  DuesState copyWith({
+    List<DueLine>? lines,
+    Map<String, DateTime>? reminded,
+    DateTime? bulkSentAt,
+    List<PaymentRecord>? payments,
+    List<FlatInfo>? flats,
+    OpeningBalance? opening,
+    String? error,
+  }) => DuesState(
+    lines: lines ?? this.lines,
+    reminded: reminded ?? this.reminded,
+    bulkSentAt: bulkSentAt ?? this.bulkSentAt,
+    payments: payments ?? this.payments,
+    flats: flats ?? this.flats,
+    opening: opening ?? this.opening,
+    error: error,
+  );
 }
 
 bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
@@ -177,7 +212,21 @@ final duesProvider = NotifierProvider<DuesNotifier, DuesState>(DuesNotifier.new)
 
 class DuesNotifier extends Notifier<DuesState> {
   @override
-  DuesState build() => DuesState(lines: buildDemoDues(ref.read(clockProvider)));
+  DuesState build() {
+    if (!backendEnabled) return DuesState(lines: buildDemoDues(ref.read(clockProvider)));
+    if (ref.watch(sessionProvider.select((s) => s?.user.id)) != null) refresh();
+    return const DuesState(lines: []);
+  }
+
+  Future<void> refresh() async {
+    if (!backendEnabled) return;
+    try {
+      final d = await FinanceRepo.dues();
+      state = state.copyWith(lines: d.lines, payments: d.payments, flats: d.flats, opening: d.opening);
+    } catch (e) {
+      state = state.copyWith(error: '$e');
+    }
+  }
 
   bool canRemind(String flat) {
     final t = state.reminded[flat];
@@ -186,11 +235,7 @@ class DuesNotifier extends Notifier<DuesState> {
 
   bool get canBulk => state.bulkSentAt == null || !_sameDay(state.bulkSentAt!, DateTime.now());
 
-  void remind(String flat) => state = DuesState(
-    lines: state.lines,
-    reminded: {...state.reminded, flat: DateTime.now()},
-    bulkSentAt: state.bulkSentAt,
-  );
+  void remind(String flat) => state = state.copyWith(reminded: {...state.reminded, flat: DateTime.now()});
 
   int remindAll() {
     final flats = {
@@ -198,32 +243,199 @@ class DuesNotifier extends Notifier<DuesState> {
         if (!l.isPaid) l.flatNumber,
     }.where(canRemind).toList();
     final now = DateTime.now();
-    state = DuesState(
-      lines: state.lines,
-      reminded: {...state.reminded, for (final f in flats) f: now},
-      bulkSentAt: now,
-    );
+    state = state.copyWith(reminded: {...state.reminded, for (final f in flats) f: now}, bulkSentAt: now);
     return flats.length;
   }
 
+  /// Demo-only online payment.
   String pay(String flat) {
     final receipt = 'RCT-${1300 + DateTime.now().millisecond}';
-    state = DuesState(
+    state = state.copyWith(
       lines: [for (final l in state.lines) l.flatNumber == flat && !l.isPaid ? l.markPaid(receipt) : l],
-      reminded: state.reminded,
-      bulkSentAt: state.bulkSentAt,
+    );
+    return receipt;
+  }
+
+  Future<void> saveOpening(OpeningBalance o) async {
+    if (backendEnabled) {
+      await FinanceRepo.saveOpening(o);
+      return refresh();
+    }
+    state = state.copyWith(opening: o);
+  }
+
+  /// Adds [head] for every flat whose type has a rate; flats that already have it are skipped. Returns the count.
+  Future<int> raiseDues(String head, DateTime dueDate, Map<String, int> rates) async {
+    if (backendEnabled) {
+      final n = await FinanceRepo.raiseDues(head, dueDate, rates);
+      await refresh();
+      return n;
+    }
+    final added = [
+      for (final f in demoFlats)
+        if ((rates[f.type] ?? 0) > 0 && !state.lines.any((l) => l.flatNumber == f.number && l.head == head))
+          DueLine(flatNumber: f.number, head: head, amount: rates[f.type]!, paid: 0, dueDate: dueDate),
+    ];
+    state = state.copyWith(lines: [...state.lines, ...added]);
+    return added.length;
+  }
+
+  /// Returns the receipt number.
+  Future<String> recordPayment({
+    required String flatNumber,
+    DueLine? due,
+    required int amount,
+    required String mode,
+    String? reference,
+    required DateTime paidOn,
+  }) async {
+    if (backendEnabled) {
+      final flatId = due?.flatId ?? state.flats.firstWhere((f) => f.number == flatNumber).id!;
+      final r = await FinanceRepo.recordPayment(
+        flatId: flatId,
+        dueId: due?.id,
+        amount: amount,
+        mode: mode,
+        reference: reference,
+        paidOn: paidOn,
+      );
+      await refresh();
+      return r;
+    }
+    final receipt = 'RCT-${5001 + state.payments.length}';
+    state = state.copyWith(
+      lines: [
+        for (final l in state.lines)
+          identical(l, due)
+              ? DueLine(
+                  flatNumber: l.flatNumber,
+                  head: l.head,
+                  amount: l.amount,
+                  paid: l.paid + amount,
+                  dueDate: l.dueDate,
+                  receiptNo: receipt,
+                )
+              : l,
+      ],
+      payments: [
+        ...state.payments,
+        PaymentRecord(
+          flatNumber: flatNumber,
+          amount: amount,
+          paidOn: paidOn,
+          receiptNo: receipt,
+          mode: mode,
+          reference: reference,
+          head: due?.head,
+        ),
+      ],
     );
     return receipt;
   }
 }
 
+/// Opening balance + payments received − approved expenses since the opening date; null until it is set.
+final bankBalanceProvider = Provider<int?>((ref) {
+  if (!backendEnabled) return 485320;
+  final d = ref.watch(duesProvider);
+  final o = d.opening;
+  if (o == null) return null;
+  final inflow = d.payments.where((p) => !p.paidOn.isBefore(o.asOf)).fold(0, (s, p) => s + p.amount);
+  final outflow = ref
+      .watch(expensesProvider)
+      .where((e) => e.status == ExpenseStatus.approved && !e.date.isBefore(o.asOf))
+      .fold(0, (s, e) => s + e.amount);
+  return o.amount + inflow - outflow;
+});
+
 final expensesProvider = NotifierProvider<ExpensesNotifier, List<Expense>>(ExpensesNotifier.new);
 
 class ExpensesNotifier extends Notifier<List<Expense>> {
   @override
-  List<Expense> build() => buildDemoExpenses(ref.read(clockProvider));
+  List<Expense> build() {
+    if (!backendEnabled) return buildDemoExpenses(ref.read(clockProvider));
+    if (ref.watch(sessionProvider.select((s) => s?.user.id)) != null) refresh();
+    return const [];
+  }
+
+  Future<void> refresh() async {
+    if (!backendEnabled) return;
+    try {
+      state = await FinanceRepo.expenses();
+    } catch (_) {
+      // Roles without finance access simply see no expenses.
+    }
+  }
 
   void update(String id, Expense Function(Expense) f) => state = [for (final e in state) e.id == id ? f(e) : e];
+
+  Future<void> add({
+    required DateTime date,
+    required String category,
+    required String vendor,
+    required String description,
+    required int amount,
+    required String enteredBy,
+    Uint8List? bill,
+    String? ext,
+  }) async {
+    if (backendEnabled) {
+      await FinanceRepo.addExpense(
+        date: date,
+        category: category,
+        vendor: vendor,
+        description: description,
+        amount: amount,
+        bill: bill,
+        ext: ext,
+      );
+      return refresh();
+    }
+    state = [
+      Expense(
+        id: 'EXP-${1001 + state.length}',
+        date: date,
+        category: category,
+        vendor: vendor,
+        description: description,
+        amount: amount,
+        status: ExpenseStatus.awaitingTreasurer,
+        enteredBy: enteredBy,
+        documents: bill == null ? 0 : 1,
+      ),
+      ...state,
+    ];
+  }
+
+  /// Actions: verify, approve, send_back, resubmit, flag. The server enforces who may do what.
+  Future<void> decide(Expense e, String action, [String? comment]) async {
+    if (backendEnabled) {
+      await FinanceRepo.decide(e.dbId!, action, comment);
+      return refresh();
+    }
+    update(
+      e.id,
+      (x) => switch (action) {
+        'verify' => x.copyWith(status: ExpenseStatus.awaitingPresident),
+        'approve' => x.copyWith(status: ExpenseStatus.approved),
+        'send_back' => x.copyWith(status: ExpenseStatus.sentBack, comment: comment),
+        'resubmit' => x.copyWith(status: ExpenseStatus.awaitingTreasurer),
+        'flag' => x.copyWith(flagged: !x.flagged),
+        _ => x,
+      },
+    );
+  }
+
+  Future<void> attachBill(Expense e, Uint8List bytes, String ext) async {
+    if (backendEnabled) {
+      await FinanceRepo.attachBill(e.dbId!, bytes, ext);
+      return refresh();
+    }
+    update(e.id, (x) => x.copyWith(documents: x.documents + 1));
+  }
+
+  /// A 60-second link; null in demo mode (files are not stored).
+  Future<String?> billUrl(String path) async => backendEnabled ? FinanceRepo.billUrl(path) : null;
 }
 
 final meetingsProvider = NotifierProvider<MeetingsNotifier, List<Meeting>>(MeetingsNotifier.new);

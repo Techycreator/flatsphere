@@ -12,7 +12,6 @@ import '../../widgets/common.dart';
 import '../approvals/approval_tile.dart';
 import '../complaints/complaint_tile.dart';
 import '../finance/charts.dart';
-import '../finance/finance_screen.dart' show bankBalance;
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -179,7 +178,7 @@ class _PresidentDash extends ConsumerWidget {
             ),
             StatCard(
               label: 'Bank balance',
-              value: inr.format(bankBalance),
+              value: _balance(ref.watch(bankBalanceProvider)),
               icon: Icons.account_balance,
               onTap: () => context.go('/finance'),
             ),
@@ -352,7 +351,11 @@ class _TreasurerDash extends ConsumerWidget {
               color: AppColors.red,
               onTap: () => context.go('/finance'),
             ),
-            StatCard(label: 'Bank balance', value: inr.format(bankBalance), icon: Icons.account_balance),
+            StatCard(
+              label: 'Bank balance',
+              value: _balance(ref.watch(bankBalanceProvider)),
+              icon: Icons.account_balance,
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -705,3 +708,5 @@ class _AuditorDash extends StatelessWidget {
     );
   }
 }
+
+String _balance(int? v) => v == null ? 'Not set' : inr.format(v);

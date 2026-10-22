@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../backend/backend.dart';
 import '../../app/theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../state/app_state.dart';
@@ -19,6 +20,12 @@ class MyDuesScreen extends ConsumerWidget {
     final pending = lines.fold(0, (a, x) => a + x.pending);
 
     Future<void> pay() async {
+      if (backendEnabled) {
+        return toast(
+          context,
+          'Online payment is not switched on yet. Pay the Treasurer; your receipt will appear here.',
+        );
+      }
       final method = await showDialog<String>(
         context: context,
         builder: (ctx) => SimpleDialog(

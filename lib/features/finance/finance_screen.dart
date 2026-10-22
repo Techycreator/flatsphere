@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
+import '../../backend/backend.dart';
+import '../../backend/directory_repo.dart' show friendlyError;
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
@@ -10,8 +13,7 @@ import '../../widgets/common.dart';
 import 'analysis_data.dart';
 import 'analysis_tab.dart';
 import 'charts.dart';
-
-const bankBalance = 485320;
+import 'treasurer_forms.dart';
 
 class FinanceScreen extends ConsumerWidget {
   const FinanceScreen({super.key});
@@ -73,6 +75,11 @@ class _Overview extends ConsumerWidget {
     final role = ref.watch(sessionProvider)!.activeRole;
     final today = ref.watch(clockProvider);
     final thisMonth = DateFormat('MMM yyyy').format(today);
+    final bal = ref.watch(bankBalanceProvider);
+    final spent = ref
+        .watch(expensesProvider)
+        .where((e) => e.status == ExpenseStatus.approved && e.date.year == today.year && e.date.month == today.month)
+        .fold(0, (s, e) => s + e.amount);
     return PageBody(
       children: [
         Wrap(
@@ -87,10 +94,12 @@ class _Overview extends ConsumerWidget {
         StatGrid(
           children: [
             StatCard(
-              label: 'Bank balance (SBI ••••4521)',
-              value: inr.format(bankBalance),
+              label: backendEnabled
+                  ? 'Bank balance · ${dues.opening?.account ?? 'not set'}'
+                  : 'Bank balance (SBI ••••4521)',
+              value: bal == null ? 'Not set' : inr.format(bal),
               icon: Icons.account_balance,
-              sub: 'As of ${dateFmt.format(today)}',
+              sub: bal == null ? 'Treasurer: set the opening balance under Dues' : 'As of ${dateFmt.format(today)}',
             ),
             StatCard(
               label: 'Dues collected',
@@ -108,10 +117,10 @@ class _Overview extends ConsumerWidget {
             ),
             StatCard(
               label: 'Spent – $thisMonth (to date)',
-              value: '₹1,49,000',
+              value: backendEnabled ? inr.format(spent) : '₹1,49,000',
               icon: Icons.north_east,
               color: AppColors.red,
-              sub: '62% of monthly budget',
+              sub: backendEnabled ? 'Approved expenses' : '62% of monthly budget',
             ),
           ],
         ),
@@ -121,6 +130,14 @@ class _Overview extends ConsumerWidget {
             padding: EdgeInsets.only(bottom: 16),
             child: Text(
               'EC view: summary level. Detailed ledgers are visible to office bearers as configured by the Secretary.',
+            ),
+          ),
+        if (backendEnabled)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: Text(
+              'The charts, income breakdown and Analysis tab still show sample figures. '
+              'They will switch to your records once a few months of data are entered.',
             ),
           ),
         const TwoCol(
@@ -164,13 +181,57 @@ class _DuesTab extends ConsumerWidget {
     final n = ref.read(duesProvider.notifier);
     final role = ref.watch(sessionProvider)!.activeRole;
     final canRemind = role == Role.treasurer || role == Role.jointTreasurer || role == Role.secretary;
+    final canRecord = role == Role.treasurer || role == Role.jointTreasurer;
+    final flats = financeFlats(st);
+    final owners = backendEnabled ? const <String, String>{} : {for (final f in demoFlats) f.number: f.ownerName};
     final pendingFlats = {
       for (final l in st.lines)
         if (!l.isPaid) l.flatNumber,
     };
+    final o = st.opening;
+    final recent = st.payments.reversed.take(10).toList();
 
     return PageBody(
       children: [
+        if (canRecord) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                onPressed: () => showPaymentForm(context, ref),
+                icon: const Icon(Icons.receipt_long),
+                label: const Text('Record payment'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => showRaiseDuesForm(context, ref),
+                icon: const Icon(Icons.playlist_add),
+                label: const Text('Raise dues'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => showOpeningBalanceForm(context, ref),
+                icon: const Icon(Icons.account_balance),
+                label: Text(o == null ? 'Set opening balance' : 'Edit opening balance'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (backendEnabled)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.account_balance),
+              title: Text(
+                o == null ? 'Opening balance not set yet' : 'Opening balance ${inr.format(o.amount)} · ${o.account}',
+              ),
+              subtitle: Text(
+                o == null
+                    ? 'The Treasurer enters the bank balance on the day records start (e.g. 1 Apr).'
+                    : 'At the start of ${dateFmt.format(o.asOf)}. Bank balance = opening + payments received '
+                          '− approved expenses since then.',
+              ),
+            ),
+          ),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -193,7 +254,7 @@ class _DuesTab extends ConsumerWidget {
                 ),
                 if (canRemind)
                   FilledButton.icon(
-                    onPressed: n.canBulk
+                    onPressed: n.canBulk && pendingFlats.isNotEmpty
                         ? () {
                             final c = n.remindAll();
                             toast(context, 'Reminder sent to $c flats (push + email; WhatsApp/SMS after 2nd reminder)');
@@ -207,58 +268,106 @@ class _DuesTab extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Card(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('Flat')),
-                DataColumn(label: Text('Type')),
-                DataColumn(label: Text('Owner')),
-                DataColumn(label: Text('Maintenance')),
-                DataColumn(label: Text('Corpus')),
-                DataColumn(label: Text('Pending'), numeric: true),
-                DataColumn(label: Text('Follow-up')),
-              ],
-              rows: [
-                for (final f in demoFlats)
-                  () {
-                    final lines = st.lines.where((l) => l.flatNumber == f.number).toList();
-                    final maint = lines.where((l) => l.head.startsWith('Maintenance'));
-                    final corpus = lines.where((l) => l.head.startsWith('Corpus'));
-                    final pending = st.pendingFor(f.number);
-                    Widget status(Iterable<DueLine> xs) => xs.every((l) => l.isPaid)
-                        ? const Pill('Paid', color: AppColors.green)
-                        : Pill('Due ${xs.where((l) => !l.isPaid).length}', color: AppColors.red);
-                    return DataRow(
-                      cells: [
-                        DataCell(Text(f.number, style: const TextStyle(fontWeight: FontWeight.w600))),
-                        DataCell(Text(f.type)),
-                        DataCell(Text(f.ownerName)),
-                        DataCell(status(maint)),
-                        DataCell(status(corpus)),
-                        DataCell(Text(pending == 0 ? '–' : inr.format(pending))),
-                        DataCell(
-                          pending == 0 || !canRemind
-                              ? const SizedBox.shrink()
-                              : n.canRemind(f.number)
-                              ? TextButton.icon(
-                                  onPressed: () {
-                                    n.remind(f.number);
-                                    toast(context, 'Reminder sent to ${f.ownerName}');
-                                  },
-                                  icon: const Icon(Icons.notifications_active_outlined, size: 18),
-                                  label: const Text('Remind'),
-                                )
-                              : const Text('Sent today', style: TextStyle(color: Colors.black45)),
-                        ),
-                      ],
-                    );
-                  }(),
+        if (flats.isEmpty)
+          const EmptyState('No flats yet. Add them in Flats & people.', icon: Icons.apartment_outlined)
+        else if (backendEnabled && st.lines.isEmpty)
+          EmptyState(
+            canRecord
+                ? 'No dues raised yet. Use "Raise dues" to bill every flat, e.g. Maintenance for this month.'
+                : 'No dues raised yet.',
+            icon: Icons.receipt_long_outlined,
+          )
+        else
+          Card(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columns: [
+                  const DataColumn(label: Text('Flat')),
+                  const DataColumn(label: Text('Type')),
+                  if (owners.isNotEmpty) const DataColumn(label: Text('Owner')),
+                  const DataColumn(label: Text('Charged'), numeric: true),
+                  const DataColumn(label: Text('Paid'), numeric: true),
+                  const DataColumn(label: Text('Pending'), numeric: true),
+                  const DataColumn(label: Text('Status')),
+                  const DataColumn(label: Text('Actions')),
+                ],
+                rows: [
+                  for (final (number, type) in flats)
+                    () {
+                      final lines = st.lines.where((l) => l.flatNumber == number).toList();
+                      final charged = lines.fold(0, (s, l) => s + l.amount);
+                      final paid = lines.fold(0, (s, l) => s + l.paid);
+                      final pending = st.pendingFor(number);
+                      final open = lines.where((l) => !l.isPaid).length;
+                      return DataRow(
+                        cells: [
+                          DataCell(Text(number, style: const TextStyle(fontWeight: FontWeight.w600))),
+                          DataCell(Text(type)),
+                          if (owners.isNotEmpty) DataCell(Text(owners[number] ?? '–')),
+                          DataCell(Text(charged == 0 ? '–' : inr.format(charged))),
+                          DataCell(Text(paid == 0 ? '–' : inr.format(paid))),
+                          DataCell(Text(pending <= 0 ? '–' : inr.format(pending))),
+                          DataCell(
+                            lines.isEmpty
+                                ? const Text('No dues')
+                                : open == 0
+                                ? const Pill('Paid', color: AppColors.green)
+                                : Pill('$open due', color: AppColors.red),
+                          ),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (canRecord)
+                                  TextButton.icon(
+                                    onPressed: () => showPaymentForm(context, ref, flat: number),
+                                    icon: const Icon(Icons.receipt_long, size: 18),
+                                    label: const Text('Record'),
+                                  ),
+                                if (pending > 0 && canRemind)
+                                  n.canRemind(number)
+                                      ? TextButton.icon(
+                                          onPressed: () {
+                                            n.remind(number);
+                                            toast(context, 'Reminder sent to $number');
+                                          },
+                                          icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                                          label: const Text('Remind'),
+                                        )
+                                      : const Text('Sent today', style: TextStyle(color: Colors.black45)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }(),
+                ],
+              ),
+            ),
+          ),
+        if (recent.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          SectionCard(
+            title: 'Recent receipts',
+            padding: false,
+            child: Column(
+              children: [
+                for (final p in recent)
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.receipt_outlined),
+                    title: Text('${p.receiptNo} · ${p.flatNumber}${p.head == null ? ' · advance' : ' · ${p.head}'}'),
+                    subtitle: Text(
+                      '${dateFmt.format(p.paidOn)} · ${paymentModes[p.mode] ?? p.mode}'
+                      '${p.reference == null ? '' : ' · ref ${p.reference}'}',
+                    ),
+                    trailing: Text(inr.format(p.amount), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
               ],
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -272,10 +381,47 @@ class _ExpensesTab extends ConsumerWidget {
     final list = ref.watch(expensesProvider);
     final n = ref.read(expensesProvider.notifier);
     final role = ref.watch(sessionProvider)!.activeRole;
+    final canEnter = const {Role.treasurer, Role.jointTreasurer, Role.secretary, Role.jointSecretary}.contains(role);
+
+    void fail(Object err) {
+      if (context.mounted) toast(context, friendlyError(err));
+    }
+
+    Future<void> act(Expense e, String action, [String? comment]) async {
+      try {
+        await n.decide(e, action, comment);
+      } catch (err) {
+        fail(err);
+      }
+    }
 
     Future<void> sendBack(Expense e) async {
       final c = await promptText(context, title: 'Send back ${e.id}', hint: 'What is missing? (e.g. GST invoice)');
-      if (c != null) n.update(e.id, (x) => x.copyWith(status: ExpenseStatus.sentBack, comment: c));
+      if (c != null) await act(e, 'send_back', c);
+    }
+
+    Future<void> attach(Expense e) async {
+      final f = await pickBill(context);
+      if (f == null) return;
+      try {
+        await n.attachBill(e, f.bytes, f.ext);
+        if (context.mounted) toast(context, 'Bill attached to ${e.id}');
+      } catch (err) {
+        fail(err);
+      }
+    }
+
+    Future<void> view(String path) async {
+      try {
+        final url = await n.billUrl(path);
+        if (url == null) {
+          if (context.mounted) toast(context, 'Demo mode: files are not stored');
+          return;
+        }
+        await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank');
+      } catch (err) {
+        fail(err);
+      }
     }
 
     return PageBody(
@@ -283,17 +429,21 @@ class _ExpensesTab extends ConsumerWidget {
         Row(
           children: [
             const Expanded(
-              child: Text('Entered by Secretary/Treasurer → Treasurer verifies documents → President approves'),
+              child: Text(
+                'Entered by Secretary/Treasurer → Treasurer verifies the bill → President approves. '
+                'Nobody can verify or approve an expense they entered.',
+              ),
             ),
-            if (role == Role.treasurer || role == Role.jointTreasurer || role == Role.secretary)
+            if (canEnter)
               FilledButton.tonalIcon(
-                onPressed: () => toast(context, 'Opens expense entry form with bill photo + OCR auto-fill'),
+                onPressed: () => showExpenseForm(context, ref),
                 icon: const Icon(Icons.add),
                 label: const Text('Add expense'),
               ),
           ],
         ),
         const SizedBox(height: 12),
+        if (list.isEmpty) const EmptyState('No expenses recorded yet.', icon: Icons.receipt_long_outlined),
         for (final e in list) ...[
           Card(
             child: Padding(
@@ -314,7 +464,7 @@ class _ExpensesTab extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${e.id} · ${dateFmt.format(e.date)} · ${e.description} · by ${e.enteredBy}',
+                    '${e.id} · ${dateFmt.format(e.date)}${e.description.isEmpty ? '' : ' · ${e.description}'} · by ${e.enteredBy}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 8),
@@ -331,9 +481,18 @@ class _ExpensesTab extends ConsumerWidget {
                           _ => AppColors.amber,
                         },
                       ),
-                      e.documents == 0
-                          ? const Pill('No documents', color: AppColors.red, icon: Icons.attach_file)
-                          : Pill('${e.documents} document(s)', color: Colors.blueGrey, icon: Icons.attach_file),
+                      if (e.billPaths.isNotEmpty)
+                        for (final (i, path) in e.billPaths.indexed)
+                          ActionChip(
+                            avatar: const Icon(Icons.receipt, size: 16),
+                            label: Text('Bill ${i + 1}'),
+                            tooltip: 'Open (link valid 60 seconds)',
+                            onPressed: () => view(path),
+                          )
+                      else if (e.documents == 0)
+                        const Pill('No bill attached', color: AppColors.red, icon: Icons.attach_file)
+                      else
+                        Pill('${e.documents} document(s)', color: Colors.blueGrey, icon: Icons.attach_file),
                       if (e.flagged) const Pill('Flagged by President', color: AppColors.amber, icon: Icons.flag),
                       if (e.comment != null)
                         Text('“${e.comment}”', style: const TextStyle(fontStyle: FontStyle.italic)),
@@ -342,26 +501,35 @@ class _ExpensesTab extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
+                    runSpacing: 8,
                     children: [
                       if (role == Role.treasurer && e.status == ExpenseStatus.awaitingTreasurer) ...[
                         FilledButton(
-                          onPressed: e.documents == 0
-                              ? null
-                              : () => n.update(e.id, (x) => x.copyWith(status: ExpenseStatus.awaitingPresident)),
-                          child: const Text('Documents OK → President'),
+                          onPressed: e.documents == 0 ? null : () => act(e, 'verify'),
+                          child: const Text('Bill OK → President'),
                         ),
                         OutlinedButton(onPressed: () => sendBack(e), child: const Text('Send back')),
                       ],
                       if (role == Role.president && e.status == ExpenseStatus.awaitingPresident) ...[
-                        FilledButton(
-                          onPressed: () => n.update(e.id, (x) => x.copyWith(status: ExpenseStatus.approved)),
-                          child: const Text('Approve'),
-                        ),
+                        FilledButton(onPressed: () => act(e, 'approve'), child: const Text('Approve')),
                         OutlinedButton(onPressed: () => sendBack(e), child: const Text('Send back')),
                       ],
+                      if ((canEnter || role == Role.treasurer) &&
+                          (e.status == ExpenseStatus.awaitingTreasurer || e.status == ExpenseStatus.sentBack))
+                        TextButton.icon(
+                          onPressed: () => attach(e),
+                          icon: const Icon(Icons.attach_file),
+                          label: const Text('Attach bill'),
+                        ),
+                      if (canEnter && e.status == ExpenseStatus.sentBack)
+                        TextButton.icon(
+                          onPressed: () => act(e, 'resubmit'),
+                          icon: const Icon(Icons.send),
+                          label: const Text('Resubmit'),
+                        ),
                       if (role == Role.president)
                         TextButton.icon(
-                          onPressed: () => n.update(e.id, (x) => x.copyWith(flagged: !x.flagged)),
+                          onPressed: () => act(e, 'flag'),
                           icon: Icon(e.flagged ? Icons.flag : Icons.outlined_flag),
                           label: Text(e.flagged ? 'Unflag' : 'Flag for discussion'),
                         ),

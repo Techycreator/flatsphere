@@ -17,7 +17,7 @@ String _occupancyDb(Occupancy o) => switch (o) {
   Occupancy.ownerOccupied => 'owner_occupied',
 };
 
-String _mime(String ext) => switch (ext.toLowerCase()) {
+String mimeFor(String ext) => switch (ext.toLowerCase()) {
   'pdf' => 'application/pdf',
   'png' => 'image/png',
   'webp' => 'image/webp',
@@ -149,7 +149,7 @@ class DirectoryRepo {
   }) async {
     final assoc = await db.rpc('my_association') as String;
     final path = '$assoc/${flatId ?? 'none'}/${DateTime.now().microsecondsSinceEpoch}.${ext.toLowerCase()}';
-    await db.storage.from(_bucket).uploadBinary(path, bytes, fileOptions: FileOptions(contentType: _mime(ext)));
+    await db.storage.from(_bucket).uploadBinary(path, bytes, fileOptions: FileOptions(contentType: mimeFor(ext)));
     await db.from('id_documents').insert({
       'subject_email': person.email.toLowerCase(),
       'subject_name': person.name,

@@ -43,9 +43,28 @@ delete from audit_log where actor in (select id from profiles where email like '
 delete from approval_requests where initiator in (select id from profiles where email like '%@{DOMAIN}');
 delete from complaint_remarks where complaint_id in (select id from complaints where raised_by in (select id from profiles where email like '%@{DOMAIN}'));
 delete from complaints where raised_by in (select id from profiles where email like '%@{DOMAIN}');
+delete from expenses where entered_by in (select id from profiles where email like '%@{DOMAIN}');
+update expenses set verified_by = null where verified_by in (select id from profiles where email like '%@{DOMAIN}');
+update expenses set approved_by = null where approved_by in (select id from profiles where email like '%@{DOMAIN}');
 delete from invites where email like '%@{DOMAIN}';
 delete from auth.users where email like '%@{DOMAIN}';
 """
+
+def expenses_sql():
+    rows = [
+        (1, 'Common electricity', 'KSEB', 'Common area bill - Sep', 18640, 'awaiting_treasurer', None, None, False, None),
+        (2, 'STP maintenance', 'AquaTech Services', 'Blower motor rewinding', 12500, 'awaiting_treasurer', None, None, False, None),
+        (3, 'Cleaning liquids & equipment', 'Kochi Hygiene Mart', 'Phenyl, mops, garbage bags', 3420, 'awaiting_president', 'Thomas Kurian', None, False, None),
+        (4, 'Garden', 'Green Thumb Landscaping', 'Monthly garden upkeep', 6000, 'sent_back', None, None, False, 'GST invoice missing - please attach'),
+        (5, 'Water bill', 'Kerala Water Authority', 'Bi-monthly water charges', 9870, 'approved', 'Thomas Kurian', 'Rajesh Menon', False, None),
+        (8, 'Motor maintenance', 'Sree Electricals', 'Pump 2 bearing replacement', 4800, 'approved', 'Thomas Kurian', 'Rajesh Menon', True, 'Same repair done in July - discuss in EC'),
+    ]
+    return '\n'.join(
+        "insert into expenses (association_id, spent_on, category, vendor, description, amount, status, entered_by, "
+        "entered_by_name, verified_by, approved_by, flagged, comment) values "
+        f"('{ASSOC}', current_date - {d}, {q(c)}, {q(v)}, {q(desc)}, {amt}, {q(st)}, {pid('Anitha Nair')}, 'Anitha Nair', "
+        f"{pid(ver) if ver else 'null'}, {pid(app) if app else 'null'}, {q(fl)}, {q(com)});"
+        for d, c, v, desc, amt, st, ver, app, fl, com in rows)
 
 def seed_sql(d):
     out = ['begin;', CLEANUP]
@@ -59,6 +78,7 @@ def seed_sql(d):
     out.append(f"update memberships set monitor_categories = array['Security','Garden'], monitor_from = '2026-07-01', "
                f"monitor_until = '2026-11-10', assigned_by = 'Rajesh Menon (President)' where role = 'monitor' "
                f"and user_id = {pid('Lakshmi Pillai')};")
+    out.append(expenses_sql())
     for c in d['complaints']:
         cols = ['association_id', 'ref', 'flat_id', 'flat_number', 'ticket_type', 'kind', 'category', 'title', 'description',
                 'location', 'criticality', 'ai_suggested', 'status', 'is_private', 'estimated_cost', 'raised_by', 'raised_by_name',

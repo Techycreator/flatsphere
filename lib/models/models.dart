@@ -477,6 +477,8 @@ class ApprovalRequest {
 
 class DueLine {
   const DueLine({
+    this.id,
+    this.flatId,
     required this.flatNumber,
     required this.head,
     required this.amount,
@@ -485,6 +487,8 @@ class DueLine {
     this.receiptNo,
   });
 
+  final String? id;
+  final String? flatId;
   final String flatNumber;
   final String head;
   final int amount;
@@ -522,8 +526,11 @@ class Expense {
     this.documents = 1,
     this.flagged = false,
     this.comment,
+    this.dbId,
+    this.billPaths = const [],
   });
 
+  /// Display reference, e.g. EXP-1001; [dbId] is the database key in cloud mode.
   final String id;
   final DateTime date;
   final String category;
@@ -535,8 +542,10 @@ class Expense {
   final int documents;
   final bool flagged;
   final String? comment;
+  final String? dbId;
+  final List<String> billPaths;
 
-  Expense copyWith({ExpenseStatus? status, bool? flagged, String? comment}) => Expense(
+  Expense copyWith({ExpenseStatus? status, bool? flagged, String? comment, int? documents}) => Expense(
     id: id,
     date: date,
     category: category,
@@ -545,11 +554,72 @@ class Expense {
     amount: amount,
     status: status ?? this.status,
     enteredBy: enteredBy,
-    documents: documents,
+    documents: documents ?? this.documents,
     flagged: flagged ?? this.flagged,
     comment: comment ?? this.comment,
+    dbId: dbId,
+    billPaths: billPaths,
   );
 }
+
+class OpeningBalance {
+  const OpeningBalance({required this.account, required this.amount, required this.asOf});
+
+  final String account;
+  final int amount;
+
+  /// Balance at the start of this day; payments and approved expenses from this day on are added.
+  final DateTime asOf;
+}
+
+class PaymentRecord {
+  const PaymentRecord({
+    required this.flatNumber,
+    required this.amount,
+    required this.paidOn,
+    required this.receiptNo,
+    required this.mode,
+    this.reference,
+    this.head,
+  });
+
+  final String flatNumber;
+  final int amount;
+  final DateTime paidOn;
+  final String receiptNo;
+  final String mode;
+  final String? reference;
+  final String? head;
+}
+
+const paymentModes = {
+  'upi': 'UPI',
+  'bank_transfer': 'Bank transfer / NEFT',
+  'cash': 'Cash',
+  'cheque': 'Cheque',
+  'online': 'Online',
+};
+
+const expenseCategories = [
+  'Common electricity',
+  'Water bill',
+  'Security services',
+  'Housekeeping / cleaning',
+  'Cleaning liquids & equipment',
+  'STP maintenance',
+  'Lift AMC & repairs',
+  'Motor maintenance',
+  'Generator & diesel',
+  'Garden',
+  'Repairs & maintenance',
+  'Staff salary',
+  'Insurance',
+  'Bank charges',
+  'Events & festivals',
+  'Legal & professional',
+  'Office & stationery',
+  'Other',
+];
 
 class FundRequest {
   const FundRequest({required this.name, required this.kind, required this.basis, required this.status, this.dueDay});
