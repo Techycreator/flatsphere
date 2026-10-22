@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../backend/backend.dart';
 import '../../l10n/app_localizations.dart';
@@ -62,7 +63,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _run(() async {
       await AuthService.verifyCode(_mobile.text, _otp.text);
       final user = await AuthService.loadUser();
-      if (user == null) throw Exception('not_invited');
+      if (user == null) {
+        final email = AuthService.currentUserEmail;
+        if (email == null) throw Exception('verified_email_missing');
+        ref.read(firstAssociationSignupProvider.notifier).setEmail(email);
+        if (mounted) context.go('/setup-association');
+        return;
+      }
       ref.read(sessionProvider.notifier).login(user);
     });
   }

@@ -104,6 +104,22 @@ abstract class AppLocalizations {
   /// **'FlatSphere'**
   String get appTitle;
 
+  String get createAssociation;
+
+  String get firstAssociationSetup;
+
+  String get verifiedEmailNoAssociation;
+
+  String get adminName;
+
+  String get associationName;
+
+  String get state;
+
+  String get city;
+
+  String get brandColor;
+
   /// No description provided for @dashboard.
   ///
   /// In en, this message translates to:

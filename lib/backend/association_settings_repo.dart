@@ -1,6 +1,20 @@
 import 'backend.dart';
 
 class AssociationSettingsRepo {
+  static Future<String> createFirstAssociation({
+    required String name,
+    required String state,
+    required String city,
+    required String brandPrimary,
+    required String adminName,
+  }) async => await db.rpc('create_first_association', params: {
+    'p_name': name.trim(),
+    'p_state': state.trim(),
+    'p_city': city.trim(),
+    'p_brand_primary': brandPrimary.trim(),
+    'p_full_name': adminName.trim(),
+  }) as String;
+
   static Future<String> createAssociation({
     required String name,
     required String state,

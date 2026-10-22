@@ -14,6 +14,9 @@ Future<void> main() async {
   if (backendEnabled) {
     final user = await AuthService.loadUser();
     if (user != null) container.read(sessionProvider.notifier).login(user);
+    else if (AuthService.currentUserEmail case final String email) {
+      container.read(firstAssociationSignupProvider.notifier).setEmail(email);
+    }
   }
   runApp(UncontrolledProviderScope(container: container, child: const FlatSphereApp()));
 }

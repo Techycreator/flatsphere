@@ -27,6 +27,19 @@ class LocaleNotifier extends Notifier<Locale> {
 
 final sessionProvider = NotifierProvider<SessionNotifier, Session?>(SessionNotifier.new);
 
+final firstAssociationSignupProvider = NotifierProvider<FirstAssociationSignupNotifier, String?>(
+  FirstAssociationSignupNotifier.new,
+);
+
+class FirstAssociationSignupNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setEmail(String email) => state = email.trim();
+
+  void clear() => state = null;
+}
+
 final birthdayWishProvider = FutureProvider.autoDispose<bool>((ref) async {
   final member = ref.watch(sessionProvider.select((session) => (session?.user.id, session?.user.associationId)));
   if (!backendEnabled || member.$1 == null || member.$2 == null) return false;
@@ -49,7 +62,10 @@ class SessionNotifier extends Notifier<Session?> {
   @override
   Session? build() => null;
 
-  void login(DemoUser u) => state = Session(user: u, activeRole: u.roles.first);
+  void login(DemoUser u) {
+    state = Session(user: u, activeRole: u.roles.first);
+    ref.read(firstAssociationSignupProvider.notifier).clear();
+  }
 
   Future<void> switchAssociation(String associationId) async {
     if (!backendEnabled) return;
@@ -61,6 +77,7 @@ class SessionNotifier extends Notifier<Session?> {
   void logout() {
     if (backendEnabled) AuthService.signOut();
     state = null;
+    ref.read(firstAssociationSignupProvider.notifier).clear();
   }
 }
 

@@ -182,5 +182,13 @@
   "balance": "ബാലൻസ്",
   "fixedLateAmount": "ഓരോ ഫ്ലാറ്റിനുമുള്ള നിശ്ചിത തുക",
   "duesName": "പേര്",
-  "dueBy": "അവസാന തീയതി"
+  "dueBy": "അവസാന തീയതി",
+  "createAssociation": "അസോസിയേഷൻ സൃഷ്ടിക്കുക",
+  "firstAssociationSetup": "നിങ്ങളുടെ അസോസിയേഷൻ സജ്ജമാക്കുക",
+  "verifiedEmailNoAssociation": "നിലവിലുള്ള അസോസിയേഷനില്ലാത്ത സ്ഥിരീകരിച്ച ഇമെയിൽ",
+  "adminName": "നിങ്ങളുടെ പൂർണ്ണ പേര്",
+  "associationName": "അസോസിയേഷന്റെ പേര്",
+  "state": "സംസ്ഥാനം",
+  "city": "നഗരം",
+  "brandColor": "ബ്രാൻഡ് നിറം"
 }

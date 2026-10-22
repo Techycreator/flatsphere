@@ -12,6 +12,30 @@ class AppLocalizationsMl extends AppLocalizations {
   @override
   String get appTitle => 'FlatSphere';
 
+    @override
+    String get createAssociation => 'അസോസിയേഷൻ സൃഷ്ടിക്കുക';
+
+    @override
+    String get firstAssociationSetup => 'നിങ്ങളുടെ അസോസിയേഷൻ സജ്ജമാക്കുക';
+
+    @override
+    String get verifiedEmailNoAssociation => 'നിലവിലുള്ള അസോസിയേഷനില്ലാത്ത സ്ഥിരീകരിച്ച ഇമെയിൽ';
+
+    @override
+    String get adminName => 'നിങ്ങളുടെ പൂർണ്ണ പേര്';
+
+    @override
+    String get associationName => 'അസോസിയേഷന്റെ പേര്';
+
+    @override
+    String get state => 'സംസ്ഥാനം';
+
+    @override
+    String get city => 'നഗരം';
+
+    @override
+    String get brandColor => 'ബ്രാൻഡ് നിറം';
+
   @override
   String get dashboard => 'ഡാഷ്ബോർഡ്';
 

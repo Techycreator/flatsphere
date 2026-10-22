@@ -32,6 +32,8 @@ const _roleByDb = {
 };
 
 class AuthService {
+  static String? get currentUserEmail => db.auth.currentUser?.email;
+
   static Future<void> sendCode(String email) => db.auth.signInWithOtp(email: email.trim());
 
   static Future<void> verifyCode(String email, String code) =>

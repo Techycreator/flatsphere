@@ -182,5 +182,13 @@
   "balance": "Balance",
   "fixedLateAmount": "Fixed amount per flat",
   "duesName": "Name",
-  "dueBy": "Due by"
+  "dueBy": "Due by",
+  "createAssociation": "Create association",
+  "firstAssociationSetup": "Set up your association",
+  "verifiedEmailNoAssociation": "Verified email with no existing association",
+  "adminName": "Your full name",
+  "associationName": "Association name",
+  "state": "State",
+  "city": "City",
+  "brandColor": "Brand color"
 }

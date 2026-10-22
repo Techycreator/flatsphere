@@ -9,6 +9,7 @@ import '../features/approvals/membership_request_screen.dart';
 import '../features/archive/archive_screen.dart';
 import '../features/attendance/staff_attendance_screen.dart';
 import '../features/auth/login_screen.dart';
+import '../features/auth/first_association_setup_screen.dart';
 import '../features/checklist/checklist_screen.dart';
 import '../features/complaints/complaint_detail_screen.dart';
 import '../features/complaints/complaints_screen.dart';
@@ -44,6 +45,7 @@ bool canAccess(Role role, String location, {bool membershipDesk = false}) {
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier(0);
   ref.listen(sessionProvider, (_, _) => refresh.value++);
+  ref.listen(firstAssociationSignupProvider, (_, _) => refresh.value++);
   ref.onDispose(refresh.dispose);
 
   return GoRouter(
@@ -51,8 +53,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     redirect: (context, state) {
       final session = ref.read(sessionProvider);
+      final signupEmail = ref.read(firstAssociationSignupProvider);
       final atLogin = state.matchedLocation == '/login';
-      if (session == null) return atLogin ? null : '/login';
+      final atAssociationSetup = state.matchedLocation == '/setup-association';
+      if (session == null) {
+        if (signupEmail != null) return atAssociationSetup ? null : '/setup-association';
+        return atLogin ? null : '/login';
+      }
+      if (atAssociationSetup) return '/home';
       if (atLogin) return '/home';
       return canAccess(
             session.activeRole,
@@ -64,6 +72,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      GoRoute(path: '/setup-association', builder: (_, _) => const FirstAssociationSetupScreen()),
       ShellRoute(
         builder: (context, state, child) => AppShell(location: state.matchedLocation, child: child),
         routes: [

@@ -12,6 +12,30 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get appTitle => 'FlatSphere';
 
+    @override
+    String get createAssociation => 'Create association';
+
+    @override
+    String get firstAssociationSetup => 'Set up your association';
+
+    @override
+    String get verifiedEmailNoAssociation => 'Verified email with no existing association';
+
+    @override
+    String get adminName => 'Your full name';
+
+    @override
+    String get associationName => 'Association name';
+
+    @override
+    String get state => 'State';
+
+    @override
+    String get city => 'City';
+
+    @override
+    String get brandColor => 'Brand color';
+
   @override
   String get dashboard => 'Dashboard';
 
