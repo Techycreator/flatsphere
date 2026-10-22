@@ -11,6 +11,7 @@ import '../features/complaints/complaint_detail_screen.dart';
 import '../features/complaints/complaints_screen.dart';
 import '../features/complaints/raise_complaint_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
+import '../features/directory/directory_screen.dart';
 import '../features/finance/finance_screen.dart';
 import '../features/finance/my_dues_screen.dart';
 import '../features/meetings/meetings_screen.dart';
@@ -25,7 +26,10 @@ Page<void> _page(Widget child) => NoTransitionPage(child: child);
 /// Route guard: a role may only open sections in its own menu (deep links included).
 /// Owners may also open approvals that need their consent (W21); Membership-desk EC members raise W20–W22.
 bool canAccess(Role role, String location, {bool membershipDesk = false}) {
-  final allowed = [...navFor(role).map((i) => i.path), if (role == Role.owner || membershipDesk) '/approvals'];
+  final allowed = [
+    ...navFor(role, membershipDesk: membershipDesk).map((i) => i.path),
+    if (role == Role.owner) '/approvals',
+  ];
   return allowed.any((p) => location == p || location.startsWith('$p/'));
 }
 
@@ -88,6 +92,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/finance', pageBuilder: (_, _) => _page(const FinanceScreen())),
           GoRoute(path: '/dues', pageBuilder: (_, _) => _page(const MyDuesScreen())),
           GoRoute(path: '/meetings', pageBuilder: (_, _) => _page(const MeetingsScreen())),
+          GoRoute(path: '/directory', pageBuilder: (_, _) => _page(const DirectoryScreen())),
           GoRoute(path: '/notices', pageBuilder: (_, _) => _page(const NoticesScreen())),
         ],
       ),

@@ -56,6 +56,9 @@ def seed_sql(d):
                        f"('{ASSOC}', {q(email(name))}, {q(name)}, '{role}', {flat(f) if f else 'null'}, {des});")
         out.append("insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at) values "
                    f"(gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', {q(email(name))}, now(), now());")
+    out.append(f"update memberships set monitor_categories = array['Security','Garden'], monitor_from = '2026-07-01', "
+               f"monitor_until = '2026-11-10', assigned_by = 'Rajesh Menon (President)' where role = 'monitor' "
+               f"and user_id = {pid('Lakshmi Pillai')};")
     for c in d['complaints']:
         cols = ['association_id', 'ref', 'flat_id', 'flat_number', 'ticket_type', 'kind', 'category', 'title', 'description',
                 'location', 'criticality', 'ai_suggested', 'status', 'is_private', 'estimated_cost', 'raised_by', 'raised_by_name',

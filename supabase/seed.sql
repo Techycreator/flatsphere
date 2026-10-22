@@ -23,3 +23,7 @@ select '00000000-0000-0000-0000-000000000001', 'ajeeshg99@gmail.com', 'Ajeesh G'
 from (values ('president'), ('secretary'), ('treasurer'), ('vice_president'), ('joint_secretary'),
              ('joint_treasurer'), ('ec_member'), ('owner')) as r(role)
 where not exists (select 1 from invites where lower(email) = 'ajeeshg99@gmail.com');
+
+insert into invites (association_id, email, full_name, role, monitor_categories)
+select '00000000-0000-0000-0000-000000000001', 'ajeeshg99@gmail.com', 'Ajeesh G', 'monitor', array['STP','Gym','Cleaning']
+where not exists (select 1 from invites where lower(email) = 'ajeeshg99@gmail.com' and role = 'monitor');

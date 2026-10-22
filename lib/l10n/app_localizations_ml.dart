@@ -34,6 +34,9 @@ class AppLocalizationsMl extends AppLocalizations {
   String get meetings => 'യോഗങ്ങൾ';
 
   @override
+  String get directory => 'ഫ്ലാറ്റുകളും അംഗങ്ങളും';
+
+  @override
   String get notices => 'അറിയിപ്പുകൾ';
 
   @override

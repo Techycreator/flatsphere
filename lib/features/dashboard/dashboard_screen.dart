@@ -617,7 +617,11 @@ class _MonitorDash extends ConsumerWidget {
                 children: [
                   const Text('Your monitor categories:', style: TextStyle(fontWeight: FontWeight.w600)),
                   for (final c in cats) Chip(label: Text(c)),
-                  const Text('· until 31 Dec 2026 (approved by President)'),
+                  if (s.user.monitorUntil case final until?)
+                    Text(
+                      '· until ${dateFmt.format(until)}'
+                      '${s.user.monitorAssignedBy == null ? '' : ' (assigned by ${s.user.monitorAssignedBy})'}',
+                    ),
                 ],
               ),
             ),

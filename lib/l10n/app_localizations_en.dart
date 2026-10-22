@@ -34,6 +34,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get meetings => 'Meetings';
 
   @override
+  String get directory => 'Flats & people';
+
+  @override
   String get notices => 'Notices';
 
   @override

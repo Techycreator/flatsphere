@@ -40,6 +40,8 @@ class DemoUser {
     this.flatNumber,
     this.monitorCategories = const [],
     this.designations = const [],
+    this.monitorUntil,
+    this.monitorAssignedBy,
   });
 
   final String id;
@@ -49,6 +51,8 @@ class DemoUser {
   final String? flatNumber;
   final List<String> monitorCategories;
   final List<String> designations;
+  final DateTime? monitorUntil;
+  final String? monitorAssignedBy;
 
   static const membershipDesk = 'Membership desk';
 
@@ -89,6 +93,101 @@ class Flat {
   final String ownerName;
   final String? residentName;
 }
+
+/// A flat as stored in the directory (owner/resident names come from [Person] records).
+class FlatInfo {
+  const FlatInfo({
+    this.id,
+    required this.number,
+    required this.block,
+    required this.type,
+    this.sqft,
+    this.occupancy = Occupancy.ownerOccupied,
+  });
+
+  final String? id;
+  final String number;
+  final String block;
+  final String type;
+  final int? sqft;
+  final Occupancy occupancy;
+}
+
+/// One role held (or invited) in the association; a person with two roles appears twice.
+class Person {
+  const Person({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.role,
+    this.invited = false,
+    this.mobile,
+    this.flatNumber,
+    this.designations = const [],
+    this.monitorCategories = const [],
+    this.monitorFrom,
+    this.monitorUntil,
+    this.assignedBy,
+    this.since,
+  });
+
+  final String id;
+  final String name;
+  final String email;
+  final Role role;
+  final bool invited;
+  final String? mobile;
+  final String? flatNumber;
+  final List<String> designations;
+  final List<String> monitorCategories;
+  final DateTime? monitorFrom;
+  final DateTime? monitorUntil;
+  final String? assignedBy;
+  final DateTime? since;
+}
+
+class IdDocument {
+  const IdDocument({
+    required this.id,
+    required this.type,
+    required this.uploadedAt,
+    this.last4,
+    this.path,
+    this.archived = false,
+  });
+
+  final String id;
+  final String type;
+  final DateTime uploadedAt;
+  final String? last4;
+  final String? path;
+  final bool archived;
+}
+
+const idDocTypes = [
+  'Aadhaar (masked)',
+  'PAN card',
+  'Passport',
+  'Driving licence',
+  'Voter ID',
+  'Lease / rent agreement',
+  'Sale deed',
+  'Police verification form',
+];
+
+const monitorAreas = [
+  'STP',
+  'Gym',
+  'Cleaning',
+  'Security',
+  'Electrical',
+  'Plumbing',
+  'Lift',
+  'Water supply',
+  'Garden',
+  'Swimming pool',
+  'Parking',
+];
 
 enum Criticality {
   critical('Critical'),

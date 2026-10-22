@@ -146,6 +146,12 @@ abstract class AppLocalizations {
   /// **'Meetings'**
   String get meetings;
 
+  /// No description provided for @directory.
+  ///
+  /// In en, this message translates to:
+  /// **'Flats & people'**
+  String get directory;
+
   /// No description provided for @notices.
   ///
   /// In en, this message translates to:

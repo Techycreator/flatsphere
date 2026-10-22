@@ -17,22 +17,23 @@ final _approvals = NavItem('/approvals', Icons.verified_outlined, (l) => l.appro
 final _finance = NavItem('/finance', Icons.account_balance_wallet_outlined, (l) => l.finance);
 final _dues = NavItem('/dues', Icons.payments_outlined, (l) => l.myDues);
 final _meetings = NavItem('/meetings', Icons.groups_outlined, (l) => l.meetings);
+final _directory = NavItem('/directory', Icons.apartment_outlined, (l) => l.directory);
 final _notices = NavItem('/notices', Icons.campaign_outlined, (l) => l.notices);
 
 /// On mobile, items beyond the fourth go under "More" when a role has more than five.
-/// A designated Membership-desk EC member/monitor also gets Approvals.
+/// A designated Membership-desk EC member/monitor also gets Approvals and Flats & people.
 List<NavItem> navFor(Role r, {bool membershipDesk = false}) {
   final base = _baseNav(r);
   if (!membershipDesk || base.contains(_approvals)) return base;
-  return [base.first, _approvals, ...base.skip(1)];
+  return [base.first, _approvals, ...base.skip(1), _directory];
 }
 
 List<NavItem> _baseNav(Role r) => switch (r) {
-  Role.president => [_home, _approvals, _complaints, _finance, _meetings],
-  Role.secretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings],
+  Role.president => [_home, _approvals, _complaints, _finance, _meetings, _directory],
+  Role.secretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings, _directory],
   Role.treasurer || Role.jointTreasurer => [_home, _finance, _approvals, _complaints, _meetings],
   Role.vicePresident => [_home, _approvals, _complaints, _finance, _meetings],
-  Role.jointSecretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings],
+  Role.jointSecretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings, _directory],
   Role.ecMember || Role.monitor => [_home, _checklist, _complaints, _finance, _meetings],
   Role.owner => [_home, _dues, _complaints, _meetings, _notices],
   Role.resident => [_home, _complaints, _notices],

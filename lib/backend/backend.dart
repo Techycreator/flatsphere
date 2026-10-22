@@ -44,14 +44,20 @@ class AuthService {
     final profile = await db.from('profiles').select('full_name').eq('id', u.id).maybeSingle();
     final rows = await db
         .from('memberships')
-        .select('role, designations, monitor_categories, flats(number)')
+        .select('role, designations, monitor_categories, monitor_until, assigned_by, flats(number)')
         .eq('user_id', u.id)
         .isFilter('ended_at', null);
     final roles = <Role>{};
     final designations = <String>{};
     final categories = <String>{};
     String? flat;
+    DateTime? monitorUntil;
+    String? assignedBy;
     for (final r in rows) {
+      if (r['role'] == 'monitor') {
+        monitorUntil = DateTime.tryParse(r['monitor_until'] as String? ?? '');
+        assignedBy = r['assigned_by'] as String?;
+      }
       final role = _roleByDb[r['role']];
       if (role != null) roles.add(role);
       flat ??= (r['flats'] as Map?)?['number'] as String?;
@@ -67,6 +73,8 @@ class AuthService {
       flatNumber: flat,
       designations: designations.toList(),
       monitorCategories: categories.toList(),
+      monitorUntil: monitorUntil,
+      monitorAssignedBy: assignedBy,
     );
   }
 }
