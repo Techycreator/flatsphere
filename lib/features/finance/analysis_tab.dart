@@ -231,7 +231,7 @@ FlTitlesData _titles(String Function(double) bottom) => FlTitlesData(
       ),
     );
 
-String _short(double v) => v >= 100000 ? '${(v / 100000).toStringAsFixed(1)}L' : (v >= 1000 ? '${(v / 1000).toStringAsFixed(0)}k' : v.toStringAsFixed(0));
+String _short(double v) => v >= 100000 ? '${(v / 100000).toStringAsFixed(2)}L' : (v >= 1000 ? '${(v / 1000).toStringAsFixed(0)}k' : v.toStringAsFixed(0));
 
 Widget _legend(Color c, String t) => Row(children: [
       Container(width: 10, height: 10, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
