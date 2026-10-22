@@ -18,7 +18,7 @@ class AppShell extends ConsumerWidget {
     final session = ref.watch(sessionProvider);
     if (session == null) return const SizedBox.shrink();
     final l = AppLocalizations.of(context);
-    final items = navFor(session.activeRole);
+    final items = navFor(session.activeRole, membershipDesk: session.user.canInitiateMembership(session.activeRole));
     final idx = items.indexWhere((i) => location.startsWith(i.path));
     final selected = idx < 0 ? 0 : idx;
     final width = MediaQuery.sizeOf(context).width;

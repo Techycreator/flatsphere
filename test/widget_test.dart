@@ -1,4 +1,5 @@
 import 'package:flatsphere/app/router.dart';
+import 'package:flatsphere/app/nav.dart';
 import 'package:flatsphere/main.dart';
 import 'package:flatsphere/models/models.dart';
 import 'package:flatsphere/models/sla.dart';
@@ -7,17 +8,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Complaint _c(Criticality crit, DateTime created) => Complaint(
-      id: 'X',
-      flatNumber: 'A-1',
-      type: TicketType.complaint,
-      category: 'Other',
-      title: 't',
-      description: '',
-      criticality: crit,
-      status: TicketStatus.newTicket,
-      createdAt: created,
-      raisedBy: 'r',
-    );
+  id: 'X',
+  flatNumber: 'A-1',
+  type: TicketType.complaint,
+  category: 'Other',
+  title: 't',
+  description: '',
+  criticality: crit,
+  status: TicketStatus.newTicket,
+  createdAt: created,
+  raisedBy: 'r',
+);
 
 void main() {
   group('SLA colours (medium: green day 0, amber 1-5, red 6+)', () {
@@ -61,6 +62,10 @@ void main() {
       expect(canAccess(Role.owner, '/approvals/APR-034'), isTrue);
       expect(canAccess(Role.auditor, '/complaints'), isFalse);
       expect(canAccess(Role.auditor, '/finance'), isTrue);
+      expect(canAccess(Role.ecMember, '/approvals/new/owner'), isFalse);
+      expect(canAccess(Role.ecMember, '/approvals/new/owner', membershipDesk: true), isTrue);
+      expect(canAccess(Role.ecMember, '/meetings', membershipDesk: true), isTrue);
+      expect(navFor(Role.ecMember, membershipDesk: true).map((i) => i.path), contains('/approvals'));
     });
   });
 

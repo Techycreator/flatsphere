@@ -23,9 +23,9 @@ import 'nav.dart';
 Page<void> _page(Widget child) => NoTransitionPage(child: child);
 
 /// Route guard: a role may only open sections in its own menu (deep links included).
-/// Owners may also open approvals that need their consent (W21).
-bool canAccess(Role role, String location) {
-  final allowed = [...navFor(role).map((i) => i.path), if (role == Role.owner) '/approvals'];
+/// Owners may also open approvals that need their consent (W21); Membership-desk EC members raise W20–W22.
+bool canAccess(Role role, String location, {bool membershipDesk = false}) {
+  final allowed = [...navFor(role).map((i) => i.path), if (role == Role.owner || membershipDesk) '/approvals'];
   return allowed.any((p) => location == p || location.startsWith('$p/'));
 }
 
@@ -42,7 +42,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       final atLogin = state.matchedLocation == '/login';
       if (session == null) return atLogin ? null : '/login';
       if (atLogin) return '/home';
-      return canAccess(session.activeRole, state.matchedLocation) ? null : '/home';
+      return canAccess(
+            session.activeRole,
+            state.matchedLocation,
+            membershipDesk: session.user.canInitiateMembership(session.activeRole),
+          )
+          ? null
+          : '/home';
     },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
