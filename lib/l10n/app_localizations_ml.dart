@@ -404,6 +404,84 @@ class AppLocalizationsMl extends AppLocalizations {
   String get minutesPending => 'മിനിറ്റുകൾ കാത്തിരിക്കുന്നു';
 
   @override
+  String get attendance => 'ഹാജർ';
+
+  @override
+  String get householdStaff => 'വീട്ടുജോലി ജീവനക്കാർ';
+
+  @override
+  String get visitors => 'സന്ദർശകർ';
+
+  @override
+  String get archive => 'ആർക്കൈവ്';
+
+  @override
+  String get registers => 'ആസ്തികളും കാലാവധികളും';
+
+  @override
+  String get amenities => 'സൗകര്യങ്ങൾ';
+
+  @override
+  String get community => 'സമൂഹം';
+
+  @override
+  String get associationDocuments => 'അസോസിയേഷൻ രേഖകൾ';
+
+  @override
+  String get visitorRegister => 'സന്ദർശക രജിസ്റ്റർ';
+
+  @override
+  String get preregisterVisitor => 'സന്ദർശകനെ മുൻകൂട്ടി രജിസ്റ്റർ ചെയ്യുക';
+
+  @override
+  String get visitorHostIntro =>
+      'നിങ്ങളുടെ ഫ്ലാറ്റിലേക്കുള്ള സന്ദർശനം മുൻകൂട്ടി രജിസ്റ്റർ ചെയ്യുക. സുരക്ഷാ ജീവനക്കാർക്ക് വരവ് പരിശോധിക്കാം.';
+
+  @override
+  String get visitorGateIntro =>
+      'പ്രവേശനം സ്ഥിരീകരിക്കുന്നതിന് മുമ്പ് സന്ദർശകന്റെ പേര്, ഫ്ലാറ്റ്, സമയം, വാഹനം എന്നിവ പരിശോധിക്കുക.';
+
+  @override
+  String get visitorRoleIntro =>
+      'സന്ദർശക അഭ്യർത്ഥനകൾ ഈ അസോസിയേഷനിലും ബന്ധപ്പെട്ട ഗേറ്റ് ജീവനക്കാർക്കും മാത്രം ദൃശ്യമാകും.';
+
+  @override
+  String get visitorRequestSent =>
+      'സന്ദർശക അഭ്യർത്ഥന പ്രവേശന രജിസ്റ്ററിലേക്ക് അയച്ചു';
+
+  @override
+  String get visitorHost => 'ഹോസ്റ്റ്';
+
+  @override
+  String get expectedArrival => 'പ്രതീക്ഷിക്കുന്ന വരവ്';
+
+  @override
+  String get noVisitorRequests => 'സന്ദർശക അഭ്യർത്ഥനകളില്ല.';
+
+  @override
+  String get verifyEntry => 'പ്രവേശനം സ്ഥിരീകരിക്കുക';
+
+  @override
+  String get checkOut => 'പുറത്തിറക്കം രേഖപ്പെടുത്തുക';
+
+  @override
+  String get visitorVehicle => 'സന്ദർശക വാഹനം';
+
+  @override
+  String get registeredVehicles => 'രജിസ്റ്റർ ചെയ്തത്';
+
+  @override
+  String get slot => 'സ്ലോട്ട്';
+
+  @override
+  String get vehicleExportTitle => 'ബൂം ബാരിയർ വാഹന പട്ടിക കയറ്റുമതി ചെയ്യുക';
+
+  @override
+  String vehicleExportComplete(int count) {
+    return '$count രജിസ്റ്റർ ചെയ്ത വാഹനങ്ങൾ കയറ്റുമതി ചെയ്തു';
+  }
+
+  @override
   String get annualBudget => 'ജനറൽ ബോഡി അംഗീകരിച്ച വാർഷിക ബജറ്റുകൾ';
 
   @override

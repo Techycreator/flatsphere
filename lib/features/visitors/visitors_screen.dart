@@ -24,6 +24,7 @@ class VisitorsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     final role = ref.watch(sessionProvider)!.activeRole;
     final canHost = role == Role.owner || role == Role.resident;
     final canVerify = role == Role.security || role == Role.caretaker;
@@ -45,7 +46,7 @@ class VisitorsScreen extends ConsumerWidget {
           note: draft.note,
         );
         ref.invalidate(visitorRequestsProvider);
-        if (context.mounted) toast(context, 'Visitor request sent to the entry register');
+        if (context.mounted) toast(context, l.visitorRequestSent);
       } catch (error) {
         if (context.mounted) toast(context, '$error');
       }
@@ -65,22 +66,18 @@ class VisitorsScreen extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Expanded(child: Text('Visitor register', style: Theme.of(context).textTheme.headlineSmall)),
+            Expanded(child: Text(l.visitorRegister, style: Theme.of(context).textTheme.headlineSmall)),
             if (canHost)
               FilledButton.icon(
                 onPressed: flats == null || flats.isLoading || flats.valueOrNull?.isEmpty == true ? null : addRequest,
                 icon: const Icon(Icons.person_add_alt),
-                label: const Text('Pre-register visitor'),
+                label: Text(l.preregisterVisitor),
               ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
-          canHost
-              ? 'Register an expected visit for your flat. Security and the caretaker can verify arrival.'
-              : canVerify
-              ? 'Check the guest name, host flat, arrival time and vehicle before verifying entry.'
-              : 'Visitor requests are visible only within this association and to the relevant entry staff.',
+            canHost ? l.visitorHostIntro : canVerify ? l.visitorGateIntro : l.visitorRoleIntro,
           style: Theme.of(context).textTheme.bodySmall,
         ),
         if (canSearchVehicles) ...[
@@ -94,7 +91,7 @@ class VisitorsScreen extends ConsumerWidget {
         if (requests.hasError)
           Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${requests.error}'))),
         if (requests.hasValue && requests.value!.isEmpty)
-          const EmptyState('No visitor requests found.', icon: Icons.directions_walk_outlined),
+          EmptyState(l.noVisitorRequests, icon: Icons.directions_walk_outlined),
         if (requests.hasValue)
           for (final request in requests.value!)
             Card(
@@ -107,22 +104,22 @@ class VisitorsScreen extends ConsumerWidget {
                 ),
                 title: Text('${request.guestName} · ${request.hostFlat}'),
                 subtitle: Text(
-                  '${dateTimeFmt.format(request.expectedAt)} · Host: ${request.hostName}'
+                  '${l.expectedArrival} ${dateTimeFmt.format(request.expectedAt)} · ${l.visitorHost}: ${request.hostName}'
                   '${request.guestPhone == null ? '' : ' · ${request.guestPhone}'}'
-                  '${request.vehicleNumber == null ? '' : '\nVisitor vehicle: ${request.vehicleNumber}'}'
-                  '${request.flatCarNumber == null && request.flatBikeNumber == null ? '' : '\nRegistered: ${[request.flatCarNumber, request.flatBikeNumber].whereType<String>().join(' · ')}'}'
-                  '${request.parkingSlot == null ? '' : ' · slot ${request.parkingSlot}'}'
+                  '${request.vehicleNumber == null ? '' : '\n${l.visitorVehicle}: ${request.vehicleNumber}'}'
+                  '${request.flatCarNumber == null && request.flatBikeNumber == null ? '' : '\n${l.registeredVehicles}: ${[request.flatCarNumber, request.flatBikeNumber].whereType<String>().join(' · ')}'}'
+                  '${request.parkingSlot == null ? '' : ' · ${l.slot} ${request.parkingSlot}'}'
                   '${request.note.isEmpty ? '' : '\n${request.note}'}',
                 ),
                 trailing: canVerify
                     ? switch (request.status) {
                         VisitorStatus.expected => FilledButton.tonal(
                             onPressed: () => verify(request, VisitorStatus.checkedIn),
-                            child: const Text('Verify entry'),
+                            child: Text(l.verifyEntry),
                           ),
                         VisitorStatus.checkedIn => FilledButton.tonal(
                             onPressed: () => verify(request, VisitorStatus.checkedOut),
-                            child: const Text('Check out'),
+                            child: Text(l.checkOut),
                           ),
                         _ => Pill(request.status.label, color: _statusColor(request.status)),
                       }
@@ -163,6 +160,7 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
 
   Future<void> _export() async {
     setState(() => _exporting = true);
+    final l = AppLocalizations.of(context);
     try {
       final vehicles = await DirectoryRepo.vehicleRegister();
       String csvCell(String value) => '"${value.replaceAll('"', '""')}"';
@@ -174,15 +172,15 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
               .join(','),
       ].join('\r\n');
       final saved = await FilePicker.platform.saveFile(
-        dialogTitle: 'Export boom-barrier vehicle list',
+        dialogTitle: l.vehicleExportTitle,
         fileName: 'flatsphere-vehicle-register.csv',
         type: FileType.custom,
         allowedExtensions: const ['csv'],
         bytes: Uint8List.fromList(utf8.encode(csv)),
       );
-      if (mounted && saved != null) toast(context, 'Exported ${vehicles.length} registered vehicles');
+      if (mounted && saved != null) toast(context, l.vehicleExportComplete(vehicles.length));
     } catch (error) {
-      if (mounted) toast(context, 'Could not export vehicle list: $error');
+      if (mounted) toast(context, l.vehicleSearchFailed('$error'));
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -204,7 +202,7 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
                   controller: _registration,
                   textCapitalization: TextCapitalization.characters,
                   onSubmitted: (_) => _search(),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: l.vehicleRegistration,
                     prefixIcon: Icon(Icons.search),
                     isDense: true,

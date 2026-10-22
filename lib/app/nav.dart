@@ -19,14 +19,14 @@ final _statements = NavItem('/statements', Icons.description_outlined, (_) => 'S
 final _dues = NavItem('/dues', Icons.payments_outlined, (l) => l.myDues);
 final _meetings = NavItem('/meetings', Icons.groups_outlined, (l) => l.meetings);
 final _directory = NavItem('/directory', Icons.apartment_outlined, (l) => l.directory);
-final _attendance = NavItem('/attendance', Icons.fact_check_outlined, (_) => 'Attendance');
-final _householdStaff = NavItem('/household-staff', Icons.cleaning_services_outlined, (_) => 'Household staff');
-final _visitors = NavItem('/visitors', Icons.directions_walk_outlined, (_) => 'Visitors');
-final _archive = NavItem('/archive', Icons.inventory_2_outlined, (_) => 'Archive');
-final _registers = NavItem('/registers', Icons.inventory_2_outlined, (_) => 'Assets & expiry');
-final _amenities = NavItem('/amenities', Icons.meeting_room_outlined, (_) => 'Amenities');
-final _community = NavItem('/community', Icons.hub_outlined, (_) => 'Community');
-final _associationDocs = NavItem('/association-documents', Icons.folder_shared_outlined, (_) => 'Association documents');
+final _attendance = NavItem('/attendance', Icons.fact_check_outlined, (l) => l.attendance);
+final _householdStaff = NavItem('/household-staff', Icons.cleaning_services_outlined, (l) => l.householdStaff);
+final _visitors = NavItem('/visitors', Icons.directions_walk_outlined, (l) => l.visitors);
+final _archive = NavItem('/archive', Icons.inventory_2_outlined, (l) => l.archive);
+final _registers = NavItem('/registers', Icons.inventory_2_outlined, (l) => l.registers);
+final _amenities = NavItem('/amenities', Icons.meeting_room_outlined, (l) => l.amenities);
+final _community = NavItem('/community', Icons.hub_outlined, (l) => l.community);
+final _associationDocs = NavItem('/association-documents', Icons.folder_shared_outlined, (l) => l.associationDocuments);
 final _associationSettings = NavItem('/association-settings', Icons.settings_outlined, (_) => 'Association settings');
 final _notices = NavItem('/notices', Icons.campaign_outlined, (l) => l.notices);
 

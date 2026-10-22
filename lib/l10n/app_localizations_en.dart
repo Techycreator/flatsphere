@@ -398,6 +398,83 @@ class AppLocalizationsEn extends AppLocalizations {
   String get minutesPending => 'Minutes pending';
 
   @override
+  String get attendance => 'Attendance';
+
+  @override
+  String get householdStaff => 'Household staff';
+
+  @override
+  String get visitors => 'Visitors';
+
+  @override
+  String get archive => 'Archive';
+
+  @override
+  String get registers => 'Assets & expiry';
+
+  @override
+  String get amenities => 'Amenities';
+
+  @override
+  String get community => 'Community';
+
+  @override
+  String get associationDocuments => 'Association documents';
+
+  @override
+  String get visitorRegister => 'Visitor register';
+
+  @override
+  String get preregisterVisitor => 'Pre-register visitor';
+
+  @override
+  String get visitorHostIntro =>
+      'Register an expected visit for your flat. Security and the caretaker can verify arrival.';
+
+  @override
+  String get visitorGateIntro =>
+      'Check the guest name, host flat, arrival time and vehicle before verifying entry.';
+
+  @override
+  String get visitorRoleIntro =>
+      'Visitor requests are visible only within this association and to the relevant entry staff.';
+
+  @override
+  String get visitorRequestSent => 'Visitor request sent to the entry register';
+
+  @override
+  String get visitorHost => 'Host';
+
+  @override
+  String get expectedArrival => 'Expected arrival';
+
+  @override
+  String get noVisitorRequests => 'No visitor requests found.';
+
+  @override
+  String get verifyEntry => 'Verify entry';
+
+  @override
+  String get checkOut => 'Check out';
+
+  @override
+  String get visitorVehicle => 'Visitor vehicle';
+
+  @override
+  String get registeredVehicles => 'Registered';
+
+  @override
+  String get slot => 'slot';
+
+  @override
+  String get vehicleExportTitle => 'Export boom-barrier vehicle list';
+
+  @override
+  String vehicleExportComplete(int count) {
+    return 'Exported $count registered vehicles';
+  }
+
+  @override
   String get annualBudget => 'AGM-approved annual budgets';
 
   @override

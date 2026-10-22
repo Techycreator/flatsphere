@@ -848,6 +848,150 @@ abstract class AppLocalizations {
   /// **'Minutes pending'**
   String get minutesPending;
 
+  /// No description provided for @attendance.
+  ///
+  /// In en, this message translates to:
+  /// **'Attendance'**
+  String get attendance;
+
+  /// No description provided for @householdStaff.
+  ///
+  /// In en, this message translates to:
+  /// **'Household staff'**
+  String get householdStaff;
+
+  /// No description provided for @visitors.
+  ///
+  /// In en, this message translates to:
+  /// **'Visitors'**
+  String get visitors;
+
+  /// No description provided for @archive.
+  ///
+  /// In en, this message translates to:
+  /// **'Archive'**
+  String get archive;
+
+  /// No description provided for @registers.
+  ///
+  /// In en, this message translates to:
+  /// **'Assets & expiry'**
+  String get registers;
+
+  /// No description provided for @amenities.
+  ///
+  /// In en, this message translates to:
+  /// **'Amenities'**
+  String get amenities;
+
+  /// No description provided for @community.
+  ///
+  /// In en, this message translates to:
+  /// **'Community'**
+  String get community;
+
+  /// No description provided for @associationDocuments.
+  ///
+  /// In en, this message translates to:
+  /// **'Association documents'**
+  String get associationDocuments;
+
+  /// No description provided for @visitorRegister.
+  ///
+  /// In en, this message translates to:
+  /// **'Visitor register'**
+  String get visitorRegister;
+
+  /// No description provided for @preregisterVisitor.
+  ///
+  /// In en, this message translates to:
+  /// **'Pre-register visitor'**
+  String get preregisterVisitor;
+
+  /// No description provided for @visitorHostIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Register an expected visit for your flat. Security and the caretaker can verify arrival.'**
+  String get visitorHostIntro;
+
+  /// No description provided for @visitorGateIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the guest name, host flat, arrival time and vehicle before verifying entry.'**
+  String get visitorGateIntro;
+
+  /// No description provided for @visitorRoleIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Visitor requests are visible only within this association and to the relevant entry staff.'**
+  String get visitorRoleIntro;
+
+  /// No description provided for @visitorRequestSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Visitor request sent to the entry register'**
+  String get visitorRequestSent;
+
+  /// No description provided for @visitorHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Host'**
+  String get visitorHost;
+
+  /// No description provided for @expectedArrival.
+  ///
+  /// In en, this message translates to:
+  /// **'Expected arrival'**
+  String get expectedArrival;
+
+  /// No description provided for @noVisitorRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'No visitor requests found.'**
+  String get noVisitorRequests;
+
+  /// No description provided for @verifyEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify entry'**
+  String get verifyEntry;
+
+  /// No description provided for @checkOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Check out'**
+  String get checkOut;
+
+  /// No description provided for @visitorVehicle.
+  ///
+  /// In en, this message translates to:
+  /// **'Visitor vehicle'**
+  String get visitorVehicle;
+
+  /// No description provided for @registeredVehicles.
+  ///
+  /// In en, this message translates to:
+  /// **'Registered'**
+  String get registeredVehicles;
+
+  /// No description provided for @slot.
+  ///
+  /// In en, this message translates to:
+  /// **'slot'**
+  String get slot;
+
+  /// No description provided for @vehicleExportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export boom-barrier vehicle list'**
+  String get vehicleExportTitle;
+
+  /// No description provided for @vehicleExportComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Exported {count} registered vehicles'**
+  String vehicleExportComplete(int count);
+
   /// No description provided for @annualBudget.
   ///
   /// In en, this message translates to:
