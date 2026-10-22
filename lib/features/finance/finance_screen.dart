@@ -24,7 +24,6 @@ import 'treasurer_forms.dart';
 
 final monthlyStatementsProvider = FutureProvider.autoDispose<List<MonthlyStatement>>((ref) async =>
   backendEnabled ? FinanceRepo.statements() : const []);
-
 class FinanceScreen extends ConsumerWidget {
   const FinanceScreen({super.key});
 
@@ -741,6 +740,7 @@ class StatementsScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final currentUserId = ref.watch(sessionProvider)!.user.id;
     final statements = ref.watch(monthlyStatementsProvider);
+    final budgets = ref.watch(annualBudgetsProvider);
     final canGenerate = backendEnabled && (role == Role.treasurer || role == Role.jointTreasurer);
 
     Future<void> generate() async {
@@ -772,6 +772,40 @@ class StatementsScreen extends ConsumerWidget {
       try {
         await FinanceRepo.decideMonthlyStatement(statement.id, action, note);
         ref.invalidate(monthlyStatementsProvider);
+        ref.invalidate(appNotificationsProvider);
+      } catch (error) {
+        if (context.mounted) toast(context, friendlyError(error));
+      }
+    }
+
+    Future<void> submitBudget() async {
+      final draft = await _annualBudgetDialog(context, ref);
+      if (draft == null || !context.mounted) return;
+      try {
+        await FinanceRepo.submitAnnualBudget(
+          fiscalYearStart: draft.fiscalYearStart,
+          fiscalYearEnd: draft.fiscalYearEnd,
+          categoryAmounts: draft.amounts,
+          resolutionRef: draft.resolutionRef,
+          resolutionDate: draft.resolutionDate,
+        );
+        ref.invalidate(annualBudgetsProvider);
+        ref.invalidate(appNotificationsProvider);
+        if (context.mounted) toast(context, 'Annual budget submitted for Secretary review');
+      } catch (error) {
+        if (context.mounted) toast(context, friendlyError(error));
+      }
+    }
+
+    Future<void> decideBudget(AnnualBudget budget, String action) async {
+      String? note;
+      if (action == 'reject') {
+        note = await promptText(context, title: l.rejected, hint: 'Reason (required)');
+        if (note == null) return;
+      }
+      try {
+        await FinanceRepo.decideAnnualBudget(budget.id, action, note);
+        ref.invalidate(annualBudgetsProvider);
         ref.invalidate(appNotificationsProvider);
       } catch (error) {
         if (context.mounted) toast(context, friendlyError(error));
@@ -841,6 +875,26 @@ class StatementsScreen extends ConsumerWidget {
                   trailing: _statementAction(role, currentUserId, statement, decide),
             ),
           ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(child: Text(l.annualBudget, style: Theme.of(context).textTheme.titleMedium)),
+              if (canGenerate) FilledButton.icon(onPressed: submitBudget, icon: const Icon(Icons.add), label: Text(l.submitBudget)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (budgets.isLoading) const LinearProgressIndicator(),
+          if (budgets.hasError) Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${budgets.error}'))),
+          if (budgets.hasValue && budgets.value!.isEmpty)
+            EmptyState(l.annualBudgetNoRecords, icon: Icons.account_balance_outlined),
+          if (budgets.hasValue)
+            for (final budget in budgets.value!)
+              _AnnualBudgetCard(
+                budget: budget,
+                role: role,
+                currentUserId: currentUserId,
+                onDecision: (action) => decideBudget(budget, action),
+              ),
       ],
     );
   }
@@ -877,6 +931,171 @@ class StatementsScreen extends ConsumerWidget {
         FilledButton(onPressed: () => decide(statement, 'approve'), child: const Text('Approve')),
         IconButton(tooltip: 'Reject', onPressed: () => decide(statement, 'reject'), icon: const Icon(Icons.close)),
       ],
+    );
+  }
+}
+
+class _AnnualBudgetDraft {
+  const _AnnualBudgetDraft({
+    required this.fiscalYearStart,
+    required this.fiscalYearEnd,
+    required this.amounts,
+    required this.resolutionRef,
+    required this.resolutionDate,
+  });
+
+  final DateTime fiscalYearStart;
+  final DateTime fiscalYearEnd;
+  final Map<String, int> amounts;
+  final String resolutionRef;
+  final DateTime resolutionDate;
+}
+
+Future<_AnnualBudgetDraft?> _annualBudgetDialog(BuildContext context, WidgetRef ref) async {
+  final l = AppLocalizations.of(context);
+  final now = DateTime.now();
+  final configured = ref.read(sessionProvider)?.user.association?.settings['fiscal_year_start_month'];
+  final startMonth = configured is num ? configured.toInt().clamp(1, 12).toInt() : 4;
+  final startYear = now.month >= startMonth ? now.year : now.year - 1;
+  final fiscalYearStart = DateTime(startYear, startMonth, 1);
+  final fiscalYearEnd = DateTime(startYear + 1, startMonth, 0);
+  final amounts = {for (final category in expenseCategories) category: TextEditingController()};
+  final resolutionRef = TextEditingController();
+  var resolutionDate = DateUtils.dateOnly(now);
+  String? error;
+  final draft = await showDialog<_AnnualBudgetDraft>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (dialogContext, setDialogState) => AlertDialog(
+        title: Text('${l.annualBudget} · ${dateFmt.format(fiscalYearStart)} – ${dateFmt.format(fiscalYearEnd)}'),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final entry in amounts.entries)
+                  TextField(
+                    controller: entry.value,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(labelText: entry.key, prefixText: '₹ '),
+                  ),
+                TextField(
+                  controller: resolutionRef,
+                  decoration: InputDecoration(labelText: '${l.annualBudgetReference} *'),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    final selected = await showDatePicker(
+                      context: dialogContext,
+                      initialDate: resolutionDate,
+                      firstDate: DateTime(2015),
+                      lastDate: DateUtils.dateOnly(now),
+                    );
+                    if (selected != null) setDialogState(() => resolutionDate = selected);
+                  },
+                  icon: const Icon(Icons.event_outlined),
+                  label: Text('${l.annualBudgetDate} · ${dateFmt.format(resolutionDate)}'),
+                ),
+                if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final values = {
+                for (final entry in amounts.entries)
+                  if ((int.tryParse(entry.value.text.trim()) ?? 0) > 0) entry.key: int.parse(entry.value.text.trim()),
+              };
+              if (values.isEmpty) return setDialogState(() => error = l.annualBudgetRequiredCategory);
+              if (resolutionRef.text.trim().isEmpty) return setDialogState(() => error = '${l.annualBudgetReference} is required');
+              Navigator.pop(dialogContext, _AnnualBudgetDraft(
+                fiscalYearStart: fiscalYearStart,
+                fiscalYearEnd: fiscalYearEnd,
+                amounts: values,
+                resolutionRef: resolutionRef.text.trim(),
+                resolutionDate: resolutionDate,
+              ));
+            },
+            child: Text(l.submitBudgetReview),
+          ),
+        ],
+      ),
+    ),
+  );
+  for (final controller in amounts.values) {
+    controller.dispose();
+  }
+  resolutionRef.dispose();
+  return draft;
+}
+
+class _AnnualBudgetCard extends StatelessWidget {
+  const _AnnualBudgetCard({
+    required this.budget,
+    required this.role,
+    required this.currentUserId,
+    required this.onDecision,
+  });
+
+  final AnnualBudget budget;
+  final Role role;
+  final String currentUserId;
+  final ValueChanged<String> onDecision;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final isAwaitingSecretary = budget.status == 'awaiting_secretary';
+    final isAwaitingPresident = budget.status == 'awaiting_president';
+    final canApprove = (isAwaitingSecretary && role == Role.secretary) ||
+        (isAwaitingPresident && role == Role.president);
+    final sameReviewer = budget.createdBy == currentUserId || budget.secretaryApprovedBy == currentUserId;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text('FY ${budget.fiscalYearStart.year}-${budget.fiscalYearEnd.year}',
+                    style: Theme.of(context).textTheme.titleMedium)),
+                Pill(switch (budget.status) {
+                  'awaiting_secretary' => l.awaitingSecretary,
+                  'awaiting_president' => l.awaitingPresident,
+                  'approved' => l.approve,
+                  _ => l.rejected,
+                },
+                    color: budget.status == 'approved' ? AppColors.green : AppColors.amber),
+              ],
+            ),
+            Text('AGM/GBM ${budget.resolutionRef} · ${dateFmt.format(budget.resolutionDate)}'),
+            for (final entry in budget.categoryAmounts.entries)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(entry.key),
+                trailing: Text(inr.format(entry.value)),
+              ),
+            if (budget.rejectionNote != null) Text('Rejected: ${budget.rejectionNote}'),
+            if (canApprove && sameReviewer) Text(l.reviewerDifferent),
+            if (canApprove && !sameReviewer)
+              Wrap(
+                spacing: 8,
+                children: [
+                  FilledButton(onPressed: () => onDecision('approve'), child: const Text('Approve')),
+                  OutlinedButton(onPressed: () => onDecision('reject'), child: const Text('Reject')),
+                ],
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -39,6 +39,12 @@ final appNotificationsProvider = FutureProvider.autoDispose<List<AppNotification
   return NotificationsRepo.load();
 });
 
+final annualBudgetsProvider = FutureProvider.autoDispose<List<AnnualBudget>>((ref) async {
+  final member = ref.watch(sessionProvider.select((session) => (session?.user.id, session?.user.associationId)));
+  if (!backendEnabled || member.$1 == null || member.$2 == null) return const [];
+  return FinanceRepo.annualBudgets();
+});
+
 class SessionNotifier extends Notifier<Session?> {
   @override
   Session? build() => null;

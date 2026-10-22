@@ -126,5 +126,15 @@
   "declined": "നിരസിച്ചു",
   "noReply": "മറുപടിയില്ല",
   "meetingLinkNotConfigured": "യോഗ ലിങ്ക് ക്രമീകരിച്ചിട്ടില്ല",
-  "minutesPending": "മിനിറ്റുകൾ കാത്തിരിക്കുന്നു"
+  "minutesPending": "മിനിറ്റുകൾ കാത്തിരിക്കുന്നു",
+  "annualBudget": "ജനറൽ ബോഡി അംഗീകരിച്ച വാർഷിക ബജറ്റുകൾ",
+  "submitBudget": "ബജറ്റ് സമർപ്പിക്കുക",
+  "annualBudgetReference": "ജനറൽ ബോഡി തീരുമാനത്തിന്റെ റഫറൻസ്",
+  "annualBudgetDate": "തീരുമാന തീയതി",
+  "annualBudgetRequiredCategory": "കുറഞ്ഞത് ഒരു വിഭാഗത്തിന്റെ തുക നൽകുക",
+  "annualBudgetNoRecords": "വാർഷിക ബജറ്റുകളൊന്നും രേഖപ്പെടുത്തിയിട്ടില്ല.",
+  "awaitingSecretary": "സെക്രട്ടറിയുടെ അംഗീകാരം കാത്തിരിക്കുന്നു",
+  "awaitingPresident": "പ്രസിഡന്റിന്റെ അംഗീകാരം കാത്തിരിക്കുന്നു",
+  "reviewerDifferent": "മറ്റൊരു അവലോകകൻ ആവശ്യമാണ്.",
+  "submitBudgetReview": "പരിശോധനയ്ക്ക് സമർപ്പിക്കുക"
 }

@@ -402,4 +402,36 @@ class AppLocalizationsMl extends AppLocalizations {
 
   @override
   String get minutesPending => 'മിനിറ്റുകൾ കാത്തിരിക്കുന്നു';
+
+  @override
+  String get annualBudget => 'ജനറൽ ബോഡി അംഗീകരിച്ച വാർഷിക ബജറ്റുകൾ';
+
+  @override
+  String get submitBudget => 'ബജറ്റ് സമർപ്പിക്കുക';
+
+  @override
+  String get annualBudgetReference => 'ജനറൽ ബോഡി തീരുമാനത്തിന്റെ റഫറൻസ്';
+
+  @override
+  String get annualBudgetDate => 'തീരുമാന തീയതി';
+
+  @override
+  String get annualBudgetRequiredCategory =>
+      'കുറഞ്ഞത് ഒരു വിഭാഗത്തിന്റെ തുക നൽകുക';
+
+  @override
+  String get annualBudgetNoRecords =>
+      'വാർഷിക ബജറ്റുകളൊന്നും രേഖപ്പെടുത്തിയിട്ടില്ല.';
+
+  @override
+  String get awaitingSecretary => 'സെക്രട്ടറിയുടെ അംഗീകാരം കാത്തിരിക്കുന്നു';
+
+  @override
+  String get awaitingPresident => 'പ്രസിഡന്റിന്റെ അംഗീകാരം കാത്തിരിക്കുന്നു';
+
+  @override
+  String get reviewerDifferent => 'മറ്റൊരു അവലോകകൻ ആവശ്യമാണ്.';
+
+  @override
+  String get submitBudgetReview => 'പരിശോധനയ്ക്ക് സമർപ്പിക്കുക';
 }

@@ -396,4 +396,35 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get minutesPending => 'Minutes pending';
+
+  @override
+  String get annualBudget => 'AGM-approved annual budgets';
+
+  @override
+  String get submitBudget => 'Submit budget';
+
+  @override
+  String get annualBudgetReference => 'AGM/GBM resolution reference';
+
+  @override
+  String get annualBudgetDate => 'Resolution date';
+
+  @override
+  String get annualBudgetRequiredCategory =>
+      'Enter at least one category amount';
+
+  @override
+  String get annualBudgetNoRecords => 'No annual budgets recorded.';
+
+  @override
+  String get awaitingSecretary => 'Awaiting Secretary';
+
+  @override
+  String get awaitingPresident => 'Awaiting President';
+
+  @override
+  String get reviewerDifferent => 'A different reviewer is required.';
+
+  @override
+  String get submitBudgetReview => 'Submit for review';
 }

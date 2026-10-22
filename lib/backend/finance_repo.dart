@@ -250,6 +250,46 @@ class FinanceRepo {
   static Future<void> decideMonthlyStatement(String id, String action, [String? note]) =>
       db.rpc('decide_monthly_statement', params: {'p_statement': id, 'p_action': action, 'p_note': note});
 
+  static Future<List<AnnualBudget>> annualBudgets() async {
+    final rows = await db.rpc('list_annual_budgets') as List;
+    return [
+      for (final row in rows.cast<Map<String, dynamic>>())
+        AnnualBudget(
+          id: row['id'] as String,
+          fiscalYearStart: DateTime.parse(row['fiscal_year_start'] as String),
+          fiscalYearEnd: DateTime.parse(row['fiscal_year_end'] as String),
+          categoryAmounts: {
+            for (final entry in Map<String, dynamic>.from(row['category_amounts'] as Map? ?? const {}).entries)
+              entry.key: (entry.value as num).toInt(),
+          },
+          resolutionRef: row['gbm_resolution_ref'] as String,
+          resolutionDate: DateTime.parse(row['gbm_resolution_date'] as String),
+          status: row['status'] as String,
+          createdBy: row['created_by'] as String,
+          secretaryApprovedBy: row['secretary_approved_by'] as String?,
+          presidentApprovedBy: row['president_approved_by'] as String?,
+          rejectionNote: row['rejection_note'] as String?,
+        ),
+    ];
+  }
+
+  static Future<void> submitAnnualBudget({
+    required DateTime fiscalYearStart,
+    required DateTime fiscalYearEnd,
+    required Map<String, int> categoryAmounts,
+    required String resolutionRef,
+    required DateTime resolutionDate,
+  }) => db.rpc('submit_annual_budget', params: {
+    'p_fiscal_year_start': _date(fiscalYearStart),
+    'p_fiscal_year_end': _date(fiscalYearEnd),
+    'p_category_amounts': categoryAmounts,
+    'p_gbm_resolution_ref': resolutionRef,
+    'p_gbm_resolution_date': _date(resolutionDate),
+  });
+
+  static Future<void> decideAnnualBudget(String id, String action, [String? note]) =>
+      db.rpc('decide_annual_budget', params: {'p_budget': id, 'p_action': action, 'p_note': note});
+
   static Future<String> recordPayment({
     required String flatId,
     String? dueId,

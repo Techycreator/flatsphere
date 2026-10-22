@@ -847,6 +847,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Minutes pending'**
   String get minutesPending;
+
+  /// No description provided for @annualBudget.
+  ///
+  /// In en, this message translates to:
+  /// **'AGM-approved annual budgets'**
+  String get annualBudget;
+
+  /// No description provided for @submitBudget.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit budget'**
+  String get submitBudget;
+
+  /// No description provided for @annualBudgetReference.
+  ///
+  /// In en, this message translates to:
+  /// **'AGM/GBM resolution reference'**
+  String get annualBudgetReference;
+
+  /// No description provided for @annualBudgetDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolution date'**
+  String get annualBudgetDate;
+
+  /// No description provided for @annualBudgetRequiredCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter at least one category amount'**
+  String get annualBudgetRequiredCategory;
+
+  /// No description provided for @annualBudgetNoRecords.
+  ///
+  /// In en, this message translates to:
+  /// **'No annual budgets recorded.'**
+  String get annualBudgetNoRecords;
+
+  /// No description provided for @awaitingSecretary.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting Secretary'**
+  String get awaitingSecretary;
+
+  /// No description provided for @awaitingPresident.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting President'**
+  String get awaitingPresident;
+
+  /// No description provided for @reviewerDifferent.
+  ///
+  /// In en, this message translates to:
+  /// **'A different reviewer is required.'**
+  String get reviewerDifferent;
+
+  /// No description provided for @submitBudgetReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit for review'**
+  String get submitBudgetReview;
 }
 
 class _AppLocalizationsDelegate

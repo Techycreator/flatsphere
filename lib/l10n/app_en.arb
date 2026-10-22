@@ -126,5 +126,15 @@
   "declined": "declined",
   "noReply": "no reply",
   "meetingLinkNotConfigured": "Meeting link not configured",
-  "minutesPending": "Minutes pending"
+  "minutesPending": "Minutes pending",
+  "annualBudget": "AGM-approved annual budgets",
+  "submitBudget": "Submit budget",
+  "annualBudgetReference": "AGM/GBM resolution reference",
+  "annualBudgetDate": "Resolution date",
+  "annualBudgetRequiredCategory": "Enter at least one category amount",
+  "annualBudgetNoRecords": "No annual budgets recorded.",
+  "awaitingSecretary": "Awaiting Secretary",
+  "awaitingPresident": "Awaiting President",
+  "reviewerDifferent": "A different reviewer is required.",
+  "submitBudgetReview": "Submit for review"
 }

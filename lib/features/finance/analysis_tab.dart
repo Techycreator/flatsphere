@@ -30,6 +30,7 @@ class _AnalysisTabState extends ConsumerState<AnalysisTab> {
     final expenses = ref.watch(expensesProvider).where((e) => e.status == ExpenseStatus.approved).toList();
     final income = ref.watch(incomeProvider).entries;
     final dues = ref.watch(duesProvider);
+    final budgets = ref.watch(annualBudgetsProvider);
     final today = DateUtils.dateOnly(DateTime.now());
     final setting = session.user.association?.settings['fiscal_year_start_month'];
     final fiscalMonth = setting is num ? setting.toInt().clamp(1, 12).toInt() : 4;
@@ -174,7 +175,44 @@ class _AnalysisTabState extends ConsumerState<AnalysisTab> {
         const SizedBox(height: 16),
         SectionCard(
           title: l.budgetVsActual,
-          child: Text(l.noBudgetRecorded),
+          child: budgets.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (error, _) => Text('$error'),
+            data: (records) {
+              final budget = records.where((record) =>
+                  record.status == 'approved' && record.fiscalYearStart == currentStart).firstOrNull;
+              if (budget == null) return Text(l.noBudgetRecorded);
+              return Column(
+                children: [
+                  for (final entry in budget.categoryAmounts.entries)
+                    () {
+                      final actual = expenses
+                          .where((expense) => expense.category == entry.key &&
+                              !expense.date.isBefore(currentStart) && !expense.date.isAfter(today))
+                          .fold(0, (sum, expense) => sum + expense.amount);
+                      final ratio = entry.value == 0 ? 0.0 : actual / entry.value;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Expanded(child: Text(entry.key)),
+                              Text('${inr.format(actual)} / ${inr.format(entry.value)}'),
+                            ]),
+                            const SizedBox(height: 4),
+                            LinearProgressIndicator(
+                              value: ratio.clamp(0, 1),
+                              color: ratio > 1 ? AppColors.red : Theme.of(context).colorScheme.primary,
+                            ),
+                          ],
+                        ),
+                      );
+                    }(),
+                ],
+              );
+            },
+          ),
         ),
       ],
     );

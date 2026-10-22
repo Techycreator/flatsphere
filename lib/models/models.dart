@@ -742,6 +742,34 @@ class MonthlyStatement {
   final String? rejectionNote;
 }
 
+class AnnualBudget {
+  const AnnualBudget({
+    required this.id,
+    required this.fiscalYearStart,
+    required this.fiscalYearEnd,
+    required this.categoryAmounts,
+    required this.resolutionRef,
+    required this.resolutionDate,
+    required this.status,
+    required this.createdBy,
+    this.secretaryApprovedBy,
+    this.presidentApprovedBy,
+    this.rejectionNote,
+  });
+
+  final String id;
+  final DateTime fiscalYearStart;
+  final DateTime fiscalYearEnd;
+  final Map<String, int> categoryAmounts;
+  final String resolutionRef;
+  final DateTime resolutionDate;
+  final String status;
+  final String createdBy;
+  final String? secretaryApprovedBy;
+  final String? presidentApprovedBy;
+  final String? rejectionNote;
+}
+
 enum IncomeCategoryStatus { pending, active, rejected, sentBack }
 
 class IncomeCategory {
