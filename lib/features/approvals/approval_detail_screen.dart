@@ -104,6 +104,17 @@ class ApprovalDetailScreen extends ConsumerWidget {
           ]),
         ),
         const SizedBox(height: 16),
+        if (a.code == 'W21' && a.overall == Decision.approved) ...[
+          const Card(
+            color: Color(0xFFF0FDF4),
+            child: ListTile(
+              leading: Icon(Icons.verified_user, color: AppColors.green),
+              title: Text('Applied to records'),
+              subtitle: Text('Resident updated. Outgoing tenant and family logins disabled and archived. Caretaker informed.'),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         if (isInitiator && a.overall == Decision.pending)
           const Card(child: EmptyState('You raised this request, so you cannot approve it.', icon: Icons.block)),
         if (myTurn)

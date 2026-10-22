@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../models/sla.dart';
 import '../../state/app_state.dart';
+import '../../state/demo_data.dart';
 import '../../widgets/common.dart';
 import '../approvals/approval_tile.dart';
 import '../complaints/complaint_tile.dart';
@@ -271,8 +272,26 @@ class _OwnerDash extends ConsumerWidget {
     final pending = ref.watch(duesProvider).pendingFor(s.user.flatNumber ?? '');
     final mine = visibleComplaints(ref);
     final notices = ref.watch(noticesProvider);
-    final consents = ref.watch(approvalsProvider).where((a) => a.awaits(Role.owner, s.user.name)).toList();
+    final approvals = ref.watch(approvalsProvider);
+    final consents = approvals.where((a) => a.awaits(Role.owner, s.user.name)).toList();
+    final myRequests = approvals.where((a) => a.initiatorName == s.user.name).toList();
+    final rented = demoFlats.where((f) => f.ownerName == s.user.name && f.occupancy != Occupancy.ownerOccupied).toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      for (final f in rented) ...[
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.vpn_key_outlined),
+            title: Text('Your ${f.occupancy == Occupancy.rented ? 'rented' : 'vacant'} flat ${f.number}'),
+            subtitle: Text(f.residentName != null ? 'Current tenant: ${f.residentName}' : 'No tenant'),
+            trailing: FilledButton.tonal(onPressed: () => context.go('/approvals/new/resident'), child: const Text('Change tenant')),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+      if (myRequests.isNotEmpty) ...[
+        SectionCard(title: 'My requests', child: Column(children: [for (final a in myRequests) ApprovalTile(request: a)])),
+        const SizedBox(height: 16),
+      ],
       if (consents.isNotEmpty) ...[
         SectionCard(
           title: 'Needs your consent as flat owner',

@@ -60,6 +60,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
     final id = notifier.nextId();
     final f = flat;
     final pendingDues = ref.read(duesProvider).pendingFor(f.number);
+    final ownerSelf = widget.type == MembershipRequestType.resident && role == Role.owner;
     late final ApprovalRequest req;
     switch (widget.type) {
       case MembershipRequestType.owner:
@@ -86,17 +87,18 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
           id: id, code: 'W21', category: 'Membership', title: 'Resident change – ${f.number}: ${f.residentName ?? 'vacant'} → ${_newName.text.trim()}',
           initiatorName: s.user.name, initiatorRole: role, createdAt: DateTime.now(),
           steps: [
-            ApproverStep(role: Role.owner, name: f.ownerName),
+            if (!ownerSelf) ApproverStep(role: Role.owner, name: f.ownerName),
             const ApproverStep(role: Role.secretary, alternateRole: Role.president, name: 'Anitha Nair / Rajesh Menon'),
           ],
           details: {
             'Flat': '${f.number} (owner: ${f.ownerName})',
+            'Owner consent': ownerSelf ? 'Given – request raised by the owner' : 'Requested in the owner\'s app',
             'Outgoing resident': f.residentName ?? 'None (vacant / owner-occupied)',
             'Incoming resident': '${_newName.text.trim()} + $_family family member(s)',
             'Lease': _lease.text.trim(),
             'ID proofs': _docs ? 'Uploaded (Aadhaar masked)' : 'Pending upload',
             'Police verification': _police ? 'Form submitted' : 'Pending',
-            'After approval': 'Caretaker informed; logins created for members aged 12+',
+            'On approval': 'Resident record updated; outgoing tenant and family logins disabled immediately and archived; new logins (age 12+) created; caretaker informed',
           },
         );
       case MembershipRequestType.committee:
@@ -125,14 +127,23 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
   Widget build(BuildContext context) {
     final s = ref.watch(sessionProvider)!;
     final t = widget.type;
-    if (!s.user.canInitiateMembership(s.activeRole)) {
+    final ownerSelf = t == MembershipRequestType.resident && s.activeRole == Role.owner;
+    final ownFlats = demoFlats.where((f) => f.ownerName == s.user.name && f.occupancy != Occupancy.ownerOccupied).toList();
+    if (ownerSelf && ownFlats.isEmpty) {
+      return Scaffold(appBar: AppBar(title: Text(t.label)), body: const EmptyState('You have no rented or vacant flat to change the resident for.', icon: Icons.home_outlined));
+    }
+    if (!s.user.canInitiateMembership(s.activeRole) && !ownerSelf) {
       return Scaffold(
         appBar: AppBar(title: Text(t.label)),
         body: const EmptyState('Only the President, Secretary or a designated EC member (Membership desk) can start this request.', icon: Icons.lock_outline),
       );
     }
     final pendingDues = ref.watch(duesProvider).pendingFor(_flat);
-    final flats = t == MembershipRequestType.resident ? demoFlats.where((f) => f.occupancy != Occupancy.ownerOccupied).toList() : demoFlats;
+    final flats = ownerSelf
+        ? ownFlats
+        : t == MembershipRequestType.resident
+            ? demoFlats.where((f) => f.occupancy != Occupancy.ownerOccupied).toList()
+            : demoFlats;
     if (!flats.any((f) => f.number == _flat)) _flat = flats.first.number;
 
     final flatPicker = DropdownButtonFormField<String>(
@@ -144,7 +155,9 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
 
     final approvalsText = switch (t) {
       MembershipRequestType.owner => 'Approvals: Secretary AND President (if one of them starts it, the VP takes that slot). Old owner is archived after approval.',
-      MembershipRequestType.resident => 'Approvals: flat owner\'s consent in the app, then Secretary OR President. Caretaker is informed.',
+      MembershipRequestType.resident => ownerSelf
+          ? 'Your consent is recorded. Secretary OR President approves; nothing changes until then. On approval the outgoing tenant\'s logins are disabled.'
+          : 'Approvals: flat owner\'s consent in the app, then Secretary OR President. Caretaker is informed.',
       MembershipRequestType.committee => 'Approvals: formal EC vote recorded in the MOM, then President (VP if the President is being changed). Office bearer changes need General Body ratification if bylaws require.',
     };
 

@@ -75,7 +75,7 @@ List<ApprovalRequest> buildDemoApprovals(DateTime now) => [
       ApprovalRequest(
         id: 'APR-034', code: 'W21', category: 'Membership', title: 'Resident change – B-205: Nikhil Shah → Sneha Joseph (tenant)',
         initiatorName: 'Lakshmi Pillai', initiatorRole: Role.ecMember, createdAt: now.subtract(const Duration(hours: 6)),
-        details: const {'Flat': 'B-205 (owner: Priya Varghese)', 'Outgoing resident': 'Nikhil Shah – lease ends 31 Oct', 'Incoming resident': 'Sneha Joseph + 2 family members (1 login, age 12+)', 'Lease': '1 Nov 2026 – 31 Oct 2027', 'ID proofs': '3 uploaded (Aadhaar masked)', 'Police verification': 'Form submitted'},
+        details: const {'Flat': 'B-205 (owner: Priya Varghese)', 'Outgoing resident': 'Nikhil Shah – lease ends 31 Oct', 'Incoming resident': 'Sneha Joseph + 2 family members (1 login, age 12+)', 'Lease': '1 Nov 2026 – 31 Oct 2027', 'ID proofs': '3 uploaded (Aadhaar masked)', 'Police verification': 'Form submitted', 'On approval': 'Nikhil Shah\'s login + 1 family login disabled and archived; caretaker informed'},
         steps: const [ApproverStep(role: Role.owner, name: 'Priya Varghese'), ApproverStep(role: Role.secretary, alternateRole: Role.president, name: 'Anitha Nair / Rajesh Menon')],
       ),
       ApprovalRequest(
