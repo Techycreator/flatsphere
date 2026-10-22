@@ -256,6 +256,22 @@ class FamilyAccountRules {
   static bool isWithinMemberLimit(int count, int limit) => count >= 0 && limit >= 0 && count <= limit;
 }
 
+class IdDocumentAccessEntry {
+  const IdDocumentAccessEntry({
+    required this.userId,
+    required this.name,
+    required this.roles,
+    required this.canViewAll,
+    required this.isOfficeBearer,
+  });
+
+  final String userId;
+  final String name;
+  final String roles;
+  final bool canViewAll;
+  final bool isOfficeBearer;
+}
+
 enum AgeCategory {
   child('Child'),
   adult('Adult'),

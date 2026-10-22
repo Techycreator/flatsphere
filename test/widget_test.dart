@@ -2,6 +2,7 @@ import 'package:flatsphere/app/router.dart';
 import 'package:flatsphere/app/nav.dart';
 import 'package:flatsphere/features/approvals/membership_request_screen.dart';
 import 'package:flatsphere/features/directory/family_accounts_screen.dart';
+import 'package:flatsphere/features/shell/association_settings_screen.dart';
 import 'package:flatsphere/l10n/app_localizations.dart';
 import 'package:flatsphere/main.dart';
 import 'package:flatsphere/models/models.dart';
@@ -41,6 +42,14 @@ class _OwnerSessionNotifier extends SessionNotifier {
   Session? build() => Session(
     user: demoUsers.firstWhere((user) => user.roles.contains(Role.owner)),
     activeRole: Role.owner,
+  );
+}
+
+class _AdminSessionNotifier extends SessionNotifier {
+  @override
+  Session? build() => Session(
+    user: const DemoUser(id: 'admin-test', name: 'Admin Test', mobile: '', roles: [Role.admin]),
+    activeRole: Role.admin,
   );
 }
 
@@ -115,6 +124,22 @@ void main() {
       ),
     );
     expect(find.text('Only owners and residents can view family DOBs.'), findsOneWidget);
+  });
+
+  testWidgets('Admin settings expose ID-document access controls', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionProvider.overrideWith(_AdminSessionNotifier.new)],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const AssociationSettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('ID document access'), findsOneWidget);
+    expect(find.text('Connect Supabase to manage ID-document access.'), findsOneWidget);
   });
 
   group('route guard', () {

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../backend/association_settings_repo.dart';
+import '../../backend/backend.dart' show backendEnabled;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
@@ -26,6 +27,10 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
   late final TextEditingController _familyMinimumAge;
   late final TextEditingController _familyMemberLimit;
   bool _saving = false;
+  bool _loadingIdDocumentAccess = true;
+  String? _idDocumentAccessError;
+  String? _updatingIdDocumentAccessFor;
+  List<IdDocumentAccessEntry> _idDocumentAccess = const [];
 
   @override
   void initState() {
@@ -40,6 +45,7 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
     _dueDay = TextEditingController(text: '${settings['default_due_day'] ?? 10}');
     _familyMinimumAge = TextEditingController(text: '${settings['family_min_login_age'] ?? 12}');
     _familyMemberLimit = TextEditingController(text: '${settings['family_member_limit'] ?? 5}');
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadIdDocumentAccess());
   }
 
   @override
@@ -93,6 +99,38 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
       if (mounted) toast(context, '$error');
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _loadIdDocumentAccess() async {
+    if (!backendEnabled) {
+      setState(() => _loadingIdDocumentAccess = false);
+      return;
+    }
+    setState(() {
+      _loadingIdDocumentAccess = true;
+      _idDocumentAccessError = null;
+    });
+    try {
+      final entries = await AssociationSettingsRepo.idDocumentAccess();
+      if (mounted) setState(() => _idDocumentAccess = entries);
+    } catch (error) {
+      if (mounted) setState(() => _idDocumentAccessError = '$error');
+    } finally {
+      if (mounted) setState(() => _loadingIdDocumentAccess = false);
+    }
+  }
+
+  Future<void> _setIdDocumentAccess(IdDocumentAccessEntry entry, bool enabled) async {
+    if (_updatingIdDocumentAccessFor != null) return;
+    setState(() => _updatingIdDocumentAccessFor = entry.userId);
+    try {
+      await AssociationSettingsRepo.setIdDocumentAccess(entry.userId, enabled);
+      await _loadIdDocumentAccess();
+    } catch (error) {
+      if (mounted) toast(context, '$error');
+    } finally {
+      if (mounted) setState(() => _updatingIdDocumentAccessFor = null);
     }
   }
 
@@ -243,6 +281,41 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
                   helperText: 'Counts all dependents, including those below login age; choose 0 to 30',
                 ),
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SectionCard(
+          title: 'ID document access',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Manage association-wide ID-proof access for office bearers and Membership Desk POCs. Owners and requesters retain access to their related documents; assigned POCs retain request access unless explicitly disabled here.',
+              ),
+              const SizedBox(height: 8),
+              if (!backendEnabled)
+                const EmptyState('Connect Supabase to manage ID-document access.', icon: Icons.lock_outline)
+              else if (_loadingIdDocumentAccess)
+                const Center(child: CircularProgressIndicator())
+              else if (_idDocumentAccessError != null)
+                EmptyState(_idDocumentAccessError!, icon: Icons.error_outline)
+              else if (_idDocumentAccess.isEmpty)
+                const EmptyState('No eligible office bearers or Membership Desk POCs.', icon: Icons.people_outline)
+              else
+                for (final entry in _idDocumentAccess)
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: entry.canViewAll,
+                    onChanged: _updatingIdDocumentAccessFor == null
+                        ? (enabled) => _setIdDocumentAccess(entry, enabled)
+                        : null,
+                    title: Text(entry.name),
+                    subtitle: Text('${entry.roles} · ${entry.isOfficeBearer ? 'Office bearer' : 'Membership Desk POC'}'),
+                    secondary: _updatingIdDocumentAccessFor == entry.userId
+                        ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.verified_user_outlined),
+                  ),
             ],
           ),
         ),

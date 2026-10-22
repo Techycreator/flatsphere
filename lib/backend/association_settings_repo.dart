@@ -1,6 +1,26 @@
 import 'backend.dart';
+import '../models/models.dart';
 
 class AssociationSettingsRepo {
+  static Future<List<IdDocumentAccessEntry>> idDocumentAccess() async {
+    final rows = await db.rpc('list_id_document_access') as List;
+    return [
+      for (final row in rows.cast<Map<String, dynamic>>())
+        IdDocumentAccessEntry(
+          userId: row['user_id'] as String,
+          name: row['full_name'] as String,
+          roles: row['role_labels'] as String,
+          canViewAll: row['can_view_all'] as bool,
+          isOfficeBearer: row['is_office_bearer'] as bool,
+        ),
+    ];
+  }
+
+  static Future<void> setIdDocumentAccess(String userId, bool enabled) => db.rpc(
+    'set_id_document_access',
+    params: {'p_user_id': userId, 'p_can_view': enabled},
+  );
+
   static Future<String> createFirstAssociation({
     required String name,
     required String state,
