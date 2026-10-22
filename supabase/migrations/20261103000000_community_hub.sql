@@ -234,24 +234,3 @@ create policy marketplace_update on marketplace_posts for update using (
 
 insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
 values ('community-event-photos','community-event-photos',false,5242880,array['image/jpeg']) on conflict (id) do nothing;
-create table community_event_photos (
-  id uuid primary key default gen_random_uuid(),
-  association_id uuid not null default my_association() references associations(id) on delete cascade,
-  event_id uuid not null references community_events(id) on delete cascade,
-  storage_path text not null unique,
-  uploaded_by uuid not null default auth.uid() references profiles(id),
-  created_at timestamptz not null default now()
-);
-alter table community_event_photos enable row level security;
-create policy event_photos_read on community_event_photos for select using (is_member(association_id));
-create policy event_photos_insert on community_event_photos for insert with check (
-  association_id=my_association() and uploaded_by=auth.uid()
-  and has_role(association_id,array['president','secretary','joint_secretary']::app_role[])
-);
-create policy event_photos_storage_read on storage.objects for select to authenticated using (
-  bucket_id='community-event-photos' and exists(select 1 from community_event_photos p where p.storage_path=name and is_member(p.association_id))
-);
-create policy event_photos_storage_insert on storage.objects for insert to authenticated with check (
-  bucket_id='community-event-photos' and (storage.foldername(name))[1]=my_association()::text
-  and has_role(my_association(),array['president','secretary','joint_secretary']::app_role[])
-);
