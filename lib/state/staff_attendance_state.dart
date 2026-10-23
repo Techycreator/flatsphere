@@ -61,15 +61,18 @@ class StaffAttendanceNotifier extends Notifier<StaffAttendanceState> {
         ],
       );
     }
-    final session = ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId)));
+    final session = ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId, s?.activeRole)));
     if (session.$1 != null) {
-      unawaited(Future<void>.delayed(Duration.zero, () => refresh(today)));
+      final includeInactive = session.$3 == Role.president || session.$3 == Role.secretary;
+      unawaited(Future<void>.delayed(Duration.zero, () => refresh(today, includeInactive: includeInactive)));
     }
     return StaffAttendanceState(date: today);
   }
 
-  Future<void> refresh(DateTime date) async {
+  Future<void> refresh(DateTime date, {bool? includeInactive}) async {
     final day = DateUtils.dateOnly(date);
+    final role = ref.read(sessionProvider)?.activeRole;
+    final showInactive = includeInactive ?? (role == Role.president || role == Role.secretary);
     final request = ++_requestSequence;
     if (!backendEnabled) {
       state = state.copyWith(date: day, loading: false, clearError: true);
@@ -77,7 +80,7 @@ class StaffAttendanceNotifier extends Notifier<StaffAttendanceState> {
     }
     state = state.copyWith(date: day, loading: true, clearError: true);
     try {
-      final data = await AttendanceRepo.load(day).timeout(
+      final data = await AttendanceRepo.load(day, includeInactive: showInactive).timeout(
         const Duration(seconds: 15),
         onTimeout: () => throw TimeoutException('Attendance could not be loaded within 15 seconds'),
       );
@@ -112,7 +115,7 @@ class StaffAttendanceNotifier extends Notifier<StaffAttendanceState> {
         proofBytes: proofBytes,
         proofExtension: proofExtension,
       );
-      return refresh(state.date);
+      return refresh(state.date, includeInactive: true);
     }
     state = state.copyWith(
       staff: [
@@ -150,5 +153,47 @@ class StaffAttendanceNotifier extends Notifier<StaffAttendanceState> {
         ),
       },
     );
+  }
+
+  Future<void> updateStaff({
+    required StaffMember staff,
+    required String name,
+    required StaffType type,
+    required String area,
+    required StaffEmployerType employerType,
+    required String agencyName,
+    required int monthlySalary,
+    required bool active,
+  }) async {
+    if (backendEnabled) {
+      await AttendanceRepo.updateStaff(
+        id: staff.id,
+        name: name,
+        type: type,
+        area: area,
+        employerType: employerType,
+        agencyName: agencyName,
+        monthlySalary: monthlySalary,
+        active: active,
+      );
+      return refresh(state.date);
+    }
+    state = state.copyWith(staff: [
+      for (final current in state.staff)
+        if (current.id == staff.id)
+          StaffMember(
+            id: current.id,
+            name: name.trim(),
+            type: type,
+            area: area,
+            active: active,
+            employerType: employerType,
+            agencyName: employerType == StaffEmployerType.agency ? agencyName.trim() : null,
+            monthlySalary: monthlySalary,
+            idProofPath: current.idProofPath,
+          )
+        else
+          current,
+    ]);
   }
 }

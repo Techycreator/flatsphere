@@ -89,6 +89,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     final l = AppLocalizations.of(context);
     final s = ref.watch(sessionProvider)!;
     final canAssign = _assignerRoles.contains(s.activeRole);
+    final canModify = s.activeRole == Role.president || s.activeRole == Role.secretary;
     final canManage = canAssign || (s.activeRole.isCommittee && s.user.designations.contains(DemoUser.membershipDesk));
     final st = ref.watch(directoryProvider);
     final theme = Theme.of(context);
@@ -143,8 +144,8 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
         else
           ...switch (tab) {
             _Tab.flats => _flats(st),
-            _Tab.people => _people(context, st, canAssign),
-            _Tab.monitors => _monitors(st, canAssign),
+            _Tab.people => _people(context, st, canAssign, canModify),
+            _Tab.monitors => _monitors(st, canModify),
           },
       ],
     );
@@ -306,7 +307,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
 
   // ---------------------------------------------------------------- People
 
-  List<Widget> _people(BuildContext context, DirectoryState st, bool canAssign) {
+  List<Widget> _people(BuildContext context, DirectoryState st, bool canAssign, bool canModify) {
     final l = AppLocalizations.of(context);
     final q = query.trim().toLowerCase();
     final list = st.people.where((p) {
@@ -372,7 +373,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                   ),
                   isThreeLine: true,
                   trailing: p.invited ? const Pill('Invited', color: AppColors.amber) : null,
-                  onTap: () => _openPerson(p, canAssign),
+                  onTap: () => _openPerson(p, canModify),
                 ),
             ],
           ),
@@ -568,11 +569,11 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     }
   }
 
-  Future<void> _openPerson(Person p, bool canAssign) => showDialog<void>(
+  Future<void> _openPerson(Person p, bool canModify) => showDialog<void>(
     context: context,
     builder: (ctx) => _PersonDialog(
       person: p,
-      canAssign: canAssign,
+      canModify: canModify,
       onEdit: () {
         Navigator.pop(ctx);
         _editDetails(p);
@@ -707,7 +708,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
 
   // ---------------------------------------------------------------- Monitors
 
-  List<Widget> _monitors(DirectoryState st, bool canAssign) {
+  List<Widget> _monitors(DirectoryState st, bool canModify) {
     final today = DateUtils.dateOnly(DateTime.now());
     final mons = st.people.where((p) => p.role == Role.monitor).toList()
       ..sort((a, b) => (a.monitorUntil ?? DateTime(9999)).compareTo(b.monitorUntil ?? DateTime(9999)));
@@ -792,12 +793,12 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                           return Pill(label, color: color);
                         },
                       ),
-                      onTap: canAssign ? () => _editDetails(p) : () => _openPerson(p, canAssign),
+                      onTap: canModify ? () => _editDetails(p) : () => _openPerson(p, canModify),
                     ),
                 ],
               ),
       ),
-      if (canAssign)
+      if (canModify)
         const Padding(
           padding: EdgeInsets.only(top: 8),
           child: Text('Tap a monitor to change their areas or dates.', style: TextStyle(fontSize: 12)),
@@ -899,10 +900,10 @@ class _AreaPicker extends StatelessWidget {
 
 /// Person details with private ID proofs (upload, view via a 60-second link; every view is logged).
 class _PersonDialog extends ConsumerStatefulWidget {
-  const _PersonDialog({required this.person, required this.canAssign, required this.onEdit, required this.onRemove});
+  const _PersonDialog({required this.person, required this.canModify, required this.onEdit, required this.onRemove});
 
   final Person person;
-  final bool canAssign;
+  final bool canModify;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
 
@@ -1012,8 +1013,8 @@ class _PersonDialogState extends ConsumerState<_PersonDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final canRemove = widget.canAssign || p.role == Role.owner || p.role == Role.resident;
-    final editable = widget.canAssign && (p.role == Role.monitor || p.role == Role.ecMember);
+    final canRemove = widget.canModify;
+    final editable = widget.canModify && (p.role == Role.monitor || p.role == Role.ecMember);
     Widget row(String k, String? v) => v == null || v.isEmpty
         ? const SizedBox.shrink()
         : Padding(

@@ -22,6 +22,7 @@ class StaffAttendanceScreen extends ConsumerWidget {
     final state = ref.watch(staffAttendanceProvider);
     final notifier = ref.read(staffAttendanceProvider.notifier);
     final canManageStaff = role == Role.admin || role == Role.president || role == Role.secretary;
+    final canEditStaff = role == Role.president || role == Role.secretary;
     final canViewSalary = canManageStaff || role == Role.vicePresident || role == Role.jointSecretary;
     final canMark = role == Role.caretaker;
     final canReview = canManageStaff ||
@@ -62,6 +63,40 @@ class StaffAttendanceScreen extends ConsumerWidget {
       }
     }
 
+    Future<void> editStaff(StaffMember staff) async {
+      final draft = await _editStaffDialog(context, staff);
+      if (draft == null || !context.mounted) return;
+      if (staff.active && !draft.active) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text('Archive ${staff.name}?'),
+            content: const Text('Attendance history will be retained, and this staff member can be reactivated later.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Archive staff')),
+            ],
+          ),
+        );
+        if (confirmed != true || !context.mounted) return;
+      }
+      try {
+        await notifier.updateStaff(
+          staff: staff,
+          name: draft.name,
+          type: draft.type,
+          area: draft.area,
+          employerType: draft.employerType,
+          agencyName: draft.agencyName,
+          monthlySalary: draft.monthlySalary,
+          active: draft.active,
+        );
+        if (context.mounted) toast(context, draft.active ? '${draft.name} updated' : '${draft.name} moved to staff archive');
+      } catch (error) {
+        if (context.mounted) toast(context, '$error');
+      }
+    }
+
     Future<void> mark(StaffMember staff, AttendanceStatus status) async {
       var note = '';
       if (status != AttendanceStatus.present) {
@@ -82,6 +117,7 @@ class StaffAttendanceScreen extends ConsumerWidget {
     }
 
     final activeStaff = state.staff.where((staff) => staff.active).toList();
+    final registerStaff = canEditStaff ? state.staff : activeStaff;
     String attendanceSubtitle(StaffMember staff) {
       final record = state.records[staff.id];
       if (record == null) return '${staff.area}\nNot marked';
@@ -171,11 +207,11 @@ class StaffAttendanceScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           SectionCard(
             title: 'Staff register · ${activeStaff.length} active',
-            child: activeStaff.isEmpty
+            child: registerStaff.isEmpty
                 ? const EmptyState('No staff have been added yet.', icon: Icons.badge_outlined)
                 : Column(
                     children: [
-                      for (final staff in activeStaff)
+                      for (final staff in registerStaff)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: CircleAvatar(child: Text(staff.name.isEmpty ? '?' : staff.name[0].toUpperCase())),
@@ -187,13 +223,21 @@ class StaffAttendanceScreen extends ConsumerWidget {
                             '${canViewSalary ? '\n${salaryCheck(staff)}' : ''}',
                           ),
                           isThreeLine: canViewSalary,
-                          trailing: canManageStaff && staff.idProofPath != null
-                              ? IconButton(
-                                  tooltip: 'View staff ID proof',
-                                  onPressed: () => viewProof(staff),
-                                  icon: const Icon(Icons.badge_outlined),
-                                )
-                              : null,
+                          trailing: Wrap(children: [
+                            if (!staff.active) const Pill('Archived', color: AppColors.amber),
+                            if (staff.idProofPath != null)
+                              IconButton(
+                                tooltip: 'View staff ID proof',
+                                onPressed: () => viewProof(staff),
+                                icon: const Icon(Icons.badge_outlined),
+                              ),
+                            if (canEditStaff)
+                              IconButton(
+                                tooltip: 'Edit or archive staff member',
+                                onPressed: () => editStaff(staff),
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                          ]),
                         ),
                     ],
                   ),
@@ -270,6 +314,136 @@ class _StaffDraft {
   final String agencyName;
   final int monthlySalary;
   final PlatformFile proof;
+}
+
+class _StaffEditDraft {
+  const _StaffEditDraft({
+    required this.name,
+    required this.type,
+    required this.area,
+    required this.employerType,
+    required this.agencyName,
+    required this.monthlySalary,
+    required this.active,
+  });
+
+  final String name;
+  final StaffType type;
+  final String area;
+  final StaffEmployerType employerType;
+  final String agencyName;
+  final int monthlySalary;
+  final bool active;
+}
+
+Future<_StaffEditDraft?> _editStaffDialog(BuildContext context, StaffMember staff) =>
+    showDialog<_StaffEditDraft>(context: context, builder: (_) => _EditStaffDialog(staff: staff));
+
+class _EditStaffDialog extends StatefulWidget {
+  const _EditStaffDialog({required this.staff});
+  final StaffMember staff;
+
+  @override
+  State<_EditStaffDialog> createState() => _EditStaffDialogState();
+}
+
+class _EditStaffDialogState extends State<_EditStaffDialog> {
+  late final _name = TextEditingController(text: widget.staff.name);
+  late final _agency = TextEditingController(text: widget.staff.agencyName ?? '');
+  late final _salary = TextEditingController(text: '${widget.staff.monthlySalary ?? ''}');
+  late StaffType _type = widget.staff.type;
+  late String _area = widget.staff.area;
+  late StaffEmployerType _employerType = widget.staff.employerType;
+  late bool _active = widget.staff.active;
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _agency.dispose();
+    _salary.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text('Edit ${widget.staff.name}'),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (_error != null) _validationMessage(_error!),
+            TextField(controller: _name, decoration: const InputDecoration(labelText: 'Full name *')),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<StaffType>(
+              initialValue: _type,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Staff type'),
+              items: [for (final option in StaffType.values) DropdownMenuItem(value: option, child: Text(option.label))],
+              onChanged: (value) => setState(() {
+                _type = value ?? _type;
+                _area = switch (_type) {
+                  StaffType.housekeeping => 'Cleaning',
+                  StaffType.stpOperator => 'STP',
+                  StaffType.security => 'Security',
+                };
+              }),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _area,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Monitor area'),
+              items: [for (final option in monitorAreas) DropdownMenuItem(value: option, child: Text(option))],
+              onChanged: (value) => setState(() => _area = value ?? _area),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<StaffEmployerType>(
+              initialValue: _employerType,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Employer'),
+              items: const [
+                DropdownMenuItem(value: StaffEmployerType.association, child: Text('Association-employed')),
+                DropdownMenuItem(value: StaffEmployerType.agency, child: Text('Agency-employed')),
+              ],
+              onChanged: (value) => setState(() => _employerType = value ?? _employerType),
+            ),
+            if (_employerType == StaffEmployerType.agency) ...[
+              const SizedBox(height: 12),
+              TextField(controller: _agency, decoration: const InputDecoration(labelText: 'Agency name *')),
+            ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _salary,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: 'Monthly salary *', prefixText: '₹ '),
+            ),
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Active staff member'), value: _active, onChanged: (value) => setState(() => _active = value)),
+          ])),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: _save, child: const Text('Save changes')),
+        ],
+      );
+
+  void _save() {
+    final salary = int.tryParse(_salary.text.trim());
+    if (_name.text.trim().isEmpty) return setState(() => _error = 'Name is required');
+    if (_employerType == StaffEmployerType.agency && _agency.text.trim().isEmpty) {
+      return setState(() => _error = 'Agency name is required');
+    }
+    if (salary == null || salary <= 0) return setState(() => _error = 'Enter monthly salary');
+    Navigator.pop(context, _StaffEditDraft(
+      name: _name.text.trim(),
+      type: _type,
+      area: _area,
+      employerType: _employerType,
+      agencyName: _agency.text.trim(),
+      monthlySalary: salary,
+      active: _active,
+    ));
+  }
 }
 
 Future<_StaffDraft?> _addStaffDialog(BuildContext context) async {

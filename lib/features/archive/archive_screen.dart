@@ -10,14 +10,12 @@ const _archiveTypes = [
   ('membership', 'Membership'),
   ('invite', 'Invite'),
   ('profile', 'Profile'),
-  ('flat', 'Flat'),
   ('staff', 'Association staff'),
   ('staff_private_details', 'Staff employment details'),
   ('household_housekeeping', 'Household housekeeping'),
-  ('vehicle', 'Vehicle'),
-  ('staff_attendance', 'Staff attendance'),
-  ('visitor_request', 'Visitor request'),
-  ('id_document', 'ID document'),
+  ('vendor', 'Vendor'),
+  ('vendor_amc_contract', 'Vendor AMC'),
+  ('association_document', 'Previous association document'),
 ];
 
 class _ArchiveEntry {
@@ -202,7 +200,16 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
   }
 }
 
-bool _sensitiveKey(String key) => const {'storage_path', 'id_proof_path', 'email', 'mobile', 'token', 'password'}.contains(key.toLowerCase());
+bool _sensitiveKey(String key) => const {
+  'storage_path',
+  'id_proof_path',
+  'email',
+  'mobile',
+  'date_of_birth',
+  'birth_date',
+  'token',
+  'password',
+}.contains(key.toLowerCase());
 
 String _label(String type) => _archiveTypes.where((entry) => entry.$1 == type).firstOrNull?.$2 ?? type;
 

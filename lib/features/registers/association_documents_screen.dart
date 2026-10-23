@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../app/theme.dart';
 import '../../backend/association_documents_repo.dart';
 import '../../backend/upload_preparation.dart' show maxSourceUploadBytes;
 import '../../models/models.dart';
@@ -18,7 +17,7 @@ class AssociationDocumentsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionProvider)!.activeRole;
-    final canUpload = role == Role.admin || role == Role.president || role == Role.secretary;
+    final canUpload = role == Role.president || role == Role.secretary;
     final documents = ref.watch(associationDocumentsProvider);
 
     Future<void> upload() async {

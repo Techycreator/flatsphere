@@ -62,6 +62,23 @@ class VendorsRepo {
     });
   }
 
+  static Future<void> updateContract({
+    required String id,
+    required String serviceName,
+    required DateTime startDate,
+    required DateTime endDate,
+    required int renewalNoticeDays,
+    num? annualCost,
+  }) async {
+    await db.from('vendor_amc_contracts').update({
+      'service_name': serviceName.trim(),
+      'start_date': _date(startDate),
+      'end_date': _date(endDate),
+      'renewal_notice_days': renewalNoticeDays,
+      'annual_cost': annualCost,
+    }).eq('id', id);
+  }
+
   static Future<void> setContractActive(String id, bool active) =>
       db.from('vendor_amc_contracts').update({'active': active}).eq('id', id);
 

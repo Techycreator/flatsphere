@@ -20,6 +20,7 @@ class VendorAmcScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionProvider)!.activeRole;
     final canManage = role == Role.admin || role == Role.president || role == Role.secretary;
+    final canEdit = role == Role.president || role == Role.secretary;
     final vendors = ref.watch(vendorsProvider);
 
     Future<void> editVendor([AssociationVendor? vendor]) async {
@@ -49,6 +50,24 @@ class VendorAmcScreen extends ConsumerWidget {
       try {
         await VendorsRepo.addContract(
           vendorId: vendor.id,
+          serviceName: draft.serviceName,
+          startDate: draft.startDate,
+          endDate: draft.endDate,
+          renewalNoticeDays: draft.noticeDays,
+          annualCost: draft.annualCost,
+        );
+        ref.invalidate(vendorsProvider);
+      } catch (error) {
+        if (context.mounted) toast(context, '$error');
+      }
+    }
+
+    Future<void> editContract(AssociationVendor vendor, VendorAmcContract contract) async {
+      final draft = await _contractDialog(context, contract);
+      if (draft == null) return;
+      try {
+        await VendorsRepo.updateContract(
+          id: contract.id,
           serviceName: draft.serviceName,
           startDate: draft.startDate,
           endDate: draft.endDate,
@@ -116,13 +135,27 @@ class VendorAmcScreen extends ConsumerWidget {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Pill(vendor.active ? 'Active' : 'Inactive', color: vendor.active ? AppColors.green : AppColors.amber),
-                    if (canManage)
+                    if (canEdit)
                       PopupMenuButton<String>(
                         tooltip: 'Vendor actions',
                         onSelected: (value) async {
                           if (value == 'edit') {
                             await editVendor(vendor);
                           } else {
+                            if (vendor.active) {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (dialogContext) => AlertDialog(
+                                  title: Text('Archive ${vendor.name}?'),
+                                  content: const Text('Existing complaints, contracts, and documents remain available in the archive.'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+                                    FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Archive vendor')),
+                                  ],
+                                ),
+                              );
+                              if (confirmed != true) return;
+                            }
                             try {
                               await VendorsRepo.setActive(vendor.id, !vendor.active);
                               ref.invalidate(vendorsProvider);
@@ -133,7 +166,7 @@ class VendorAmcScreen extends ConsumerWidget {
                         },
                         itemBuilder: (_) => [
                           const PopupMenuItem(value: 'edit', child: Text('Edit vendor')),
-                          PopupMenuItem(value: 'active', child: Text(vendor.active ? 'Mark inactive' : 'Reactivate')),
+                          PopupMenuItem(value: 'active', child: Text(vendor.active ? 'Archive vendor' : 'Reactivate vendor')),
                         ],
                       ),
                   ],
@@ -179,10 +212,24 @@ class VendorAmcScreen extends ConsumerWidget {
                       ),
                       trailing: Wrap(
                         children: [
-                          if (canManage)
+                          if (canEdit)
                             IconButton(
-                              tooltip: contract.active ? 'End contract' : 'Reactivate contract',
+                              tooltip: contract.active ? 'Archive contract' : 'Reactivate contract',
                               onPressed: () async {
+                                if (contract.active) {
+                                  final confirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (dialogContext) => AlertDialog(
+                                      title: Text('Archive ${contract.serviceName}?'),
+                                      content: const Text('This contract will no longer appear active; it can be reactivated later.'),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+                                        FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Archive contract')),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirmed != true) return;
+                                }
                                 try {
                                   await VendorsRepo.setContractActive(contract.id, !contract.active);
                                   ref.invalidate(vendorsProvider);
@@ -190,9 +237,15 @@ class VendorAmcScreen extends ConsumerWidget {
                                   if (context.mounted) toast(context, '$error');
                                 }
                               },
-                              icon: Icon(contract.active ? Icons.pause_circle_outline : Icons.play_circle_outline),
+                              icon: Icon(contract.active ? Icons.archive_outlined : Icons.unarchive_outlined),
                             ),
-                          if (canManage)
+                          if (canEdit)
+                            IconButton(
+                              tooltip: 'Edit AMC contract',
+                              onPressed: () => editContract(vendor, contract),
+                              icon: const Icon(Icons.edit_outlined),
+                            ),
+                          if (canEdit)
                             IconButton(
                               tooltip: 'Attach contract document',
                               onPressed: () => addDocument(vendor, contract),
@@ -204,7 +257,7 @@ class VendorAmcScreen extends ConsumerWidget {
                   Row(
                     children: [
                       Expanded(child: Text('Documents', style: Theme.of(context).textTheme.titleMedium)),
-                      if (canManage)
+                      if (canEdit)
                         IconButton(
                           tooltip: 'Attach insurance document',
                           onPressed: () => addDocument(vendor),
@@ -339,23 +392,24 @@ class _ContractDraft {
   final num? annualCost;
 }
 
-Future<_ContractDraft?> _contractDialog(BuildContext context) async {
-  return showDialog<_ContractDraft>(context: context, builder: (_) => const _ContractDialog());
+Future<_ContractDraft?> _contractDialog(BuildContext context, [VendorAmcContract? contract]) async {
+  return showDialog<_ContractDraft>(context: context, builder: (_) => _ContractDialog(contract: contract));
 }
 
 class _ContractDialog extends StatefulWidget {
-  const _ContractDialog();
+  const _ContractDialog({this.contract});
+  final VendorAmcContract? contract;
 
   @override
   State<_ContractDialog> createState() => _ContractDialogState();
 }
 
 class _ContractDialogState extends State<_ContractDialog> {
-  final _service = TextEditingController();
-  final _cost = TextEditingController();
-  DateTime _start = DateTime.now();
-  DateTime _end = DateTime.now().add(const Duration(days: 365));
-  int _notice = 90;
+  late final _service = TextEditingController(text: widget.contract?.serviceName);
+  late final _cost = TextEditingController(text: widget.contract?.annualCost?.toString() ?? '');
+  late DateTime _start = widget.contract?.startDate ?? DateTime.now();
+  late DateTime _end = widget.contract?.endDate ?? DateTime.now().add(const Duration(days: 365));
+  late int _notice = widget.contract?.renewalNoticeDays ?? 90;
   String? _error;
 
   @override
@@ -363,7 +417,7 @@ class _ContractDialogState extends State<_ContractDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-        title: const Text('Add AMC contract'),
+        title: Text(widget.contract == null ? 'Add AMC contract' : 'Edit AMC contract'),
         content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (_error != null) _dialogError(_error!),
           TextField(controller: _service, decoration: const InputDecoration(labelText: 'Service / equipment *')),

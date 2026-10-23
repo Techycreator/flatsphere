@@ -24,16 +24,16 @@ class AttendanceRepo {
     ];
   }
 
-  static Future<AttendanceData> load(DateTime date) async {
+  static Future<AttendanceData> load(DateTime date, {bool includeInactive = false}) async {
     final day = _date(date);
-    final staffRows = await db
+    var staffQuery = db
         .from('staff_members')
         .select(
           'id, full_name, staff_type, area, active, '
           'staff_private_details(employer_type, agency_name, monthly_salary, id_proof_path)',
-        )
-        .eq('active', true)
-        .order('full_name');
+        );
+    if (!includeInactive) staffQuery = staffQuery.eq('active', true);
+    final staffRows = await staffQuery.order('full_name');
     final records = await db
         .from('staff_attendance')
         .select('staff_id, attendance_date, status, note, marked_by_name')
@@ -107,6 +107,29 @@ class AttendanceRepo {
       rethrow;
     }
   }
+
+  static Future<void> updateStaff({
+    required String id,
+    required String name,
+    required StaffType type,
+    required String area,
+    required StaffEmployerType employerType,
+    required String agencyName,
+    required int monthlySalary,
+    required bool active,
+  }) => db.rpc(
+    'update_staff_member',
+    params: {
+      'p_staff': id,
+      'p_name': name.trim(),
+      'p_type': _staffTypeDb(type),
+      'p_area': area,
+      'p_employer_type': employerType == StaffEmployerType.agency ? 'agency' : 'association',
+      'p_agency_name': employerType == StaffEmployerType.agency ? agencyName.trim() : null,
+      'p_monthly_salary': monthlySalary,
+      'p_active': active,
+    },
+  );
 
   static Future<String> staffProofUrl(String path) => db.storage.from('staff-proofs').createSignedUrl(path, 60);
 
