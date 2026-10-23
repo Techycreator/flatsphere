@@ -166,7 +166,7 @@ class StaffAttendanceScreen extends ConsumerWidget {
             color: Theme.of(context).colorScheme.errorContainer,
             child: ListTile(leading: const Icon(Icons.error_outline), title: Text(state.error!)),
           ),
-        if (state.loading) const LinearProgressIndicator(),
+        if (state.loading && activeStaff.isNotEmpty) const LinearProgressIndicator(),
         if (canManageStaff) ...[
           const SizedBox(height: 12),
           SectionCard(

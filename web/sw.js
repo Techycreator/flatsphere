@@ -1,5 +1,5 @@
 // FlatSphere PWA service worker: network-first for navigations, cache-first for static assets.
-const CACHE = 'flatsphere-v1';
+const CACHE = 'flatsphere-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 

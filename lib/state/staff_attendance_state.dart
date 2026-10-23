@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -44,6 +45,8 @@ final staffAttendanceProvider = NotifierProvider<StaffAttendanceNotifier, StaffA
 );
 
 class StaffAttendanceNotifier extends Notifier<StaffAttendanceState> {
+  int _requestSequence = 0;
+
   @override
   StaffAttendanceState build() {
     final today = DateUtils.dateOnly(DateTime.now());
@@ -59,22 +62,32 @@ class StaffAttendanceNotifier extends Notifier<StaffAttendanceState> {
       );
     }
     final session = ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId)));
-    if (session.$1 != null) refresh(today);
-    return StaffAttendanceState(date: today, loading: session.$1 != null);
+    if (session.$1 != null) {
+      unawaited(Future<void>.delayed(Duration.zero, () => refresh(today)));
+    }
+    return StaffAttendanceState(date: today);
   }
 
   Future<void> refresh(DateTime date) async {
     final day = DateUtils.dateOnly(date);
+    final request = ++_requestSequence;
     if (!backendEnabled) {
       state = state.copyWith(date: day, loading: false, clearError: true);
       return;
     }
     state = state.copyWith(date: day, loading: true, clearError: true);
     try {
-      final data = await AttendanceRepo.load(day);
-      state = state.copyWith(date: day, staff: data.staff, records: data.records, loading: false, clearError: true);
+      final data = await AttendanceRepo.load(day).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw TimeoutException('Attendance could not be loaded within 15 seconds'),
+      );
+      if (request == _requestSequence) {
+        state = state.copyWith(date: day, staff: data.staff, records: data.records, clearError: true);
+      }
     } catch (error) {
-      state = state.copyWith(loading: false, error: '$error');
+      if (request == _requestSequence) state = state.copyWith(error: '$error');
+    } finally {
+      if (request == _requestSequence) state = state.copyWith(loading: false);
     }
   }
 
