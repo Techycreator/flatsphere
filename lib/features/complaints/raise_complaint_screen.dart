@@ -6,8 +6,16 @@ import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../models/sla.dart';
+import '../../models/vendor.dart';
+import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/vendors_repo.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
+
+final complaintVendorsProvider = FutureProvider.autoDispose<List<AssociationVendor>>((ref) async {
+  if (!backendEnabled) return const [];
+  return VendorsRepo.list();
+});
 
 const complaintCategories = [
   'Plumbing',
@@ -42,6 +50,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
   bool _voice = false;
   bool _recording = false;
   Criticality? _override;
+  String? _vendorId;
 
   AiSuggestion? get _ai => suggestCriticality('${_title.text} ${_desc.text}');
 
@@ -73,6 +82,8 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
     final crit = _override ?? ai?.criticality ?? Criticality.medium;
     final now = DateTime.now();
     final role = s.activeRole;
+    final vendorState = ref.read(complaintVendorsProvider);
+    final selectedVendor = vendorState.hasValue ? vendorState.value!.where((vendor) => vendor.id == _vendorId).firstOrNull : null;
     final needsReview = _staff && _commonArea && role != Role.secretary;
     final bypass = needsReview && _kind == ReportKind.complaint && crit == Criticality.critical;
     final status = !needsReview || bypass ? TicketStatus.newTicket : TicketStatus.pendingReview;
@@ -105,6 +116,8 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
         hasVoiceNote: _voice,
         isPrivate: _private,
         location: _commonArea ? 'Common area' : 'Inside flat',
+        vendorId: _vendorId,
+        vendorName: selectedVendor?.name,
       ),
     );
     toast(
@@ -120,6 +133,10 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final ai = _ai;
+    final role = ref.watch(sessionProvider)!.activeRole;
+    final vendorOptions = role.isOfficeBearer
+        ? ref.watch(complaintVendorsProvider.select((value) => value))
+        : null;
     return Scaffold(
       appBar: AppBar(title: Text(l.raiseComplaint)),
       body: PageBody(
@@ -199,6 +216,23 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
                     items: [for (final c in complaintCategories) DropdownMenuItem(value: c, child: Text(c))],
                     onChanged: (v) => setState(() => _category = v),
                   ),
+                  if (role.isOfficeBearer) ...[
+                    const SizedBox(height: 10),
+                    vendorOptions!.when(
+                      data: (vendors) => DropdownButtonFormField<String?>(
+                        initialValue: _vendorId,
+                        decoration: const InputDecoration(labelText: 'Assigned vendor (optional)'),
+                        items: [
+                          const DropdownMenuItem<String?>(value: null, child: Text('No vendor')),
+                          for (final vendor in vendors.where((vendor) => vendor.active))
+                            DropdownMenuItem<String?>(value: vendor.id, child: Text(vendor.name)),
+                        ],
+                        onChanged: (value) => setState(() => _vendorId = value),
+                      ),
+                      loading: () => const LinearProgressIndicator(),
+                      error: (_, _) => const Text('Vendor list is unavailable'),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   if (_staff)
                     SwitchListTile(

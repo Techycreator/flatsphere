@@ -401,6 +401,8 @@ class Complaint {
     this.kind = ReportKind.complaint,
     this.acceptedAt,
     this.estimatedCost,
+    this.vendorId,
+    this.vendorName,
   });
 
   final String id;
@@ -425,6 +427,8 @@ class Complaint {
   /// When the Secretary accepted a common-area report; the SLA clock starts here.
   final DateTime? acceptedAt;
   final int? estimatedCost;
+  final String? vendorId;
+  final String? vendorName;
 
   bool get inReview => status == TicketStatus.pendingReview;
 
@@ -443,6 +447,8 @@ class Complaint {
     String? description,
     String? category,
     int? estimatedCost,
+    String? vendorId,
+    bool clearVendor = false,
   }) => Complaint(
     id: id,
     flatNumber: flatNumber,
@@ -464,6 +470,8 @@ class Complaint {
     kind: kind ?? this.kind,
     acceptedAt: acceptedAt ?? this.acceptedAt,
     estimatedCost: estimatedCost ?? this.estimatedCost,
+    vendorId: clearVendor ? null : (vendorId ?? this.vendorId),
+    vendorName: clearVendor ? null : vendorName ?? this.vendorName,
   );
 }
 

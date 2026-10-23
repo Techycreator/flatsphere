@@ -8,7 +8,7 @@ T _parse<T extends Enum>(List<T> values, Object? v, T fallback) =>
     values.where((e) => _snake(e.name) == v || e.name == v).firstOrNull ?? fallback;
 
 class ComplaintsRepo {
-  static const _select = '*, complaint_remarks(author_name, body, created_at)';
+  static const _select = '*, vendor:association_vendors(name), complaint_remarks(author_name, body, created_at)';
 
   static Future<List<Complaint>> fetchAll() async {
     final rows = await db.from('complaints').select(_select).order('created_at', ascending: false);
@@ -50,6 +50,7 @@ class ComplaintsRepo {
     'status': _snake(c.status.name),
     'is_private': c.isPrivate,
     'estimated_cost': c.estimatedCost,
+    'vendor_id': c.vendorId,
     'raised_by_name': c.raisedBy,
     'assignee_name': c.assignee,
     'photo_count': c.photoCount,
@@ -87,6 +88,8 @@ class ComplaintsRepo {
       kind: _parse(ReportKind.values, r['kind'], ReportKind.complaint),
       acceptedAt: r['accepted_at'] == null ? null : DateTime.parse(r['accepted_at'] as String).toLocal(),
       estimatedCost: r['estimated_cost'] as int?,
+      vendorId: r['vendor_id'] as String?,
+      vendorName: (r['vendor'] as Map?)?['name'] as String?,
     );
   }
 }

@@ -93,6 +93,7 @@ class ComplaintDetailScreen extends ConsumerWidget {
                   _kv('Category', c.category),
                   _kv('Raised by', '${c.raisedBy} · ${dateTimeFmt.format(c.createdAt)}'),
                   _kv('Assigned to', c.assignee ?? 'Not assigned'),
+                  if (c.vendorId != null) _kv('Vendor', c.vendorName ?? 'Assigned vendor'),
                   if (c.estimatedCost != null) _kv('Estimated cost', inr.format(c.estimatedCost)),
                   if (c.acceptedAt != null && c.flatNumber == 'Common')
                     _kv('Accepted', dateTimeFmt.format(c.acceptedAt!)),

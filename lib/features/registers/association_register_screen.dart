@@ -7,6 +7,7 @@ import '../../backend/register_repo.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
+import 'vendor_amc_screen.dart';
 
 final associationRegisterProvider = FutureProvider.autoDispose<List<AssociationRegisterItem>>((ref) => RegisterRepo.list());
 final expiringRegisterProvider = FutureProvider.autoDispose<List<AssociationRegisterItem>>((ref) => RegisterRepo.expiringSoon());
@@ -57,14 +58,14 @@ class AssociationRegisterScreen extends ConsumerWidget {
     }
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Column(
         children: [
           Material(
             color: Theme.of(context).colorScheme.surface,
             child: const TabBar(
               isScrollable: true,
-              tabs: [Tab(text: 'Registers'), Tab(text: 'Expiry dashboard')],
+              tabs: [Tab(text: 'Registers'), Tab(text: 'Expiry dashboard'), Tab(text: 'Vendors & AMCs')],
             ),
           ),
           Expanded(
@@ -103,6 +104,7 @@ class AssociationRegisterScreen extends ConsumerWidget {
                       for (final item in expiring.value!) _registerTile(item, expiryOnly: true),
                   ],
                 ),
+                const VendorAmcScreen(),
               ],
             ),
           ),
