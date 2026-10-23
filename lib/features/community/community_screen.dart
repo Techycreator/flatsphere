@@ -14,21 +14,33 @@ import '../../state/app_state.dart';
 import '../../widgets/common.dart';
 
 final emergencyContactsProvider = FutureProvider.autoDispose<List<EmergencyContact>>((ref) => CommunityRepo.emergencyContacts());
-final communityEventsProvider = FutureProvider.autoDispose<List<CommunityEvent>>((ref) => CommunityRepo.events());
+final communityEventsProvider = FutureProvider.autoDispose<List<CommunityEvent>>(
+  (ref) async => backendEnabled ? CommunityRepo.events() : const [],
+);
 final meetingActionsProvider = FutureProvider.autoDispose<List<MeetingAction>>((ref) => CommunityRepo.actions());
-final marketplaceProvider = FutureProvider.autoDispose<List<MarketplacePost>>((ref) => CommunityRepo.marketplace());
+final marketplaceProvider = FutureProvider.autoDispose<List<MarketplacePost>>(
+  (ref) async => backendEnabled ? CommunityRepo.marketplace() : const [],
+);
 final communityFundRequestsProvider = FutureProvider.autoDispose<List<FundRequestRecord>>((ref) async =>
   backendEnabled ? (await FinanceRepo.fundRequests()).where((request) => request.status == 'active').toList() : const []);
 
+List<String> marketplacePostTypesFor(Role role) => switch (role) {
+  Role.owner => const ['for_sale', 'wanted', 'service_recommendation'],
+  Role.caretaker => const ['service_recommendation'],
+  _ => const [],
+};
+
 class CommunityScreen extends ConsumerWidget {
-  const CommunityScreen({super.key});
+  const CommunityScreen({super.key, this.initialTab = 0});
+
+  final int initialTab;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionProvider)!.activeRole;
     final canManage = role == Role.admin || role == Role.president || role == Role.secretary;
     final canOrganize = canManage || role == Role.jointSecretary;
-    final canPost = role == Role.owner;
+    final marketplaceTypes = marketplacePostTypesFor(role);
     final financeVisible = role.seesFinance;
     final approvedExpenses = financeVisible
       ? ref.watch(expensesProvider).where((expense) => expense.status == ExpenseStatus.approved).toList()
@@ -40,6 +52,7 @@ class CommunityScreen extends ConsumerWidget {
 
     return DefaultTabController(
       length: 4,
+      initialIndex: initialTab,
       child: Column(
         children: [
           Material(
@@ -156,7 +169,13 @@ class CommunityScreen extends ConsumerWidget {
                 ),
                 PageBody(
                   children: [
-                    _header('Owner marketplace', canPost ? 'Create post' : null, canPost ? () => _addPost(context, ref) : null),
+                    _header(
+                      'Owner marketplace',
+                      marketplaceTypes.isNotEmpty ? 'Create post' : null,
+                      marketplaceTypes.isNotEmpty
+                          ? () => _addPost(context, ref, serviceOnly: role == Role.caretaker)
+                          : null,
+                    ),
                     const Text('Owner posts are visible to members of this association and expire after 30 days.'),
                     if (posts.isLoading) const LinearProgressIndicator(),
                     if (posts.hasError) _errorCard(posts.error),
@@ -255,11 +274,16 @@ Future<void> _addEvent(BuildContext context, WidgetRef ref) async {
           width: 460,
           child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
             TextField(controller: title, maxLength: 120, decoration: const InputDecoration(labelText: 'Event name *')),
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(initialValue: type, decoration: const InputDecoration(labelText: 'Type'),
               items: [for (final t in ['Festival','Kids activity','Republic Day','Onam','Christmas','Other']) DropdownMenuItem(value: t, child: Text(t))], onChanged: (v) => set(() => type = v ?? type)),
+            const SizedBox(height: 12),
             TextField(controller: location, decoration: const InputDecoration(labelText: 'Location')),
+            const SizedBox(height: 12),
             TextField(controller: budget, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'Budget (optional)', prefixText: '₹ ')),
+            const SizedBox(height: 12),
             TextField(controller: description, maxLines: 2, decoration: const InputDecoration(labelText: 'Details')),
+            const SizedBox(height: 8),
             if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!, style: TextStyle(color: Theme.of(ctx).colorScheme.error))),
               if (fundRequests.isNotEmpty)
                 DropdownButtonFormField<String?>(
@@ -272,6 +296,7 @@ Future<void> _addEvent(BuildContext context, WidgetRef ref) async {
                   ],
                   onChanged: (value) => set(() => fundRequestId = value),
                 ),
+                const SizedBox(height: 12),
             OutlinedButton.icon(onPressed: () async {
               final files=await FilePicker.pickFiles(type:FileType.custom,allowedExtensions:const ['jpg','jpeg','png','webp']);
               if(files.isEmpty||!ctx.mounted)return;
@@ -321,7 +346,9 @@ Future<void> _addAction(BuildContext context, WidgetRef ref) async {
   final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(
     title:const Text('Add action from MOM'),content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:[
       TextField(controller:mom,maxLength:120,decoration:const InputDecoration(labelText:'MOM reference *')),
+      const SizedBox(height:12),
       TextField(controller:title,maxLength:200,decoration:const InputDecoration(labelText:'Action *')),
+      const SizedBox(height:12),
       TextButton.icon(onPressed:()async{final d=await showDatePicker(context:ctx,initialDate:DateTime.now().add(const Duration(days:7)),firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:730)));if(d!=null&&ctx.mounted)set(()=>due=d);},icon:const Icon(Icons.calendar_today),label:Text(due==null?'Due date (optional)':dateFmt.format(due!))),
       if(error!=null) Align(alignment:Alignment.centerLeft,child:Text(error!,style:TextStyle(color:Theme.of(ctx).colorScheme.error))),
     ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:(){if(mom.text.trim().isEmpty||title.text.trim().isEmpty)return set(()=>error='MOM reference and action are required');Navigator.pop(ctx,true);},child:const Text('Add action'))],
@@ -330,15 +357,23 @@ Future<void> _addAction(BuildContext context, WidgetRef ref) async {
   mom.dispose();title.dispose();
 }
 
-Future<void> _addPost(BuildContext context, WidgetRef ref) async {
-  final title=TextEditingController();final description=TextEditingController();final contact=TextEditingController();final price=TextEditingController();var type='for_sale';
+Future<void> _addPost(BuildContext context, WidgetRef ref, {bool serviceOnly = false}) async {
+  final title=TextEditingController();final description=TextEditingController();final contact=TextEditingController();final price=TextEditingController();var type=serviceOnly?'service_recommendation':'for_sale';
   String? error;
+  final allowedTypes = marketplacePostTypesFor(serviceOnly ? Role.caretaker : Role.owner);
   final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(
     title:const Text('Marketplace post'),content:SizedBox(width:420,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-      DropdownButtonFormField<String>(initialValue:type,decoration:const InputDecoration(labelText:'Post type'),items:const [DropdownMenuItem(value:'for_sale',child:Text('For sale')),DropdownMenuItem(value:'wanted',child:Text('Wanted')),DropdownMenuItem(value:'service_recommendation',child:Text('Service recommendation'))],onChanged:(v)=>set(()=>type=v??type)),
+      if (!serviceOnly)
+        DropdownButtonFormField<String>(initialValue:type,decoration:const InputDecoration(labelText:'Post type'),items:[for(final value in allowedTypes) DropdownMenuItem(value:value,child:Text(switch(value){'for_sale'=>'For sale','wanted'=>'Wanted',_=>'Service recommendation'}))],onChanged:(v)=>set(()=>type=v??type))
+      else
+        const ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.home_repair_service_outlined),title:Text('Service recommendation')),
+      const SizedBox(height:12),
       TextField(controller:title,maxLength:120,decoration:const InputDecoration(labelText:'Title *')),
+      const SizedBox(height:12),
       TextField(controller:description,maxLength:1000,maxLines:3,decoration:const InputDecoration(labelText:'Description *')),
+      const SizedBox(height:12),
       TextField(controller:price,keyboardType:TextInputType.number,inputFormatters:[FilteringTextInputFormatter.digitsOnly],decoration:const InputDecoration(labelText:'Price (optional)',prefixText:'₹ ')),
+      const SizedBox(height:12),
       TextField(controller:contact,maxLength:254,decoration:const InputDecoration(labelText:'Contact *')),
       if(error!=null) Align(alignment:Alignment.centerLeft,child:Text(error!,style:TextStyle(color:Theme.of(ctx).colorScheme.error))),
     ]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:(){final value=contact.text.trim();final phoneDigits=value.replaceAll(RegExp(r'\D'),'');final validContact=RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value)||(phoneDigits.length>=5&&phoneDigits.length<=15&&RegExp(r'^[+0-9() -]+$').hasMatch(value));if(title.text.trim().isEmpty||description.text.trim().isEmpty)return set(()=>error='Title and description are required');if(!validContact)return set(()=>error='Enter a valid email address or phone number');Navigator.pop(ctx,true);},child:const Text('Post'))],
@@ -364,7 +399,10 @@ Future<bool?> _simpleDialog(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ...fields,
+              for (var index = 0; index < fields.length; index++) ...[
+                fields[index],
+                if (index < fields.length - 1) const SizedBox(height: 12),
+              ],
               if (error != null)
                 Align(
                   alignment: Alignment.centerLeft,

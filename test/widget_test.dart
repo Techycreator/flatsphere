@@ -3,7 +3,10 @@ import 'package:flatsphere/app/nav.dart';
 import 'package:flatsphere/features/approvals/membership_request_screen.dart';
 import 'package:flatsphere/features/directory/family_accounts_screen.dart';
 import 'package:flatsphere/features/dashboard/dashboard_screen.dart';
+import 'package:flatsphere/features/community/community_screen.dart';
+import 'package:flatsphere/features/directory/directory_screen.dart';
 import 'package:flatsphere/features/shell/association_settings_screen.dart';
+import 'package:flatsphere/features/attendance/staff_attendance_screen.dart';
 import 'package:flatsphere/l10n/app_localizations.dart';
 import 'package:flatsphere/main.dart';
 import 'package:flatsphere/models/models.dart';
@@ -55,6 +58,14 @@ class _AdminSessionNotifier extends SessionNotifier {
   );
 }
 
+class _ResidentSessionNotifier extends SessionNotifier {
+  @override
+  Session? build() => const Session(
+    user: DemoUser(id: 'resident-test', name: 'Resident Test', mobile: '', roles: [Role.resident]),
+    activeRole: Role.resident,
+  );
+}
+
 void main() {
   group('SLA colours (medium: blue day 0, amber 1-5, red 6+)', () {
     final now = DateTime(2026, 10, 16, 12);
@@ -102,6 +113,33 @@ void main() {
     expect(find.byType(DropdownButtonFormField<String>), findsNothing);
   });
 
+  testWidgets('Directory rejects plain text in the email field before adding a person', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionProvider.overrideWith(_SignedInSessionNotifier.new)],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: DirectoryScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('People'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add person').first);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Full name *'), 'Input Test');
+    await tester.enterText(find.widgetWithText(TextField, 'Email * (login codes are sent here)'), 'not-an-email');
+    await tester.tap(find.text('Add').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a valid email'), findsOneWidget);
+    expect(find.descendant(of: find.byType(AlertDialog), matching: find.text('Add person')), findsOneWidget);
+  });
+
   testWidgets('owner sees the DOB privacy notice in family accounts', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -144,6 +182,40 @@ void main() {
     expect(find.text('Connect Supabase to manage ID-document access.'), findsOneWidget);
   });
 
+  testWidgets('Admin can view the staff register', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionProvider.overrideWith(_AdminSessionNotifier.new)],
+        child: const MaterialApp(home: StaffAttendanceScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Staff register'), findsOneWidget);
+    expect(find.text('Your role cannot view staff attendance.'), findsNothing);
+  });
+
+  testWidgets('Add Staff dialog scrolls to required proof and blocks incomplete submit', (tester) async {
+    tester.view.physicalSize = const Size(390, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionProvider.overrideWith(_AdminSessionNotifier.new)],
+        child: const MaterialApp(home: Scaffold(body: StaffAttendanceScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add staff').first);
+    await tester.pumpAndSettle();
+    final proofLabel = find.text('Attach staff ID proof * (photos auto-compressed)');
+    await tester.ensureVisible(proofLabel);
+    expect(proofLabel, findsOneWidget);
+    await tester.tap(find.text('Add staff').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Name is required'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsOneWidget);
+  });
+
   testWidgets('SLA summary shows only active statuses with single-line labels', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -167,6 +239,38 @@ void main() {
     expect(labelMatching(RegExp(r'^Overdue \d+$')), findsOneWidget);
     expect(labelMatching(RegExp(r'^(Done|Closed) \d+$')), findsNothing);
     expect(find.byType(FittedBox), findsAtLeastNWidgets(3));
+  });
+
+  testWidgets('Owner dashboard includes community events and marketplace previews', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionProvider.overrideWith(_OwnerSessionNotifier.new)],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const DashboardScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Community events'), findsOneWidget);
+    expect(find.text('Marketplace'), findsOneWidget);
+  });
+
+  testWidgets('Resident dashboard includes community events and marketplace previews', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionProvider.overrideWith(_ResidentSessionNotifier.new)],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const DashboardScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Community events'), findsOneWidget);
+    expect(find.text('Marketplace'), findsOneWidget);
   });
 
   group('route guard', () {
@@ -229,6 +333,14 @@ void main() {
       expect(InputValidation.isVehicleRegistration('KL 07 AB 1234'), isTrue);
       expect(InputValidation.isVehicleRegistration('hello world'), isFalse);
       expect(InputValidation.isVehicleRegistration('AB-12'), isFalse);
+    });
+  });
+
+  group('marketplace role options', () {
+    test('caretakers may post services only; owners retain existing post types', () {
+      expect(marketplacePostTypesFor(Role.caretaker), ['service_recommendation']);
+      expect(marketplacePostTypesFor(Role.owner), ['for_sale', 'wanted', 'service_recommendation']);
+      expect(marketplacePostTypesFor(Role.admin), isEmpty);
     });
   });
 

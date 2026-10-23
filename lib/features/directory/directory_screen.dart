@@ -224,30 +224,36 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                     controller: number,
                     decoration: const InputDecoration(labelText: 'Flat number *', hintText: 'e.g. A-101'),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: block,
                     decoration: const InputDecoration(labelText: 'Block / tower'),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: type,
                     decoration: const InputDecoration(labelText: 'Type', hintText: '1BHK, 2BHK, 3BHK…'),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: sqft,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(labelText: 'Area (sq ft)'),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: carNumber,
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(labelText: 'Car registration number (optional)'),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: bikeNumber,
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(labelText: 'Bike registration number (optional)'),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: parkingSlot,
                     decoration: const InputDecoration(labelText: 'Parking slot (optional)'),
@@ -418,17 +424,20 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                     controller: name,
                     decoration: const InputDecoration(labelText: 'Full name *'),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: email,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(labelText: 'Email * (login codes are sent here)'),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: mobile,
                     keyboardType: TextInputType.phone,
                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
                     decoration: InputDecoration(labelText: needsFlat() ? 'Mobile *' : 'Mobile'),
                   ),
+                  const SizedBox(height: 8),
                   if (needsFlat())
                     TextButton.icon(
                       onPressed: () async {
@@ -446,6 +455,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Role>(
                     initialValue: role,
+                    isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Role'),
                     items: [
                       for (final r in roles)
@@ -462,6 +472,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                   if (needsFlat())
                     DropdownButtonFormField<String>(
                       initialValue: flat,
+                      isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Flat *'),
                       items: [for (final f in st.flats) DropdownMenuItem(value: f.number, child: Text(f.number))],
                       onChanged: (v) => set(() => flat = v),

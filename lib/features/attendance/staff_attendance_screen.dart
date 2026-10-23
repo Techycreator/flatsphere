@@ -24,7 +24,8 @@ class StaffAttendanceScreen extends ConsumerWidget {
     final canManageStaff = role == Role.admin || role == Role.president || role == Role.secretary;
     final canViewSalary = canManageStaff || role == Role.vicePresident || role == Role.jointSecretary;
     final canMark = role == Role.caretaker;
-    final canReview = role == Role.president ||
+    final canReview = canManageStaff ||
+      role == Role.president ||
         role == Role.vicePresident ||
         role == Role.secretary ||
         role == Role.jointSecretary ||
@@ -115,24 +116,43 @@ class StaffAttendanceScreen extends ConsumerWidget {
     return PageBody(
       maxWidth: 1000,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text('Staff attendance', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-            ),
-            if (!canMark)
-              TextButton.icon(
-                onPressed: selectDate,
-                icon: const Icon(Icons.calendar_month_outlined),
-                label: Text(dateFmt.format(state.date)),
-              )
-            else
-              Chip(avatar: const Icon(Icons.today_outlined, size: 18), label: Text(dateFmt.format(state.date))),
-            if (canManageStaff) ...[
-              const SizedBox(width: 8),
-              FilledButton.icon(onPressed: addStaff, icon: const Icon(Icons.person_add_alt), label: const Text('Add staff')),
-            ],
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final controls = <Widget>[
+              IconButton(
+                tooltip: 'Refresh staff register',
+                onPressed: state.loading ? null : () => notifier.refresh(state.date),
+                icon: const Icon(Icons.refresh),
+              ),
+              if (!canMark)
+                TextButton.icon(
+                  onPressed: selectDate,
+                  icon: const Icon(Icons.calendar_month_outlined),
+                  label: Text(dateFmt.format(state.date)),
+                )
+              else
+                Chip(avatar: const Icon(Icons.today_outlined, size: 18), label: Text(dateFmt.format(state.date))),
+              if (canManageStaff)
+                FilledButton.icon(onPressed: addStaff, icon: const Icon(Icons.person_add_alt), label: const Text('Add staff')),
+            ];
+            if (constraints.maxWidth < 620) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Staff attendance', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+                  Align(alignment: Alignment.centerRight, child: Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, children: controls)),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(
+                  child: Text('Staff attendance', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+                ),
+                ...controls,
+              ],
+            );
+          },
         ),
         const SizedBox(height: 8),
         Text(
@@ -268,72 +288,77 @@ Future<_StaffDraft?> _addStaffDialog(BuildContext context) async {
         title: const Text('Add staff member'),
         content: SizedBox(
           width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: name, decoration: const InputDecoration(labelText: 'Full name *')),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<StaffType>(
-                initialValue: type,
-                decoration: const InputDecoration(labelText: 'Staff type'),
-                items: [for (final option in StaffType.values) DropdownMenuItem(value: option, child: Text(option.label))],
-                onChanged: (value) => setState(() {
-                  type = value ?? type;
-                  area = switch (type) {
-                    StaffType.housekeeping => 'Cleaning',
-                    StaffType.stpOperator => 'STP',
-                    StaffType.security => 'Security',
-                  };
-                }),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: area,
-                decoration: const InputDecoration(labelText: 'Monitor area'),
-                items: [for (final option in monitorAreas) DropdownMenuItem(value: option, child: Text(option))],
-                onChanged: (value) => setState(() => area = value ?? area),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<StaffEmployerType>(
-                initialValue: employerType,
-                decoration: const InputDecoration(labelText: 'Employer'),
-                items: const [
-                  DropdownMenuItem(value: StaffEmployerType.association, child: Text('Association-employed')),
-                  DropdownMenuItem(value: StaffEmployerType.agency, child: Text('Agency-employed')),
-                ],
-                onChanged: (value) => setState(() => employerType = value ?? employerType),
-              ),
-              if (employerType == StaffEmployerType.agency) ...[
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: name, decoration: const InputDecoration(labelText: 'Full name *')),
                 const SizedBox(height: 12),
-                TextField(controller: agency, decoration: const InputDecoration(labelText: 'Agency name *')),
+                DropdownButtonFormField<StaffType>(
+                  initialValue: type,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Staff type'),
+                  items: [for (final option in StaffType.values) DropdownMenuItem(value: option, child: Text(option.label))],
+                  onChanged: (value) => setState(() {
+                    type = value ?? type;
+                    area = switch (type) {
+                      StaffType.housekeeping => 'Cleaning',
+                      StaffType.stpOperator => 'STP',
+                      StaffType.security => 'Security',
+                    };
+                  }),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: area,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Monitor area'),
+                  items: [for (final option in monitorAreas) DropdownMenuItem(value: option, child: Text(option))],
+                  onChanged: (value) => setState(() => area = value ?? area),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<StaffEmployerType>(
+                  initialValue: employerType,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Employer'),
+                  items: const [
+                    DropdownMenuItem(value: StaffEmployerType.association, child: Text('Association-employed')),
+                    DropdownMenuItem(value: StaffEmployerType.agency, child: Text('Agency-employed')),
+                  ],
+                  onChanged: (value) => setState(() => employerType = value ?? employerType),
+                ),
+                if (employerType == StaffEmployerType.agency) ...[
+                  const SizedBox(height: 12),
+                  TextField(controller: agency, decoration: const InputDecoration(labelText: 'Agency name *')),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: salary,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(labelText: 'Monthly salary *', prefixText: '₹ '),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final files = await FilePicker.pickFiles(
+                      type: FileType.custom,
+                      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+                    );
+                    if (files.isEmpty || !dialogContext.mounted) return;
+                    final size = await files.first.length();
+                    if (!dialogContext.mounted) return;
+                    if (size == null || size > maxSourceUploadBytes(files.first.extension ?? '')) {
+                      return setState(() => error = 'File exceeds the supported source size');
+                    }
+                    setState(() => proof = files.first);
+                  },
+                  icon: Icon(proof == null ? Icons.upload_file_outlined : Icons.verified_outlined),
+                  label: Text(proof?.name ?? 'Attach staff ID proof * (photos auto-compressed)'),
+                ),
+                if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
               ],
-              const SizedBox(height: 12),
-              TextField(
-                controller: salary,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'Monthly salary *', prefixText: '₹ '),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final files = await FilePicker.pickFiles(
-                    type: FileType.custom,
-                    allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
-                  );
-                  if (files.isEmpty || !dialogContext.mounted) return;
-                  final size = await files.first.length();
-                  if (!dialogContext.mounted) return;
-                  if (size == null || size > maxSourceUploadBytes(files.first.extension ?? '')) {
-                    return setState(() => error = 'File exceeds the supported source size');
-                  }
-                  setState(() => proof = files.first);
-                },
-                icon: Icon(proof == null ? Icons.upload_file_outlined : Icons.verified_outlined),
-                label: Text(proof?.name ?? 'Attach staff ID proof * (photos auto-compressed)'),
-              ),
-              if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
-            ],
+            ),
           ),
         ),
         actions: [

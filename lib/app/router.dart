@@ -98,7 +98,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/association-documents', pageBuilder: (_, _) => _page(const AssociationDocumentsScreen())),
           GoRoute(path: '/association-settings', pageBuilder: (_, _) => _page(const AssociationSettingsScreen())),
           GoRoute(path: '/amenities', pageBuilder: (_, _) => _page(const AmenitiesScreen())),
-          GoRoute(path: '/community', pageBuilder: (_, _) => _page(const CommunityScreen())),
+          GoRoute(
+            path: '/community',
+            pageBuilder: (_, state) {
+              final initialTab = switch (state.uri.queryParameters['tab']) {
+                'events' => 1,
+                'marketplace' => 3,
+                _ => 0,
+              };
+              return _page(CommunityScreen(initialTab: initialTab));
+            },
+          ),
           GoRoute(
             path: '/approvals',
             pageBuilder: (_, _) => _page(const ApprovalsScreen()),

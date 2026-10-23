@@ -152,8 +152,11 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(controller: name, maxLength: 120, decoration: const InputDecoration(labelText: 'Association name *')),
+                  const SizedBox(height: 12),
                   TextField(controller: state, maxLength: 80, decoration: const InputDecoration(labelText: 'State *')),
+                  const SizedBox(height: 12),
                   TextField(controller: city, maxLength: 80, decoration: const InputDecoration(labelText: 'City')),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: brand,
                     inputFormatters: [LengthLimitingTextInputFormatter(7)],
@@ -245,8 +248,11 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
           child: Column(
             children: [
               TextField(controller: _name, decoration: InputDecoration(labelText: '${l.associationName} *')),
+              const SizedBox(height: 12),
               TextField(controller: _state, decoration: InputDecoration(labelText: '${l.state} *')),
+              const SizedBox(height: 12),
               TextField(controller: _city, decoration: InputDecoration(labelText: l.city)),
+              const SizedBox(height: 12),
               TextField(
                 controller: _brand,
                 textCapitalization: TextCapitalization.none,

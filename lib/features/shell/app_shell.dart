@@ -133,32 +133,63 @@ class AppShell extends ConsumerWidget {
   }
 
   void _showMore(BuildContext context, List<NavItem> more, AppLocalizations l) {
+    final wide = MediaQuery.sizeOf(context).width >= 840;
+    Widget menu(BuildContext ctx) => Material(
+      color: Theme.of(ctx).colorScheme.surface,
+      elevation: 8,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 320,
+          maxHeight: MediaQuery.sizeOf(ctx).height - 32,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.only(bottom: 8),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Text(l.more, style: Theme.of(ctx).textTheme.titleMedium),
+            ),
+            for (final item in more)
+              ListTile(
+                leading: Icon(item.icon),
+                title: Text(item.label(l)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.go(item.path);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (wide) {
+      final leftInset = MediaQuery.sizeOf(context).width >= 1200 ? 264.0 : 96.0;
+      showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: l.more,
+        barrierColor: Colors.black26,
+        pageBuilder: (ctx, _, _) => SafeArea(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: EdgeInsets.only(left: leftInset, top: 16, bottom: 16),
+              child: menu(ctx),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(ctx).height * 0.72,
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 16),
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Text(l.more, style: Theme.of(ctx).textTheme.titleMedium),
-              ),
-              for (final i in more)
-                ListTile(
-                  leading: Icon(i.icon),
-                  title: Text(i.label(l)),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    context.go(i.path);
-                  },
-                ),
-            ],
-          ),
-        ),
-      ),
+      builder: (ctx) => SafeArea(child: SizedBox(height: MediaQuery.sizeOf(ctx).height * 0.72, child: menu(ctx))),
     );
   }
 

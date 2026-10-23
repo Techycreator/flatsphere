@@ -11,6 +11,7 @@ import '../../state/demo_data.dart';
 import '../../widgets/common.dart';
 import '../approvals/approval_tile.dart';
 import '../complaints/complaint_tile.dart';
+import '../community/community_screen.dart' show communityEventsProvider, marketplaceProvider;
 import '../finance/charts.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -151,6 +152,70 @@ class _MeetingsCard extends ConsumerWidget {
                   ),
               ],
             ),
+    );
+  }
+}
+
+class _CommunityPreview extends ConsumerWidget {
+  const _CommunityPreview();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final events = ref.watch(communityEventsProvider);
+    final posts = ref.watch(marketplaceProvider);
+    final now = DateTime.now();
+    final upcoming = events.value
+            ?.where((event) => event.status == 'scheduled' && event.startsAt.isAfter(now))
+            .take(3)
+            .toList() ??
+        const <CommunityEvent>[];
+    final activePosts = posts.value?.take(3).toList() ?? const <MarketplacePost>[];
+
+    Widget content<T>(AsyncValue<List<T>> state, List<T> items, String emptyMessage, List<Widget> rows) {
+      if (state.isLoading) return const LinearProgressIndicator();
+      if (state.hasError) return EmptyState('Could not load: ${state.error}', icon: Icons.error_outline);
+      if (items.isEmpty) return EmptyState(emptyMessage, icon: Icons.inbox_outlined);
+      return Column(children: rows);
+    }
+
+    return TwoCol(
+      left: SectionCard(
+        title: 'Community events',
+        action: TextButton(onPressed: () => context.go('/community?tab=events'), child: const Text('View all')),
+        child: content(
+          events,
+          upcoming,
+          'No upcoming events.',
+          [
+            for (final event in upcoming)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(event.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('${event.type} · ${dateTimeFmt.format(event.startsAt)}', maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+        ),
+      ),
+      right: SectionCard(
+        title: 'Marketplace',
+        action: TextButton(onPressed: () => context.go('/community?tab=marketplace'), child: const Text('View all')),
+        child: content(
+          posts,
+          activePosts,
+          'No active marketplace posts.',
+          [
+            for (final post in activePosts)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(post.type.replaceAll('_', ' '), maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: post.price == null ? null : Text(inr.format(post.price)),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -515,6 +580,8 @@ class _OwnerDash extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         const _MeetingsCard(generalBodyOnly: true),
+        const SizedBox(height: 16),
+        const _CommunityPreview(),
       ],
     );
   }
@@ -559,6 +626,8 @@ class _ResidentDash extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         Text('Financial statements are visible to owners only.', style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 16),
+        const _CommunityPreview(),
       ],
     );
   }
