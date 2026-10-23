@@ -80,7 +80,7 @@ class MeetingsScreen extends ConsumerWidget {
                     onChanged: (value) => setDialogState(() => type = value ?? type),
                   ),
                   const SizedBox(height: 12),
-                  TextField(controller: title, decoration: InputDecoration(labelText: '${l.meetingTitle} *')),
+                  TextField(controller: title, maxLength: 200, decoration: InputDecoration(labelText: '${l.meetingTitle} *')),
                   const SizedBox(height: 12),
                   SegmentedButton<MeetingMode>(
                     segments: [
@@ -121,7 +121,7 @@ class MeetingsScreen extends ConsumerWidget {
                     icon: const Icon(Icons.calendar_month_outlined),
                     label: Text(dateTimeFmt.format(at)),
                   ),
-                  TextField(controller: agenda, maxLines: 3, decoration: InputDecoration(labelText: l.meetingAgenda)),
+                  TextField(controller: agenda, maxLength: 2000, maxLines: 3, decoration: InputDecoration(labelText: l.meetingAgenda)),
                   const SizedBox(height: 8),
                   Text(l.meetingSaved, style: const TextStyle(fontSize: 12)),
                 ],

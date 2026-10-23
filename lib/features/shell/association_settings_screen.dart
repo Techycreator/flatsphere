@@ -139,26 +139,48 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
     final state = TextEditingController(text: _state.text);
     final city = TextEditingController(text: _city.text);
     final brand = TextEditingController(text: _brand.text);
+    String? error;
     final created = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Create association'),
-        content: SizedBox(
-          width: 440,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: name, decoration: const InputDecoration(labelText: 'Association name *')),
-              TextField(controller: state, decoration: const InputDecoration(labelText: 'State *')),
-              TextField(controller: city, decoration: const InputDecoration(labelText: 'City')),
-              TextField(controller: brand, decoration: const InputDecoration(labelText: 'Brand color *', helperText: '#RRGGBB')),
-            ],
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Create association'),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: name, maxLength: 120, decoration: const InputDecoration(labelText: 'Association name *')),
+                  TextField(controller: state, maxLength: 80, decoration: const InputDecoration(labelText: 'State *')),
+                  TextField(controller: city, maxLength: 80, decoration: const InputDecoration(labelText: 'City')),
+                  TextField(
+                    controller: brand,
+                    inputFormatters: [LengthLimitingTextInputFormatter(7)],
+                    decoration: const InputDecoration(labelText: 'Brand color *', helperText: '#RRGGBB'),
+                  ),
+                  if (error != null)
+                    Align(alignment: Alignment.centerLeft, child: Text(error!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error))),
+                ],
+              ),
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (name.text.trim().isEmpty || state.text.trim().isEmpty) {
+                  return setDialogState(() => error = 'Association name and state are required');
+                }
+                if (!RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(brand.text.trim())) {
+                  return setDialogState(() => error = 'Brand color must use #RRGGBB format');
+                }
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Create'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Create')),
-        ],
       ),
     );
     if (created != true || !mounted) {

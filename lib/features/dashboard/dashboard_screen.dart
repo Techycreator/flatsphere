@@ -60,15 +60,21 @@ class _SlaSummary extends ConsumerWidget {
         .where((c) => !c.kind.isEnhancement && !c.inReview)
         .toList();
     int n(SlaColor c) => tracked.where((x) => slaFor(x, now).color == c).length;
-    Widget seg(SlaColor c, String label) => Expanded(
-      flex: n(c) == 0 ? 1 : n(c) * 3,
+    Widget seg(SlaColor c, String label, int flex) => Expanded(
+      flex: flex,
       child: Container(
         height: 44,
         color: AppColors.sla(c),
         alignment: Alignment.center,
-        child: Text(
-          '$label ${n(c)}',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            '$label ${n(c)}',
+            maxLines: 1,
+            softWrap: false,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
         ),
       ),
     );
@@ -79,11 +85,9 @@ class _SlaSummary extends ConsumerWidget {
           borderRadius: BorderRadius.circular(10),
           child: Row(
             children: [
-              seg(SlaColor.blue, 'Open ${n(SlaColor.blue)}'),
-              seg(SlaColor.amber, 'Attention ${n(SlaColor.amber)}'),
-              seg(SlaColor.red, 'Overdue ${n(SlaColor.red)}'),
-              seg(SlaColor.green, 'Done ${n(SlaColor.green)}'),
-              seg(SlaColor.grey, 'Closed ${n(SlaColor.grey)}'),
+              seg(SlaColor.blue, 'Open', 3),
+              seg(SlaColor.amber, 'Attention', 5),
+              seg(SlaColor.red, 'Overdue', 4),
             ],
           ),
         ),

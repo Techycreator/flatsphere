@@ -152,13 +152,18 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
               child: TextField(controller: _person, decoration: const InputDecoration(labelText: 'Person / staff name')),
             ),
             SizedBox(
-              width: 210,
+              width: 270,
               child: DropdownButtonFormField<String?>(
                 initialValue: _type,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Record type'),
                 items: [
-                  const DropdownMenuItem<String?>(value: null, child: Text('All record types')),
-                  for (final (value, label) in _archiveTypes) DropdownMenuItem(value: value, child: Text(label)),
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('All record types', overflow: TextOverflow.ellipsis),
+                  ),
+                  for (final (value, label) in _archiveTypes)
+                    DropdownMenuItem(value: value, child: Text(label, overflow: TextOverflow.ellipsis)),
                 ],
                 onChanged: (value) => setState(() => _type = value),
               ),

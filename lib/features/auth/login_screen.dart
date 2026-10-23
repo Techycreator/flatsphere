@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
+import '../../validation/input_validation.dart';
 import '../shell/app_shell.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -45,7 +46,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _sendCode() {
-    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_mobile.text.trim())) {
+    if (!InputValidation.isEmail(_mobile.text)) {
       setState(() => _error = 'Enter a valid email address');
       return;
     }

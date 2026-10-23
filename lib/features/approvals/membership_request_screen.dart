@@ -14,6 +14,7 @@ import '../../state/app_state.dart';
 import '../../state/directory_state.dart';
 import '../../state/demo_data.dart';
 import '../../widgets/common.dart';
+import '../../validation/input_validation.dart';
 
 /// New membership / committee change requests (spec W20–W22).
 enum MembershipRequestType {
@@ -103,9 +104,13 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
       toast(context, 'Enter the incoming person\'s name');
       return;
     }
+    if (_newName.text.trim().length > 120) {
+      toast(context, 'Name must be 120 characters or fewer');
+      return;
+    }
     if (widget.type != MembershipRequestType.committee &&
-        (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_email.text.trim()) ||
-            !RegExp(r'^[+0-9() -]{5,24}$').hasMatch(_mobile.text.trim()) ||
+        (!InputValidation.isEmail(_email.text) ||
+          !InputValidation.isPhone(_mobile.text) ||
             _proofs.isEmpty)) {
       toast(context, 'Enter a valid email and phone number, and attach at least one ID proof');
       return;
@@ -128,15 +133,20 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
           return;
         }
         if (FamilyAccountRules.isLoginEligible(birthDate, minimumAge, DateUtils.dateOnly(DateTime.now())) &&
-            !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+            !InputValidation.isEmail(email)) {
           toast(context, 'An eligible family member needs a unique email address for login');
           return;
         }
-        if (email.isNotEmpty && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+        if (email.isNotEmpty && !InputValidation.isEmail(email)) {
           toast(context, 'Enter a valid family-member email address');
           return;
         }
       }
+    }
+    if (widget.type == MembershipRequestType.committee &&
+        [_for, _against, _abstain].any((controller) => !RegExp(r'^\d{1,6}$').hasMatch(controller.text.trim()))) {
+      toast(context, 'Vote counts must be non-negative whole numbers');
+      return;
     }
     final notifier = ref.read(approvalsProvider.notifier);
     final id = notifier.nextId();
@@ -392,6 +402,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                       ),
                     TextField(
                       controller: _newName,
+                      maxLength: 120,
                       decoration: const InputDecoration(labelText: 'New owner name(s) *'),
                     ),
                     const SizedBox(height: 12),
@@ -417,6 +428,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                     _info('Outgoing resident', outgoingResident ?? 'None'),
                     TextField(
                       controller: _newName,
+                      maxLength: 120,
                       decoration: const InputDecoration(labelText: 'Incoming resident name *'),
                     ),
                     const SizedBox(height: 12),
@@ -553,6 +565,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                     const SizedBox(height: 12),
                     TextField(
                       controller: _newName,
+                      maxLength: 120,
                       decoration: const InputDecoration(labelText: 'Incoming member *'),
                     ),
                     const SizedBox(height: 12),
@@ -574,6 +587,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                           child: TextField(
                             controller: _for,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
                             decoration: const InputDecoration(labelText: 'For'),
                           ),
                         ),
@@ -582,6 +596,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                           child: TextField(
                             controller: _against,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
                             decoration: const InputDecoration(labelText: 'Against'),
                           ),
                         ),
@@ -590,6 +605,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                           child: TextField(
                             controller: _abstain,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
                             decoration: const InputDecoration(labelText: 'Abstain'),
                           ),
                         ),

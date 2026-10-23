@@ -704,7 +704,7 @@ Future<_FundRequestDraft?> _fundRequestDialog(BuildContext context) async {
           width: 440,
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: title, decoration: const InputDecoration(labelText: 'Request name *')),
+                TextField(controller: title, maxLength: 120, decoration: const InputDecoration(labelText: 'Request name *')),
               DropdownButtonFormField<String>(
                 initialValue: type,
                 decoration: const InputDecoration(labelText: 'Type'),
@@ -712,9 +712,9 @@ Future<_FundRequestDraft?> _fundRequestDialog(BuildContext context) async {
                 onChanged: (value) => set(() => type = value ?? type),
               ),
               TextField(controller: amount, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'Amount (optional)', prefixText: '₹ ')),
-              TextField(controller: basis, decoration: const InputDecoration(labelText: 'Basis / per-flat details')),
-              if (type == 'recurring') TextField(controller: dueDay, decoration: const InputDecoration(labelText: 'Due day / schedule')),
-              TextField(controller: momRef, decoration: const InputDecoration(labelText: 'EC MOM reference *')),
+              TextField(controller: basis, maxLength: 300, decoration: const InputDecoration(labelText: 'Basis / per-flat details')),
+              if (type == 'recurring') TextField(controller: dueDay, maxLength: 120, decoration: const InputDecoration(labelText: 'Due day / schedule *')),
+              TextField(controller: momRef, maxLength: 120, decoration: const InputDecoration(labelText: 'EC MOM reference *')),
               if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
             ]),
           ),
@@ -723,6 +723,8 @@ Future<_FundRequestDraft?> _fundRequestDialog(BuildContext context) async {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(onPressed: () {
             if (title.text.trim().isEmpty || momRef.text.trim().isEmpty) return set(() => error = 'Name and MOM reference are required');
+            if (type == 'recurring' && dueDay.text.trim().isEmpty) return set(() => error = 'Enter a schedule for recurring requests');
+            if (amount.text.trim().isNotEmpty && (int.tryParse(amount.text.trim()) ?? 0) <= 0) return set(() => error = 'Amount must be greater than zero');
             Navigator.pop(ctx, _FundRequestDraft(title: title.text.trim(), type: type, amount: int.tryParse(amount.text), basis: basis.text.trim(), dueDay: dueDay.text.trim(), momRef: momRef.text.trim()));
           }, child: const Text('Submit')),
         ],

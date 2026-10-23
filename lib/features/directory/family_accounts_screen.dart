@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
+import '../../validation/input_validation.dart';
 
 class FamilyAccountsScreen extends ConsumerStatefulWidget {
   const FamilyAccountsScreen({super.key});
@@ -69,6 +70,10 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
     );
     controller.dispose();
     if (email == null || email.isEmpty || !mounted) return;
+    if (!InputValidation.isEmail(email)) {
+      toast(context, 'Enter a valid email address');
+      return;
+    }
     try {
       await DirectoryRepo.updateFamilyMemberEmail(member.id, email);
       await _load();

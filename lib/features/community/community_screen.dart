@@ -198,12 +198,29 @@ Future<void> _addContact(BuildContext context, WidgetRef ref) async {
   final name = TextEditingController();
   final phone = TextEditingController();
   final notes = TextEditingController();
-  final result = await _simpleDialog(context, title: 'Emergency contact', fields: [
-    TextField(controller: label, decoration: const InputDecoration(labelText: 'Service / label *')),
-    TextField(controller: name, decoration: const InputDecoration(labelText: 'Contact name *')),
-    TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone *')),
-    TextField(controller: notes, decoration: const InputDecoration(labelText: 'Notes')),
-  ]);
+  final result = await _simpleDialog(
+    context,
+    title: 'Emergency contact',
+    validate: () {
+      if (label.text.trim().isEmpty || name.text.trim().isEmpty) return 'Service and contact name are required';
+      final digits = phone.text.replaceAll(RegExp(r'\D'), '');
+      if (digits.length < 5 || digits.length > 15 || !RegExp(r'^[+0-9() -]+$').hasMatch(phone.text.trim())) {
+        return 'Enter a valid phone number';
+      }
+      return null;
+    },
+    fields: [
+      TextField(controller: label, maxLength: 100, decoration: const InputDecoration(labelText: 'Service / label *')),
+      TextField(controller: name, maxLength: 120, decoration: const InputDecoration(labelText: 'Contact name *')),
+      TextField(
+        controller: phone,
+        keyboardType: TextInputType.phone,
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
+        decoration: const InputDecoration(labelText: 'Phone *'),
+      ),
+      TextField(controller: notes, maxLength: 500, decoration: const InputDecoration(labelText: 'Notes')),
+    ],
+  );
   if (result == true) {
     try {
       await CommunityRepo.addEmergencyContact(label: label.text, name: name.text, phone: phone.text, category: 'Emergency', notes: notes.text);
@@ -228,6 +245,7 @@ Future<void> _addEvent(BuildContext context, WidgetRef ref) async {
   var endsAt = startsAt.add(const Duration(hours: 3));
   PlatformFile? photo;
   String? fundRequestId;
+  String? error;
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => StatefulBuilder(
@@ -236,12 +254,13 @@ Future<void> _addEvent(BuildContext context, WidgetRef ref) async {
         content: SizedBox(
           width: 460,
           child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: title, decoration: const InputDecoration(labelText: 'Event name *')),
+            TextField(controller: title, maxLength: 120, decoration: const InputDecoration(labelText: 'Event name *')),
             DropdownButtonFormField<String>(initialValue: type, decoration: const InputDecoration(labelText: 'Type'),
               items: [for (final t in ['Festival','Kids activity','Republic Day','Onam','Christmas','Other']) DropdownMenuItem(value: t, child: Text(t))], onChanged: (v) => set(() => type = v ?? type)),
             TextField(controller: location, decoration: const InputDecoration(labelText: 'Location')),
             TextField(controller: budget, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'Budget (optional)', prefixText: '₹ ')),
             TextField(controller: description, maxLines: 2, decoration: const InputDecoration(labelText: 'Details')),
+            if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!, style: TextStyle(color: Theme.of(ctx).colorScheme.error))),
               if (fundRequests.isNotEmpty)
                 DropdownButtonFormField<String?>(
                   initialValue: fundRequestId,
@@ -275,7 +294,20 @@ Future<void> _addEvent(BuildContext context, WidgetRef ref) async {
             }, icon: const Icon(Icons.event_available), label: Text('Ends ${dateTimeFmt.format(endsAt)}')),
           ])),
         ),
-        actions: [TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Schedule'))],
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              if (title.text.trim().isEmpty) return set(() => error = 'Event name is required');
+              if (!endsAt.isAfter(startsAt)) return set(() => error = 'End time must be after start time');
+              if (budget.text.trim().isNotEmpty && (int.tryParse(budget.text.trim()) ?? 0) <= 0) {
+                return set(() => error = 'Budget must be greater than zero');
+              }
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Schedule'),
+          ),
+        ],
       ),
     ),
   );
@@ -285,12 +317,14 @@ Future<void> _addEvent(BuildContext context, WidgetRef ref) async {
 
 Future<void> _addAction(BuildContext context, WidgetRef ref) async {
   final mom=TextEditingController();final title=TextEditingController();DateTime? due;
+  String? error;
   final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(
     title:const Text('Add action from MOM'),content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:[
-      TextField(controller:mom,decoration:const InputDecoration(labelText:'MOM reference *')),
-      TextField(controller:title,decoration:const InputDecoration(labelText:'Action *')),
-      TextButton.icon(onPressed:()async{final d=await showDatePicker(context:ctx,initialDate:DateTime.now().add(const Duration(days:7)),firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:730)));if(d!=null)set(()=>due=d);},icon:const Icon(Icons.calendar_today),label:Text(due==null?'Due date (optional)':dateFmt.format(due!))),
-    ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Add action'))],
+      TextField(controller:mom,maxLength:120,decoration:const InputDecoration(labelText:'MOM reference *')),
+      TextField(controller:title,maxLength:200,decoration:const InputDecoration(labelText:'Action *')),
+      TextButton.icon(onPressed:()async{final d=await showDatePicker(context:ctx,initialDate:DateTime.now().add(const Duration(days:7)),firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:730)));if(d!=null&&ctx.mounted)set(()=>due=d);},icon:const Icon(Icons.calendar_today),label:Text(due==null?'Due date (optional)':dateFmt.format(due!))),
+      if(error!=null) Align(alignment:Alignment.centerLeft,child:Text(error!,style:TextStyle(color:Theme.of(ctx).colorScheme.error))),
+    ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:(){if(mom.text.trim().isEmpty||title.text.trim().isEmpty)return set(()=>error='MOM reference and action are required');Navigator.pop(ctx,true);},child:const Text('Add action'))],
   )));
   if(ok==true){try{await CommunityRepo.addAction(momRef:mom.text,title:title.text,dueDate:due);ref.invalidate(meetingActionsProvider);}catch(error){if(context.mounted)toast(context,'$error');}}
   mom.dispose();title.dispose();
@@ -298,17 +332,59 @@ Future<void> _addAction(BuildContext context, WidgetRef ref) async {
 
 Future<void> _addPost(BuildContext context, WidgetRef ref) async {
   final title=TextEditingController();final description=TextEditingController();final contact=TextEditingController();final price=TextEditingController();var type='for_sale';
+  String? error;
   final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(
     title:const Text('Marketplace post'),content:SizedBox(width:420,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
       DropdownButtonFormField<String>(initialValue:type,decoration:const InputDecoration(labelText:'Post type'),items:const [DropdownMenuItem(value:'for_sale',child:Text('For sale')),DropdownMenuItem(value:'wanted',child:Text('Wanted')),DropdownMenuItem(value:'service_recommendation',child:Text('Service recommendation'))],onChanged:(v)=>set(()=>type=v??type)),
-      TextField(controller:title,decoration:const InputDecoration(labelText:'Title *')),
-      TextField(controller:description,maxLines:3,decoration:const InputDecoration(labelText:'Description *')),
+      TextField(controller:title,maxLength:120,decoration:const InputDecoration(labelText:'Title *')),
+      TextField(controller:description,maxLength:1000,maxLines:3,decoration:const InputDecoration(labelText:'Description *')),
       TextField(controller:price,keyboardType:TextInputType.number,inputFormatters:[FilteringTextInputFormatter.digitsOnly],decoration:const InputDecoration(labelText:'Price (optional)',prefixText:'₹ ')),
-      TextField(controller:contact,decoration:const InputDecoration(labelText:'Contact *')),
-    ]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Post'))],
+      TextField(controller:contact,maxLength:254,decoration:const InputDecoration(labelText:'Contact *')),
+      if(error!=null) Align(alignment:Alignment.centerLeft,child:Text(error!,style:TextStyle(color:Theme.of(ctx).colorScheme.error))),
+    ]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:(){final value=contact.text.trim();final phoneDigits=value.replaceAll(RegExp(r'\D'),'');final validContact=RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value)||(phoneDigits.length>=5&&phoneDigits.length<=15&&RegExp(r'^[+0-9() -]+$').hasMatch(value));if(title.text.trim().isEmpty||description.text.trim().isEmpty)return set(()=>error='Title and description are required');if(!validContact)return set(()=>error='Enter a valid email address or phone number');Navigator.pop(ctx,true);},child:const Text('Post'))],
   )));
   if(ok==true){try{await CommunityRepo.addMarketplacePost(type:type,title:title.text,description:description.text,contact:contact.text,price:int.tryParse(price.text));ref.invalidate(marketplaceProvider);}catch(error){if(context.mounted)toast(context,'$error');}}
   title.dispose();description.dispose();contact.dispose();price.dispose();
 }
 
-Future<bool?> _simpleDialog(BuildContext context,{required String title,required List<Widget> fields})=>showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:Text(title),content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:fields)),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Save'))]));
+Future<bool?> _simpleDialog(
+  BuildContext context, {
+  required String title,
+  required List<Widget> fields,
+  String? Function()? validate,
+}) {
+  String? error;
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, set) => AlertDialog(
+        title: Text(title),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ...fields,
+              if (error != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(error!, style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final validationError = validate?.call();
+              if (validationError != null) return set(() => error = validationError);
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ),
+  );
+}

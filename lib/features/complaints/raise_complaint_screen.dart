@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -56,6 +57,14 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
     final s = ref.read(sessionProvider)!;
     if (_title.text.trim().isEmpty) {
       toast(context, 'Please add a short title');
+      return;
+    }
+    if (_title.text.trim().length > 160 || _desc.text.trim().length > 4000) {
+      toast(context, 'Title must be 160 characters and details 4,000 characters or fewer');
+      return;
+    }
+    if (_kind.isEnhancement && _cost.text.trim().isNotEmpty && (int.tryParse(_cost.text.trim()) ?? 0) <= 0) {
+      toast(context, 'Estimated cost must be a positive whole number');
       return;
     }
     final ai = _ai;
@@ -168,6 +177,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _title,
+                    maxLength: 160,
                     decoration: const InputDecoration(labelText: 'Short title *'),
                     onChanged: (_) => setState(() {}),
                   ),
@@ -175,6 +185,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
                   TextField(
                     controller: _desc,
                     maxLines: 4,
+                    maxLength: 4000,
                     decoration: const InputDecoration(labelText: 'Details', alignLabelWithHint: true),
                     onChanged: (_) => setState(() {}),
                   ),
@@ -206,6 +217,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
                     TextField(
                       controller: _cost,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(9)],
                       decoration: const InputDecoration(labelText: 'Estimated cost (optional)', prefixText: '₹ '),
                     ),
                     const SizedBox(height: 8),

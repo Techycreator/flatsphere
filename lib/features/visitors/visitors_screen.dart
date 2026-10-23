@@ -14,6 +14,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
+import '../../validation/input_validation.dart';
 
 final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>((ref) => VisitorRepo.load());
 final visitorFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>((ref) => VisitorRepo.myFlats());
@@ -303,12 +304,17 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
                 TextField(
                   controller: phone,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
                   decoration: const InputDecoration(labelText: 'Phone (optional)'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: vehicle,
                   textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9 -]')),
+                    LengthLimitingTextInputFormatter(20),
+                  ],
                   decoration: const InputDecoration(labelText: 'Car / bike number (optional)'),
                 ),
                 const SizedBox(height: 8),
@@ -341,6 +347,13 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
           FilledButton(
             onPressed: () {
               if (name.text.trim().isEmpty) return setState(() => error = 'Visitor name is required');
+              if (!InputValidation.isOptionalPhone(phone.text)) {
+                return setState(() => error = 'Enter a valid phone number');
+              }
+              if (vehicle.text.trim().isNotEmpty && !InputValidation.isVehicleRegistration(vehicle.text)) {
+                return setState(() => error = 'Enter a valid vehicle registration');
+              }
+              if (!arrival.isAfter(DateTime.now())) return setState(() => error = 'Arrival must be in the future');
               Navigator.pop(
                 dialogContext,
                 _VisitorDraft(

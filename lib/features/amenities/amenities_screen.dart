@@ -182,6 +182,7 @@ Future<_BookingDraft?> _bookingDialog(BuildContext context, List<Amenity> amenit
                   controller: guests,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  maxLength: 5,
                   decoration: const InputDecoration(labelText: 'Expected guests'),
                 ),
                 TextField(controller: note, maxLength: 500, maxLines: 2, decoration: const InputDecoration(labelText: 'Note / event type')),
@@ -194,7 +195,10 @@ Future<_BookingDraft?> _bookingDialog(BuildContext context, List<Amenity> amenit
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
           FilledButton(
             onPressed: () {
-              final guestCount = int.tryParse(guests.text) ?? 0;
+              final guestCount = int.tryParse(guests.text.trim());
+              if (guestCount == null || guestCount <= 0) {
+                return setState(() => error = 'Enter at least one expected guest');
+              }
               if (endsAt.isBefore(startsAt) || endsAt.isAtSameMomentAs(startsAt)) return setState(() => error = 'End time must be after start time');
               Navigator.pop(dialogContext, _BookingDraft(amenityId: amenityId, flatId: flatId, startsAt: startsAt, endsAt: endsAt, guestCount: guestCount, note: note.text.trim()));
             },

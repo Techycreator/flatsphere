@@ -2,6 +2,7 @@ import 'package:flatsphere/app/router.dart';
 import 'package:flatsphere/app/nav.dart';
 import 'package:flatsphere/features/approvals/membership_request_screen.dart';
 import 'package:flatsphere/features/directory/family_accounts_screen.dart';
+import 'package:flatsphere/features/dashboard/dashboard_screen.dart';
 import 'package:flatsphere/features/shell/association_settings_screen.dart';
 import 'package:flatsphere/l10n/app_localizations.dart';
 import 'package:flatsphere/main.dart';
@@ -10,6 +11,7 @@ import 'package:flatsphere/models/sla.dart';
 import 'package:flatsphere/state/app_state.dart';
 import 'package:flatsphere/state/directory_state.dart';
 import 'package:flatsphere/state/demo_data.dart';
+import 'package:flatsphere/validation/input_validation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -142,6 +144,31 @@ void main() {
     expect(find.text('Connect Supabase to manage ID-document access.'), findsOneWidget);
   });
 
+  testWidgets('SLA summary shows only active statuses with single-line labels', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionProvider.overrideWith(_SignedInSessionNotifier.new)],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const DashboardScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Finder labelMatching(RegExp expression) => find.byWidgetPredicate(
+      (widget) => widget is Text && widget.data != null && expression.hasMatch(widget.data!),
+    );
+    expect(labelMatching(RegExp(r'^Open \d+$')), findsOneWidget);
+    expect(labelMatching(RegExp(r'^Attention \d+$')), findsOneWidget);
+    expect(labelMatching(RegExp(r'^Overdue \d+$')), findsOneWidget);
+    expect(labelMatching(RegExp(r'^(Done|Closed) \d+$')), findsNothing);
+    expect(find.byType(FittedBox), findsAtLeastNWidgets(3));
+  });
+
   group('route guard', () {
     test('resident cannot deep-link to finance or dues', () {
       expect(canAccess(Role.resident, '/finance'), isFalse);
@@ -182,6 +209,26 @@ void main() {
       expect(FamilyAccountRules.isWithinMemberLimit(5, 5), isTrue);
       expect(FamilyAccountRules.isWithinMemberLimit(6, 5), isFalse);
       expect(FamilyAccountRules.isWithinMemberLimit(-1, 5), isFalse);
+    });
+  });
+
+  group('contact input validation', () {
+    test('accepts email addresses and rejects plain text or malformed domains', () {
+      expect(InputValidation.isEmail('ajeesh@example.org'), isTrue);
+      expect(InputValidation.isEmail('person+tag@example.co.in'), isTrue);
+      expect(InputValidation.isEmail('not an email'), isFalse);
+      expect(InputValidation.isEmail('person@localhost'), isFalse);
+    });
+    test('accepts optional blank phones and rejects invalid phone text/ranges', () {
+      expect(InputValidation.isOptionalPhone(''), isTrue);
+      expect(InputValidation.isPhone('+91 98765 43210'), isTrue);
+      expect(InputValidation.isOptionalPhone('call me'), isFalse);
+      expect(InputValidation.isPhone('123'), isFalse);
+    });
+    test('accepts registration-like values and rejects prose as a vehicle number', () {
+      expect(InputValidation.isVehicleRegistration('KL 07 AB 1234'), isTrue);
+      expect(InputValidation.isVehicleRegistration('hello world'), isFalse);
+      expect(InputValidation.isVehicleRegistration('AB-12'), isFalse);
     });
   });
 

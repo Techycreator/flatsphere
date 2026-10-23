@@ -12,6 +12,7 @@ import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/directory_state.dart';
 import '../../widgets/common.dart';
+import '../../validation/input_validation.dart';
 
 enum _Tab { flats, people, monitors }
 
@@ -390,8 +391,8 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     bool needsFlat() => role == Role.owner || role == Role.resident;
     String? validate() {
       if (name.text.trim().isEmpty) return 'Name is required';
-      if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.text.trim())) return 'Enter a valid email';
-      if (needsFlat() && !RegExp(r'^[+0-9() -]{5,24}$').hasMatch(mobile.text.trim())) {
+      if (!InputValidation.isEmail(email.text)) return 'Enter a valid email';
+      if (needsFlat() && !InputValidation.isPhone(mobile.text)) {
         return 'Enter a valid phone number for the owner or resident';
       }
       if (needsFlat() && flat == null) return 'Choose a flat';
