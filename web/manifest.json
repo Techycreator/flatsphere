@@ -1,7 +1,7 @@
 {
     "name": "FlatSphere – Apartment Association Management",
     "short_name": "FlatSphere",
-    "id": "/",
+    "id": "./",
     "start_url": ".",
     "scope": ".",
     "display": "standalone",
