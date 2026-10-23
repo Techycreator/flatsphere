@@ -246,70 +246,88 @@ class _VendorDraft {
 }
 
 Future<_VendorDraft?> _vendorDialog(BuildContext context, AssociationVendor? vendor) async {
-  final name = TextEditingController(text: vendor?.name);
-  final contact = TextEditingController(text: vendor?.contactName);
-  final phone = TextEditingController(text: vendor?.phone);
-  final email = TextEditingController(text: vendor?.email);
-  final address = TextEditingController(text: vendor?.address);
-  final deposit = TextEditingController(text: vendor?.securityDeposit.toString());
-  final escalations = TextEditingController(text: vendor?.escalationContacts.join('\n'));
   const categories = ['Lift', 'STP', 'Generator', 'Fire Safety', 'CCTV', 'Other'];
-  var category = vendor?.serviceCategory ?? categories.first;
-  String? error;
-  final result = await showDialog<_VendorDraft>(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (dialogContext, setState) => AlertDialog(
-        title: Text(vendor == null ? 'Add vendor' : 'Edit vendor'),
+  return showDialog<_VendorDraft>(context: context, builder: (_) => _VendorDialog(vendor: vendor, categories: categories));
+}
+
+class _VendorDialog extends StatefulWidget {
+  const _VendorDialog({required this.vendor, required this.categories});
+  final AssociationVendor? vendor;
+  final List<String> categories;
+
+  @override
+  State<_VendorDialog> createState() => _VendorDialogState();
+}
+
+class _VendorDialogState extends State<_VendorDialog> {
+  late final _name = TextEditingController(text: widget.vendor?.name);
+  late final _contact = TextEditingController(text: widget.vendor?.contactName);
+  late final _phone = TextEditingController(text: widget.vendor?.phone);
+  late final _email = TextEditingController(text: widget.vendor?.email);
+  late final _address = TextEditingController(text: widget.vendor?.address);
+  late final _deposit = TextEditingController(text: widget.vendor?.securityDeposit.toString());
+  late final _escalations = TextEditingController(text: widget.vendor?.escalationContacts.join('\n'));
+  late String _category = widget.vendor?.serviceCategory ?? widget.categories.first;
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _contact.dispose();
+    _phone.dispose();
+    _email.dispose();
+    _address.dispose();
+    _deposit.dispose();
+    _escalations.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(widget.vendor == null ? 'Add vendor' : 'Edit vendor'),
         content: SizedBox(
           width: 460,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: name, decoration: const InputDecoration(labelText: 'Vendor name *')),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: category,
-                  decoration: const InputDecoration(labelText: 'Service category'),
-                  items: [for (final item in categories) DropdownMenuItem(value: item, child: Text(item))],
-                  onChanged: (value) => setState(() => category = value ?? category),
-                ),
-                TextField(controller: contact, decoration: const InputDecoration(labelText: 'Primary contact')),
-                TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone')),
-                TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email')),
-                TextField(controller: address, maxLines: 2, decoration: const InputDecoration(labelText: 'Address')),
-                TextField(controller: deposit, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Security deposit')),
-                TextField(controller: escalations, maxLines: 3, decoration: const InputDecoration(labelText: 'Escalation contacts (one per line)')),
-                if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
-              ],
+          child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (_error != null) _dialogError(_error!),
+            TextField(controller: _name, decoration: const InputDecoration(labelText: 'Vendor name *')),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _category,
+              decoration: const InputDecoration(labelText: 'Service category'),
+              items: [for (final item in widget.categories) DropdownMenuItem(value: item, child: Text(item))],
+              onChanged: (value) => setState(() => _category = value ?? _category),
             ),
-          ),
+            TextField(controller: _contact, decoration: const InputDecoration(labelText: 'Primary contact')),
+            TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone')),
+            TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email')),
+            TextField(controller: _address, maxLines: 2, decoration: const InputDecoration(labelText: 'Address')),
+            TextField(controller: _deposit, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Security deposit')),
+            TextField(controller: _escalations, maxLines: 3, decoration: const InputDecoration(labelText: 'Escalation contacts (one per line)')),
+          ])),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              final amount = num.tryParse(deposit.text.trim().isEmpty ? '0' : deposit.text.trim());
-              if (name.text.trim().isEmpty || amount == null || amount < 0) {
-                return setState(() => error = 'Enter a vendor name and a valid non-negative deposit');
-              }
-              Navigator.pop(
-                dialogContext,
-                _VendorDraft(name.text.trim(), category, contact.text.trim(), phone.text.trim(), email.text.trim(), address.text.trim(), amount,
-                    escalations.text.split('\n').map((line) => line.trim()).where((line) => line.isNotEmpty).toList()),
-              );
-            },
-            child: const Text('Save vendor'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: _save, child: const Text('Save vendor')),
         ],
-      ),
-    ),
-  );
-  for (final controller in [name, contact, phone, email, address, deposit, escalations]) {
-    controller.dispose();
+      );
+
+  void _save() {
+    final amount = num.tryParse(_deposit.text.trim().isEmpty ? '0' : _deposit.text.trim());
+    if (_name.text.trim().isEmpty || amount == null || amount < 0) {
+      setState(() => _error = 'Enter a vendor name and a valid non-negative deposit');
+      return;
+    }
+    Navigator.pop(context, _VendorDraft(
+      _name.text.trim(),
+      _category,
+      _contact.text.trim(),
+      _phone.text.trim(),
+      _email.text.trim(),
+      _address.text.trim(),
+      amount,
+      _escalations.text.split('\n').map((line) => line.trim()).where((line) => line.isNotEmpty).toList(),
+    ));
   }
-  return result;
 }
 
 class _ContractDraft {
@@ -322,75 +340,60 @@ class _ContractDraft {
 }
 
 Future<_ContractDraft?> _contractDialog(BuildContext context) async {
-  final service = TextEditingController();
-  final cost = TextEditingController();
-  var start = DateTime.now();
-  var end = DateTime.now().add(const Duration(days: 365));
-  var notice = 90;
-  String? error;
-  Future<DateTime?> pick(DateTime current) => showDatePicker(
-    context: context,
-    initialDate: current,
-    firstDate: DateTime(2000),
-    lastDate: DateTime(2045),
-  );
-  final result = await showDialog<_ContractDraft>(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (dialogContext, setState) => AlertDialog(
+  return showDialog<_ContractDraft>(context: context, builder: (_) => const _ContractDialog());
+}
+
+class _ContractDialog extends StatefulWidget {
+  const _ContractDialog();
+
+  @override
+  State<_ContractDialog> createState() => _ContractDialogState();
+}
+
+class _ContractDialogState extends State<_ContractDialog> {
+  final _service = TextEditingController();
+  final _cost = TextEditingController();
+  DateTime _start = DateTime.now();
+  DateTime _end = DateTime.now().add(const Duration(days: 365));
+  int _notice = 90;
+  String? _error;
+
+  @override
+  void dispose() { _service.dispose(); _cost.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
         title: const Text('Add AMC contract'),
-        content: SizedBox(
-          width: 440,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: service, decoration: const InputDecoration(labelText: 'Service / equipment *')),
-              TextButton.icon(
-                onPressed: () async {
-                  final date = await pick(start);
-                  if (date != null && dialogContext.mounted) setState(() => start = date);
-                },
-                icon: const Icon(Icons.event_outlined),
-                label: Text('Starts ${dateFmt.format(start)}'),
-              ),
-              TextButton.icon(
-                onPressed: () async {
-                  final date = await pick(end);
-                  if (date != null && dialogContext.mounted) setState(() => end = date);
-                },
-                icon: const Icon(Icons.event_busy_outlined),
-                label: Text('Ends ${dateFmt.format(end)}'),
-              ),
-              DropdownButtonFormField<int>(
-                initialValue: notice,
-                decoration: const InputDecoration(labelText: 'Renewal reminder lead time'),
-                items: const [30, 60, 90, 120, 180].map((days) => DropdownMenuItem(value: days, child: Text('$days days'))).toList(),
-                onChanged: (value) => setState(() => notice = value ?? notice),
-              ),
-              TextField(controller: cost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Annual cost (optional)')),
-              if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
-            ],
+        content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_error != null) _dialogError(_error!),
+          TextField(controller: _service, decoration: const InputDecoration(labelText: 'Service / equipment *')),
+          TextButton.icon(onPressed: () => _pickDate(true), icon: const Icon(Icons.event_outlined), label: Text('Starts ${dateFmt.format(_start)}')),
+          TextButton.icon(onPressed: () => _pickDate(false), icon: const Icon(Icons.event_busy_outlined), label: Text('Ends ${dateFmt.format(_end)}')),
+          DropdownButtonFormField<int>(
+            initialValue: _notice,
+            decoration: const InputDecoration(labelText: 'Renewal reminder lead time'),
+            items: const [30, 60, 90, 120, 180].map((days) => DropdownMenuItem(value: days, child: Text('$days days'))).toList(),
+            onChanged: (value) => setState(() => _notice = value ?? _notice),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              final annualCost = cost.text.trim().isEmpty ? null : num.tryParse(cost.text.trim());
-              if (service.text.trim().isEmpty || end.isBefore(start) || (cost.text.trim().isNotEmpty && (annualCost == null || annualCost < 0))) {
-                return setState(() => error = 'Enter a service, valid dates, and a non-negative annual cost');
-              }
-              Navigator.pop(dialogContext, _ContractDraft(service.text.trim(), start, end, notice, annualCost));
-            },
-            child: const Text('Save contract'),
-          ),
-        ],
-      ),
-    ),
-  );
-  service.dispose();
-  cost.dispose();
-  return result;
+          TextField(controller: _cost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Annual cost (optional)')),
+        ]))),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), FilledButton(onPressed: _save, child: const Text('Save contract'))],
+      );
+
+  Future<void> _pickDate(bool start) async {
+    final current = start ? _start : _end;
+    final date = await showDatePicker(context: context, initialDate: current, firstDate: DateTime(2000), lastDate: DateTime(2045));
+    if (date != null && mounted) setState(() { if (start) { _start = date; } else { _end = date; } });
+  }
+
+  void _save() {
+    final annualCost = _cost.text.trim().isEmpty ? null : num.tryParse(_cost.text.trim());
+    if (_service.text.trim().isEmpty || _end.isBefore(_start) || (_cost.text.trim().isNotEmpty && (annualCost == null || annualCost < 0))) {
+      setState(() => _error = 'Enter a service, valid dates, and a non-negative annual cost');
+      return;
+    }
+    Navigator.pop(context, _ContractDraft(_service.text.trim(), _start, _end, _notice, annualCost));
+  }
 }
 
 class _DocumentDraft {
@@ -402,72 +405,71 @@ class _DocumentDraft {
 }
 
 Future<_DocumentDraft?> _documentDialog(BuildContext context) async {
-  final title = TextEditingController();
-  var type = 'contract';
-  PlatformFile? file;
-  DateTime? expiry;
-  String? error;
-  final result = await showDialog<_DocumentDraft>(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (dialogContext, setState) => AlertDialog(
-        title: const Text('Attach vendor document'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: type,
-              decoration: const InputDecoration(labelText: 'Document type'),
-              items: const [
-                DropdownMenuItem(value: 'contract', child: Text('Contract')),
-                DropdownMenuItem(value: 'insurance', child: Text('Insurance')),
-              ],
-              onChanged: (value) => setState(() => type = value ?? type),
-            ),
-            TextField(controller: title, decoration: const InputDecoration(labelText: 'Document title *')),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf']);
-                if (files.isEmpty || !dialogContext.mounted) return;
-                final size = await files.first.length();
-                if (!dialogContext.mounted) return;
-                if (size == null || size > maxSourceUploadBytes(files.first.extension ?? '')) {
-                  return setState(() => error = 'File exceeds the supported source size');
-                }
-                setState(() => file = files.first);
-              },
-              icon: const Icon(Icons.attach_file),
-              label: Text(file?.name ?? 'Choose photo or PDF *'),
-            ),
-            TextButton.icon(
-              onPressed: () async {
-                final date = await showDatePicker(
-                  context: context,
-                  initialDate: expiry ?? DateTime.now(),
-                  firstDate: DateTime(1990),
-                  lastDate: DateTime(2045),
-                );
-                if (date != null && dialogContext.mounted) setState(() => expiry = date);
-              },
-              icon: const Icon(Icons.event_busy_outlined),
-              label: Text(expiry == null ? 'Expiry date (optional)' : 'Expires ${dateFmt.format(expiry!)}'),
-            ),
-            if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              if (title.text.trim().isEmpty || file == null) return setState(() => error = 'Document title and file are required');
-              Navigator.pop(dialogContext, _DocumentDraft(type, title.text.trim(), file!, expiry));
-            },
-            child: const Text('Attach'),
-          ),
-        ],
-      ),
-    ),
-  );
-  title.dispose();
-  return result;
+  return showDialog<_DocumentDraft>(context: context, builder: (_) => const _DocumentDialog());
 }
+
+class _DocumentDialog extends StatefulWidget {
+  const _DocumentDialog();
+
+  @override
+  State<_DocumentDialog> createState() => _DocumentDialogState();
+}
+
+class _DocumentDialogState extends State<_DocumentDialog> {
+  final _title = TextEditingController();
+  String _type = 'contract';
+  PlatformFile? _file;
+  DateTime? _expiry;
+  String? _error;
+
+  @override
+  void dispose() { _title.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Attach vendor document'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_error != null) _dialogError(_error!),
+          DropdownButtonFormField<String>(
+            initialValue: _type,
+            decoration: const InputDecoration(labelText: 'Document type'),
+            items: const [DropdownMenuItem(value: 'contract', child: Text('Contract')), DropdownMenuItem(value: 'insurance', child: Text('Insurance'))],
+            onChanged: (value) => setState(() => _type = value ?? _type),
+          ),
+          TextField(controller: _title, decoration: const InputDecoration(labelText: 'Document title *')),
+          OutlinedButton.icon(onPressed: _pickFile, icon: const Icon(Icons.attach_file), label: Text(_file?.name ?? 'Choose photo or PDF *')),
+          TextButton.icon(onPressed: _pickExpiry, icon: const Icon(Icons.event_busy_outlined), label: Text(_expiry == null ? 'Expiry date (optional)' : 'Expires ${dateFmt.format(_expiry!)}')),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), FilledButton(onPressed: _save, child: const Text('Attach'))],
+      );
+
+  Future<void> _pickFile() async {
+    final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf']);
+    if (files.isEmpty || !mounted) return;
+    final size = await files.first.length();
+    if (!mounted) return;
+    if (size == null || size > maxSourceUploadBytes(files.first.extension ?? '')) {
+      setState(() => _error = 'File exceeds the supported source size');
+      return;
+    }
+    setState(() { _file = files.first; _error = null; });
+  }
+
+  Future<void> _pickExpiry() async {
+    final date = await showDatePicker(context: context, initialDate: _expiry ?? DateTime.now(), firstDate: DateTime(1990), lastDate: DateTime(2045));
+    if (date != null && mounted) setState(() => _expiry = date);
+  }
+
+  void _save() {
+    if (_title.text.trim().isEmpty || _file == null) {
+      setState(() => _error = 'Document title and file are required');
+      return;
+    }
+    Navigator.pop(context, _DocumentDraft(_type, _title.text.trim(), _file!, _expiry));
+  }
+}
+
+Widget _dialogError(String message) => Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Align(alignment: Alignment.centerLeft, child: Text(message, style: const TextStyle(color: Colors.red))),
+    );

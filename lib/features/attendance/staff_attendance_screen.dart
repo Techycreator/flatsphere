@@ -273,18 +273,36 @@ class _StaffDraft {
 }
 
 Future<_StaffDraft?> _addStaffDialog(BuildContext context) async {
-  final name = TextEditingController();
-  final agency = TextEditingController();
-  final salary = TextEditingController();
-  var type = StaffType.housekeeping;
-  var area = 'Cleaning';
-  var employerType = StaffEmployerType.association;
-  PlatformFile? proof;
-  String? error;
-  final draft = await showDialog<_StaffDraft>(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (dialogContext, setState) => AlertDialog(
+  return showDialog<_StaffDraft>(context: context, builder: (_) => const _AddStaffDialog());
+}
+
+class _AddStaffDialog extends StatefulWidget {
+  const _AddStaffDialog();
+
+  @override
+  State<_AddStaffDialog> createState() => _AddStaffDialogState();
+}
+
+class _AddStaffDialogState extends State<_AddStaffDialog> {
+  final _name = TextEditingController();
+  final _agency = TextEditingController();
+  final _salary = TextEditingController();
+  StaffType _type = StaffType.housekeeping;
+  String _area = 'Cleaning';
+  StaffEmployerType _employerType = StaffEmployerType.association;
+  PlatformFile? _proof;
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _agency.dispose();
+    _salary.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
         title: const Text('Add staff member'),
         content: SizedBox(
           width: 420,
@@ -292,16 +310,17 @@ Future<_StaffDraft?> _addStaffDialog(BuildContext context) async {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: name, decoration: const InputDecoration(labelText: 'Full name *')),
+                if (_error != null) _validationMessage(_error!),
+                TextField(controller: _name, decoration: const InputDecoration(labelText: 'Full name *')),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<StaffType>(
-                  initialValue: type,
+                  initialValue: _type,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Staff type'),
                   items: [for (final option in StaffType.values) DropdownMenuItem(value: option, child: Text(option.label))],
                   onChanged: (value) => setState(() {
-                    type = value ?? type;
-                    area = switch (type) {
+                    _type = value ?? _type;
+                    _area = switch (_type) {
                       StaffType.housekeeping => 'Cleaning',
                       StaffType.stpOperator => 'STP',
                       StaffType.security => 'Security',
@@ -310,89 +329,83 @@ Future<_StaffDraft?> _addStaffDialog(BuildContext context) async {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: area,
+                  initialValue: _area,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Monitor area'),
                   items: [for (final option in monitorAreas) DropdownMenuItem(value: option, child: Text(option))],
-                  onChanged: (value) => setState(() => area = value ?? area),
+                  onChanged: (value) => setState(() => _area = value ?? _area),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<StaffEmployerType>(
-                  initialValue: employerType,
+                  initialValue: _employerType,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Employer'),
                   items: const [
                     DropdownMenuItem(value: StaffEmployerType.association, child: Text('Association-employed')),
                     DropdownMenuItem(value: StaffEmployerType.agency, child: Text('Agency-employed')),
                   ],
-                  onChanged: (value) => setState(() => employerType = value ?? employerType),
+                  onChanged: (value) => setState(() => _employerType = value ?? _employerType),
                 ),
-                if (employerType == StaffEmployerType.agency) ...[
+                if (_employerType == StaffEmployerType.agency) ...[
                   const SizedBox(height: 12),
-                  TextField(controller: agency, decoration: const InputDecoration(labelText: 'Agency name *')),
+                  TextField(controller: _agency, decoration: const InputDecoration(labelText: 'Agency name *')),
                 ],
                 const SizedBox(height: 12),
                 TextField(
-                  controller: salary,
+                  controller: _salary,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(labelText: 'Monthly salary *', prefixText: '₹ '),
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
-                  onPressed: () async {
-                    final files = await FilePicker.pickFiles(
-                      type: FileType.custom,
-                      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
-                    );
-                    if (files.isEmpty || !dialogContext.mounted) return;
-                    final size = await files.first.length();
-                    if (!dialogContext.mounted) return;
-                    if (size == null || size > maxSourceUploadBytes(files.first.extension ?? '')) {
-                      return setState(() => error = 'File exceeds the supported source size');
-                    }
-                    setState(() => proof = files.first);
-                  },
-                  icon: Icon(proof == null ? Icons.upload_file_outlined : Icons.verified_outlined),
-                  label: Text(proof?.name ?? 'Attach staff ID proof * (photos auto-compressed)'),
+                  onPressed: _pickProof,
+                  icon: Icon(_proof == null ? Icons.upload_file_outlined : Icons.verified_outlined),
+                  label: Text(_proof?.name ?? 'Attach staff ID proof * (photos auto-compressed)'),
                 ),
-                if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
               ],
             ),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              if (name.text.trim().isEmpty) return setState(() => error = 'Name is required');
-              if (proof == null) return setState(() => error = 'Staff ID proof is required');
-              if (employerType == StaffEmployerType.agency && agency.text.trim().isEmpty) {
-                return setState(() => error = 'Agency name is required');
-              }
-              final parsedSalary = int.tryParse(salary.text.trim());
-              if (parsedSalary == null || parsedSalary <= 0) return setState(() => error = 'Enter monthly salary');
-              Navigator.pop(
-                dialogContext,
-                _StaffDraft(
-                  name: name.text.trim(),
-                  type: type,
-                  area: area,
-                  employerType: employerType,
-                  agencyName: agency.text.trim(),
-                  monthlySalary: parsedSalary,
-                  proof: proof!,
-                ),
-              );
-            },
-            child: const Text('Add staff'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: _save, child: const Text('Add staff')),
         ],
-      ),
-    ),
-  );
-  name.dispose();
-  agency.dispose();
-  salary.dispose();
-  return draft;
+      );
+
+  Future<void> _pickProof() async {
+    final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf']);
+    if (files.isEmpty || !mounted) return;
+    final size = await files.first.length();
+    if (!mounted) return;
+    if (size == null || size > maxSourceUploadBytes(files.first.extension ?? '')) {
+      setState(() => _error = 'File exceeds the supported source size');
+      return;
+    }
+    setState(() { _proof = files.first; _error = null; });
+  }
+
+  void _save() {
+    if (_name.text.trim().isEmpty) return setState(() => _error = 'Name is required');
+    if (_proof == null) return setState(() => _error = 'Staff ID proof is required');
+    if (_employerType == StaffEmployerType.agency && _agency.text.trim().isEmpty) {
+      return setState(() => _error = 'Agency name is required');
+    }
+    final parsedSalary = int.tryParse(_salary.text.trim());
+    if (parsedSalary == null || parsedSalary <= 0) return setState(() => _error = 'Enter monthly salary');
+    Navigator.pop(context, _StaffDraft(
+      name: _name.text.trim(),
+      type: _type,
+      area: _area,
+      employerType: _employerType,
+      agencyName: _agency.text.trim(),
+      monthlySalary: parsedSalary,
+      proof: _proof!,
+    ));
+  }
 }
+
+Widget _validationMessage(String message) => Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Align(alignment: Alignment.centerLeft, child: Text(message, style: const TextStyle(color: Colors.red))),
+    );
