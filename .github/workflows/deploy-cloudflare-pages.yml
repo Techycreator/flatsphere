@@ -1,3 +1,4 @@
+# Deploys the Flutter web app to Cloudflare Pages for this branch.
 name: Deploy FlatSphere PWA to Cloudflare Pages
 
 on:
