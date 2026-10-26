@@ -19,11 +19,12 @@ class WorkflowInfo {
 }
 
 class ProcessInfo {
-  const ProcessInfo({required this.code, required this.name, required this.reassignable, required this.workflowCode});
+  const ProcessInfo({required this.code, required this.name, required this.reassignable, required this.workflowCode, this.note = ''});
   final String code;
   final String name;
   final bool reassignable;
   final String workflowCode;
+  final String note;
 }
 
 class WorkflowOverview {
@@ -60,6 +61,7 @@ class WorkflowAdminRepo {
             name: p['name'] as String,
             reassignable: p['reassignable'] as bool,
             workflowCode: p['workflow'] as String,
+            note: p['note'] as String? ?? '',
           ),
       ],
     );

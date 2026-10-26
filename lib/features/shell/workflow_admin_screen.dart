@@ -155,7 +155,7 @@ class _WorkflowAdminScreenState extends ConsumerState<WorkflowAdminScreen> {
                 for (final p in data.processes)
                   ListTile(
                     title: Text(p.name),
-                    subtitle: Text(p.reassignable ? 'Currently uses ${p.workflowCode}' : 'Built-in rules, cannot be reassigned'),
+                    subtitle: Text(p.reassignable ? 'Currently uses ${p.workflowCode}' : (p.note.isEmpty ? 'Cannot be reassigned' : p.note)),
                     trailing: p.reassignable
                         ? DropdownButton<String>(
                             value: data.workflows.any((w) => w.code == p.workflowCode) ? p.workflowCode : null,
