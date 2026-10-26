@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -63,10 +63,24 @@ class ApprovalDetailScreen extends ConsumerWidget {
       }
       if (d == Decision.approved && a.highRisk) {
         if (!context.mounted) return;
-        final ok = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => _OtpDialog(approveLabel: l.approve),
-        );
+        final ok = backendEnabled
+            ? await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Confirm high-risk approval'),
+                  content: const Text(
+                    'This change affects association-wide settings or money. Please confirm that you want to approve it.',
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l.approve)),
+                  ],
+                ),
+              )
+            : await showDialog<bool>(
+                context: context,
+                builder: (ctx) => _OtpDialog(approveLabel: l.approve),
+              );
         if (ok != true) return;
       }
       try {
@@ -243,7 +257,7 @@ class ApprovalDetailScreen extends ConsumerWidget {
                 leading: Icon(Icons.verified_user, color: AppColors.green),
                 title: Text('Applied to records'),
                 subtitle: Text(
-                  'Resident updated. Outgoing tenant and family logins disabled and archived. Caretaker informed.',
+                  'Resident updated. Outgoing tenant and family logins disabled and archived.',
                 ),
               ),
             ),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -229,10 +229,12 @@ class _MeetingCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 4,
               children: [
                 Pill(meeting.type, color: Theme.of(context).colorScheme.primary),
-                const Spacer(),
                 Text(dateTimeFmt.format(meeting.at), style: const TextStyle(fontWeight: FontWeight.w600)),
               ],
             ),

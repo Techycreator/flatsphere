@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -815,7 +815,7 @@ class _AuditorDash extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const StatGrid(
+        if (!backendEnabled) const StatGrid(
           children: [
             StatCard(label: 'FY 2025-26 income', value: '₹38,42,600', icon: Icons.south_west, color: AppColors.green),
             StatCard(
@@ -837,7 +837,7 @@ class _AuditorDash extends StatelessWidget {
         Card(
           child: ListTile(
             leading: const Icon(Icons.lock_clock),
-            title: const Text('Read-only access · expires 31 Dec 2026'),
+            title: const Text('Read-only auditor access'),
             subtitle: const Text(
               'Receipts & payments, income & expenditure, balance sheet, ledgers. Export to Excel / PDF / Tally XML.',
             ),

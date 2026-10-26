@@ -1,5 +1,5 @@
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 
 import '../../widgets/common.dart';
@@ -124,9 +124,11 @@ class ExpensePie extends StatelessWidget {
                   children: [
                     _dot(e.$3),
                     const SizedBox(width: 6),
-                    Text(
-                      '${e.$1}  ${inr.format(e.$2)}  (${(e.$2 / total * 100).toStringAsFixed(0)}%)',
-                      style: const TextStyle(fontSize: 12),
+                    Flexible(
+                      child: Text(
+                        '${e.$1}  ${inr.format(e.$2)}  (${(e.$2 / total * 100).toStringAsFixed(0)}%)',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ],
                 ),

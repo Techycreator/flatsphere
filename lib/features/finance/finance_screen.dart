@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,7 +60,7 @@ class FinanceScreen extends ConsumerWidget {
           ),
           if (role == Role.auditor)
             MaterialBanner(
-              content: const Text('Read-only auditor access · FY 2025-26 · expires 31 Dec 2026'),
+              content: const Text('Read-only auditor access'),
               leading: const Icon(Icons.lock_clock),
               actions: [TextButton(onPressed: () => _exportLedger(context, ref), child: Text(l.exportLedgerCsv))],
             ),
@@ -155,13 +155,6 @@ class _Overview extends ConsumerWidget {
             padding: EdgeInsets.only(bottom: 16),
             child: Text(
               'EC view: summary level. Detailed ledgers are visible to office bearers as configured by the Secretary.',
-            ),
-          ),
-        if (backendEnabled)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 16),
-            child: Text(
-              'Overview trend charts still show illustrative figures. The Analysis tab and ledger exports use recorded association data.',
             ),
           ),
         if (!backendEnabled) const TwoCol(

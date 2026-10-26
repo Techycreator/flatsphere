@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -122,7 +122,7 @@ class ComplaintDetailScreen extends ConsumerWidget {
                         if (c.hasVoiceNote)
                           Chip(
                             avatar: const Icon(Icons.play_arrow),
-                            label: const Text('Voice note · 0:24 · transcribed'),
+                            label: const Text('Voice note recorded'),
                           ),
                       ],
                     ),

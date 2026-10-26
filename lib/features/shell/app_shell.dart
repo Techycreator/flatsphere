@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +13,7 @@ import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
 import 'privacy_notice_screen.dart';
+import 'glossary.dart';
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.location, required this.child});
@@ -73,6 +74,11 @@ class AppShell extends ConsumerWidget {
           _AssociationSwitcher(session: session),
           _RoleSwitcher(session: session),
           if (wide) const LanguageToggle(),
+          if (wide) IconButton(
+            tooltip: 'Help & terms',
+            onPressed: () => showGlossary(context),
+            icon: const Icon(Icons.help_outline),
+          ),
           IconButton(
             tooltip: l.notices,
             onPressed: () => _showNotifications(context, ref),
@@ -151,15 +157,25 @@ class AppShell extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Text(l.more, style: Theme.of(ctx).textTheme.titleMedium),
             ),
-            for (final item in more)
-              ListTile(
-                leading: Icon(item.icon),
-                title: Text(item.label(l)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.go(item.path);
-                },
-              ),
+            for (final group in navGroups)
+              if (more.any((i) => navGroupOf(i.path) == group)) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(
+                    group,
+                    style: Theme.of(ctx).textTheme.labelLarge?.copyWith(color: Theme.of(ctx).colorScheme.primary),
+                  ),
+                ),
+                for (final item in more.where((i) => navGroupOf(i.path) == group))
+                  ListTile(
+                    leading: Icon(item.icon),
+                    title: Text(item.label(l)),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.go(item.path);
+                    },
+                  ),
+              ],
           ],
         ),
       ),
@@ -327,6 +343,8 @@ class _ProfileMenu extends ConsumerWidget {
             ref.read(localeProvider.notifier).set(Locale(v));
           case 'audit':
             context.go('/audit');
+          case 'help':
+            showGlossary(context);
           case 'setpin':
             context.go('/set-pin');
           case 'removepin':
@@ -360,6 +378,10 @@ class _ProfileMenu extends ConsumerWidget {
             ),
           ),
         const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'help',
+          child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.help_outline), title: Text('Help & terms')),
+        ),
         if (backendEnabled) ...[
           const PopupMenuItem(
             value: 'setpin',

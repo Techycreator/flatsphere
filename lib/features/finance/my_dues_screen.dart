@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -42,10 +42,10 @@ class MyDuesScreen extends ConsumerWidget {
                 onPressed: () => Navigator.pop(ctx, m),
                 child: ListTile(leading: Icon(icon), title: Text(m)),
               ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(24, 8, 24, 0),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
               child: Text(
-                'Demo: no real payment. Money settles directly to the association bank account.',
+                backendEnabled ? 'Payments are recorded by the Treasurer, who issues your receipt.' : 'Demo: no real payment. Money settles directly to the association bank account.',
                 style: TextStyle(fontSize: 12),
               ),
             ),

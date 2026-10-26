@@ -32,6 +32,15 @@ final _associationDocs = NavItem('/association-documents', Icons.folder_shared_o
 final _associationSettings = NavItem('/association-settings', Icons.settings_outlined, (_) => 'Association settings');
 final _notices = NavItem('/notices', Icons.campaign_outlined, (l) => l.notices);
 
+const navGroups = ['Money', 'People', 'Building', 'Records'];
+
+String navGroupOf(String path) => switch (path) {
+  '/finance' || '/statements' || '/dues' => 'Money',
+  '/directory' || '/family-accounts' || '/attendance' || '/household-staff' || '/visitors' || '/vehicles' => 'People',
+  '/complaints' || '/checklist' || '/amenities' || '/community' || '/notices' => 'Building',
+  _ => 'Records',
+};
+
 /// On mobile, items beyond the fourth go under "More" when a role has more than five.
 /// A designated Membership-desk EC member/monitor also gets Approvals and Flats & people.
 List<NavItem> navFor(Role r, {bool membershipDesk = false}) {

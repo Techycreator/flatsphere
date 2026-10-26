@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -184,13 +184,16 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
         Row(
           children: [
             Expanded(child: Text('Family accounts', style: Theme.of(context).textTheme.headlineSmall)),
-            FilledButton.icon(
-              onPressed: backendEnabled ? _addMember : null,
-              icon: const Icon(Icons.person_add_alt),
-              label: const Text('Add family member'),
-            ),
             IconButton(onPressed: _load, tooltip: 'Refresh', icon: const Icon(Icons.refresh)),
           ],
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: backendEnabled ? _addMember : null,
+            icon: const Icon(Icons.person_add_alt),
+            label: const Text('Add family member'),
+          ),
         ),
         Text(l.familyDobPrivacyNotice),
         const SizedBox(height: 12),
