@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../../widgets/tr_text.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
