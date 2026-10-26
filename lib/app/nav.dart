@@ -30,6 +30,7 @@ final _amenities = NavItem('/amenities', Icons.meeting_room_outlined, (l) => l.a
 final _community = NavItem('/community', Icons.hub_outlined, (l) => l.community);
 final _associationDocs = NavItem('/association-documents', Icons.folder_shared_outlined, (l) => l.associationDocuments);
 final _associationSettings = NavItem('/association-settings', Icons.settings_outlined, (_) => 'Association settings');
+final _workflows = NavItem('/workflows', Icons.account_tree_outlined, (_) => 'Approval workflows');
 final _notices = NavItem('/notices', Icons.campaign_outlined, (l) => l.notices);
 
 const navGroups = ['Money', 'People', 'Building', 'Records'];
@@ -50,7 +51,7 @@ List<NavItem> navFor(Role r, {bool membershipDesk = false}) {
 }
 
 List<NavItem> _baseNav(Role r) => switch (r) {
-  Role.admin => [_home, _approvals, _complaints, _finance, _directory, _attendance, _visitors, _vehicles, _archive, _registers, _amenities, _community, _associationDocs, _associationSettings],
+  Role.admin => [_home, _approvals, _complaints, _finance, _directory, _attendance, _visitors, _vehicles, _archive, _registers, _amenities, _community, _associationDocs, _associationSettings, _workflows],
   Role.president => [_home, _approvals, _complaints, _finance, _meetings, _directory, _attendance, _visitors, _householdStaff, _vehicles, _archive, _registers, _amenities, _community, _associationDocs],
   Role.secretary => [_home, _approvals, _complaints, _finance, _checklist, _meetings, _directory, _attendance, _visitors, _householdStaff, _vehicles, _archive, _registers, _amenities, _community, _associationDocs],
   Role.treasurer => [_home, _finance, _approvals, _complaints, _meetings, _visitors, _householdStaff, _vehicles, _registers, _amenities, _community, _associationDocs],
