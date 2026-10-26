@@ -424,14 +424,16 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     ];
   }
 
-  Future<void> _addPerson(DirectoryState st, bool canAssign) async {
-    final name = TextEditingController();
-    final email = TextEditingController();
-    final mobile = TextEditingController();
+  Future<void> _addPerson(DirectoryState st, bool canAssign, {Person? existing}) async {
+    final name = TextEditingController(text: existing?.name);
+    final email = TextEditingController(text: existing?.email);
+    final mobile = TextEditingController(text: existing?.mobile);
     DateTime? birthDate;
     final roles = canAssign ? Role.values : const [Role.owner, Role.resident];
-    var role = Role.owner;
-    String? flat = st.flats.firstOrNull?.number;
+    var role = existing == null
+        ? Role.owner
+        : roles.firstWhere((r) => r != existing.role && r != Role.admin, orElse: () => Role.owner);
+    String? flat = existing?.flatNumber ?? st.flats.firstOrNull?.number;
     var areas = <String>[];
     DateTime? from = DateUtils.dateOnly(DateTime.now());
     DateTime? until;
@@ -456,7 +458,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, set) => AlertDialog(
-          title: const Text('Add person'),
+          title: Text(existing == null ? 'Add person' : 'Assign another role · ${existing.name}'),
           content: SizedBox(
             width: 440,
             child: SingleChildScrollView(
@@ -466,17 +468,20 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                 children: [
                   TextField(
                     controller: name,
+                    enabled: existing == null,
                     decoration: const InputDecoration(labelText: 'Full name *'),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: email,
+                    enabled: existing == null,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(labelText: 'Email * (login codes are sent here)'),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: mobile,
+                    enabled: existing == null,
                     keyboardType: TextInputType.phone,
                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
                     decoration: InputDecoration(labelText: needsFlat() ? 'Mobile *' : 'Mobile'),
@@ -580,7 +585,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                 if (e != null) return set(() => err = e);
                 Navigator.pop(ctx, true);
               },
-              child: const Text('Add'),
+              child: Text(existing == null ? 'Add' : 'Assign role'),
             ),
           ],
         ),
@@ -606,7 +611,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
       final r = await ref.read(directoryProvider.notifier).addPerson(p);
       _toast(
         r == 'invited'
-            ? 'Invited ${p.name}. They can now log in with a code sent to ${p.email}.'
+            ? 'Invited ${p.name}. They can now sign in with this email; a login code is emailed when they request it.'
             : '${p.role.label} role added to ${p.name}\'s existing account.',
       );
     } catch (e) {
@@ -619,6 +624,12 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     builder: (ctx) => _PersonDialog(
       person: p,
       canModify: canModify,
+      onAddRole: _assignerRoles.contains(ref.read(sessionProvider)!.activeRole)
+          ? () {
+              Navigator.pop(ctx);
+              _addPerson(ref.read(directoryProvider), true, existing: p);
+            }
+          : null,
       onEdit: () {
         Navigator.pop(ctx);
         _editDetails(p);
@@ -945,10 +956,11 @@ class _AreaPicker extends StatelessWidget {
 
 /// Person details with private ID proofs (upload, view via a 60-second link; every view is logged).
 class _PersonDialog extends ConsumerStatefulWidget {
-  const _PersonDialog({required this.person, required this.canModify, required this.onEdit, required this.onRemove});
+  const _PersonDialog({required this.person, required this.canModify, required this.onEdit, required this.onRemove, this.onAddRole});
 
   final Person person;
   final bool canModify;
+  final VoidCallback? onAddRole;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
 
@@ -1137,6 +1149,7 @@ class _PersonDialogState extends ConsumerState<_PersonDialog> {
             onPressed: widget.onRemove,
             child: const Text('Remove'),
           ),
+        if (widget.onAddRole != null) TextButton(onPressed: widget.onAddRole, child: const Text('Assign another role')),
         if (editable) TextButton(onPressed: widget.onEdit, child: const Text('Edit areas / designation')),
         OutlinedButton.icon(
           onPressed: busy ? null : _upload,
