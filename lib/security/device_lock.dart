@@ -25,6 +25,7 @@ class DeviceLock {
 
   static Future<void> setPin(String pin, String owner) async {
     await _store.write(key: 'pin_owner', value: owner);
+    await _store.delete(key: 'pin_skip_owner');
     final salt = base64Url.encode(List<int>.generate(16, (_) => Random.secure().nextInt(256)));
     await _store.write(key: 'pin_salt', value: salt);
     await _store.write(key: 'pin_hash', value: _hash(pin, salt));
@@ -71,6 +72,10 @@ class DeviceLock {
     }
   }
 
+  static Future<bool> skippedBy(String uid) async => await _store.read(key: 'pin_skip_owner') == uid;
+
+  static Future<void> skip(String uid) => _store.write(key: 'pin_skip_owner', value: uid);
+
   static Future<void> clear() async {
     for (final key in const ['pin_hash', 'pin_salt', 'pin_fails', 'bio_enabled', 'pin_owner']) {
       await _store.delete(key: key);
@@ -105,7 +110,7 @@ class LockNotifier extends Notifier<LockStatus> {
     final owner = await DeviceLock.pinOwner();
     if (owner != null && owner != uid) await DeviceLock.clear();
     if (!await DeviceLock.hasPin()) {
-      state = LockStatus.needsSetup;
+      state = await DeviceLock.skippedBy(uid) ? LockStatus.unlocked : LockStatus.needsSetup;
     } else {
       state = fresh ? LockStatus.unlocked : LockStatus.locked;
     }

@@ -72,7 +72,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (lock == LockStatus.locked) return state.matchedLocation == '/unlock' ? null : '/unlock';
         if (lock == LockStatus.needsSetup) return state.matchedLocation == '/set-pin' ? null : '/set-pin';
       }
-      if (state.matchedLocation == '/unlock' || state.matchedLocation == '/set-pin') return '/home';
+      if (state.matchedLocation == '/unlock') return '/home';
+      if (state.matchedLocation == '/set-pin') return null;
       if (atAssociationSetup) return '/home';
       if (atLogin) return '/home';
       return canAccess(

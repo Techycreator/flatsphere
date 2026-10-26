@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' hide Text;
 import '../../widgets/tr_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../security/device_lock.dart';
 import '../../state/app_state.dart';
@@ -66,7 +67,16 @@ class _DeviceLockScreenState extends ConsumerState<DeviceLockScreen> {
     await DeviceLock.setPin(pin, ref.read(sessionProvider)!.user.id);
     final bio = _enableBio && await DeviceLock.enrollBiometric(ref.read(sessionProvider)!.user.name);
     await DeviceLock.setBiometricEnabled(bio);
-    if (mounted) ref.read(lockProvider.notifier).unlock();
+    if (!mounted) return;
+    ref.read(lockProvider.notifier).unlock();
+    context.go('/home');
+  }
+
+  Future<void> _skip() async {
+    await DeviceLock.skip(ref.read(sessionProvider)!.user.id);
+    if (!mounted) return;
+    ref.read(lockProvider.notifier).unlock();
+    context.go('/home');
   }
 
   Future<void> _unlock() async {
@@ -150,6 +160,8 @@ class _DeviceLockScreenState extends ConsumerState<DeviceLockScreen> {
                         child: Text(widget.setup ? 'Save PIN' : 'Unlock'),
                       ),
                     ),
+                    if (widget.setup)
+                      TextButton(onPressed: _busy ? null : _skip, child: const Text('Skip for now')),
                     if (_bioEnabled)
                       TextButton.icon(
                         onPressed: _busy ? null : _unlockWithBiometric,

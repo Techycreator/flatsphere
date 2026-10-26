@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/nav.dart';
 import '../../backend/backend.dart' show backendEnabled;
+import '../../security/device_lock.dart';
 import '../../backend/notifications_repo.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/common.dart' show dateTimeFmt, EmptyState;
@@ -326,6 +327,11 @@ class _ProfileMenu extends ConsumerWidget {
             ref.read(localeProvider.notifier).set(Locale(v));
           case 'audit':
             context.go('/audit');
+          case 'setpin':
+            context.go('/set-pin');
+          case 'removepin':
+            final uid = session.user.id;
+            DeviceLock.clear().then((_) => DeviceLock.skip(uid));
           case 'logout':
             ref.read(sessionProvider.notifier).logout();
         }
@@ -354,6 +360,17 @@ class _ProfileMenu extends ConsumerWidget {
             ),
           ),
         const PopupMenuDivider(),
+        if (backendEnabled) ...[
+          const PopupMenuItem(
+            value: 'setpin',
+            child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.pin_outlined), title: Text('Set or change PIN')),
+          ),
+          const PopupMenuItem(
+            value: 'removepin',
+            child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.lock_open_outlined), title: Text('Turn off PIN')),
+          ),
+          const PopupMenuDivider(),
+        ],
         PopupMenuItem(
           value: 'logout',
           child: ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.logout), title: Text(l.logout)),
