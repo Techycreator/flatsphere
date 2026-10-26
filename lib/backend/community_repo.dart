@@ -149,7 +149,11 @@ class CommunityRepo {
       db.rpc('update_meeting_action_status', params: {'p_action': id, 'p_status': status});
 
   static Future<List<MarketplacePost>> marketplace() async {
-    await db.rpc('archive_marketplace_posts');
+    try {
+      await db.rpc('archive_marketplace_posts');
+    } catch (_) {
+      // Archive function may not be deployed yet; listing must still work.
+    }
     final rows = await db
         .from('marketplace_posts')
         .select('id,post_type,title,description,contact,price,created_by,created_by_name,expires_at')

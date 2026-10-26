@@ -223,16 +223,18 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
             ],
           ),
           const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: OutlinedButton.icon(
-              onPressed: _exporting ? null : _export,
-              icon: _exporting
-                  ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.download_outlined),
-              label: Text(l.exportBoomBarrierCsv),
+          if (const {Role.ecMember, Role.secretary, Role.president, Role.jointSecretary, Role.vicePresident, Role.treasurer}
+              .contains(ref.watch(sessionProvider)!.activeRole))
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: _exporting ? null : _export,
+                icon: _exporting
+                    ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.download_outlined),
+                label: Text(l.exportBoomBarrierCsv),
+              ),
             ),
-          ),
           if (results != null) ...[
             const SizedBox(height: 8),
             if (results.isLoading) const LinearProgressIndicator(),
