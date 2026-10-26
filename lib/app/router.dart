@@ -32,6 +32,9 @@ import '../features/shell/audit_export_screen.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
 import 'nav.dart';
+import '../backend/backend.dart' show backendEnabled;
+import '../features/auth/device_lock_screen.dart';
+import '../security/device_lock.dart';
 
 Page<void> _page(Widget child) => NoTransitionPage(child: child);
 
@@ -49,6 +52,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier(0);
   ref.listen(sessionProvider, (_, _) => refresh.value++);
   ref.listen(firstAssociationSignupProvider, (_, _) => refresh.value++);
+  ref.listen(lockProvider, (_, _) => refresh.value++);
   ref.onDispose(refresh.dispose);
 
   return GoRouter(
@@ -63,6 +67,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (signupEmail != null) return atAssociationSetup ? null : '/setup-association';
         return atLogin ? null : '/login';
       }
+      if (backendEnabled) {
+        final lock = ref.read(lockProvider);
+        if (lock == LockStatus.locked) return state.matchedLocation == '/unlock' ? null : '/unlock';
+        if (lock == LockStatus.needsSetup) return state.matchedLocation == '/set-pin' ? null : '/set-pin';
+      }
+      if (state.matchedLocation == '/unlock' || state.matchedLocation == '/set-pin') return '/home';
       if (atAssociationSetup) return '/home';
       if (atLogin) return '/home';
       return canAccess(
@@ -75,6 +85,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      GoRoute(path: '/unlock', builder: (_, _) => const DeviceLockScreen(setup: false)),
+      GoRoute(path: '/set-pin', builder: (_, _) => const DeviceLockScreen(setup: true)),
       GoRoute(path: '/setup-association', builder: (_, _) => const FirstAssociationSetupScreen()),
       ShellRoute(
         builder: (context, state, child) => AppShell(location: state.matchedLocation, child: child),
