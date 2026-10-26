@@ -1,3 +1,4 @@
+import 'bank_account_card.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -102,6 +103,8 @@ class _Overview extends ConsumerWidget {
         .fold(0, (s, e) => s + e.amount);
     return PageBody(
       children: [
+        const BankAccountCard(),
+        const SizedBox(height: 16),
         Wrap(
           spacing: 8,
           runSpacing: 8,

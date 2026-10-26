@@ -1,3 +1,4 @@
+import 'bank_account_card.dart';
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,6 +61,8 @@ class MyDuesScreen extends ConsumerWidget {
     return PageBody(
       maxWidth: 900,
       children: [
+        const BankAccountCard(),
+        const SizedBox(height: 16),
         Card(
           color: pending > 0 ? const Color(0xFFFFF7ED) : const Color(0xFFF0FDF4),
           child: Padding(

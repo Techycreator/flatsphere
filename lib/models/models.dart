@@ -532,6 +532,7 @@ class ApproverStep {
     this.onBehalfOf,
     this.alternateRole,
     this.decidedBy,
+    this.isEcVote = false,
   });
 
   final Role role;
@@ -543,6 +544,7 @@ class ApproverStep {
   /// "Either/or" step, e.g. Secretary OR President.
   final Role? alternateRole;
   final String? decidedBy;
+  final bool isEcVote;
 
   String get label => alternateRole == null ? role.label : '${role.label} or ${alternateRole!.label}';
 
@@ -560,6 +562,7 @@ class ApproverStep {
     onBehalfOf: onBehalfOf,
     alternateRole: alternateRole,
     decidedBy: decidedBy ?? this.decidedBy,
+    isEcVote: isEcVote,
   );
 }
 
@@ -595,7 +598,7 @@ class ApprovalRequest {
   final String category;
 
   bool awaits(Role active, String userName) =>
-      currentStep?.matches(active, userName) == true && !initiatorName.contains(userName);
+      currentStep?.isEcVote != true && currentStep?.matches(active, userName) == true && !initiatorName.contains(userName);
 
   Decision get overall {
     if (steps.any((s) => s.decision == Decision.rejected)) return Decision.rejected;
