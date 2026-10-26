@@ -62,8 +62,8 @@ class _DeviceLockScreenState extends ConsumerState<DeviceLockScreen> {
       _busy = true;
       _error = null;
     });
-    await DeviceLock.setPin(pin);
-    final bio = _enableBio && await DeviceLock.authenticateBiometric('Confirm to enable biometric unlock');
+    await DeviceLock.setPin(pin, ref.read(sessionProvider)!.user.id);
+    final bio = _enableBio && await DeviceLock.enrollBiometric(ref.read(sessionProvider)!.user.name);
     await DeviceLock.setBiometricEnabled(bio);
     if (mounted) ref.read(lockProvider.notifier).unlock();
   }
@@ -76,7 +76,10 @@ class _DeviceLockScreenState extends ConsumerState<DeviceLockScreen> {
     final left = await DeviceLock.verifyPin(_pin.text);
     if (!mounted) return;
     if (left < 0) return ref.read(lockProvider.notifier).unlock();
-    if (left == 0) return ref.read(sessionProvider.notifier).logout();
+    if (left == 0) {
+      await DeviceLock.clear();
+      return ref.read(sessionProvider.notifier).logout();
+    }
     setState(() {
       _busy = false;
       _error = 'Wrong PIN. $left attempt${left == 1 ? '' : 's'} left.';
@@ -153,7 +156,12 @@ class _DeviceLockScreenState extends ConsumerState<DeviceLockScreen> {
                         label: const Text('Use fingerprint / face'),
                       ),
                     TextButton(
-                      onPressed: _busy ? null : () => ref.read(sessionProvider.notifier).logout(),
+                      onPressed: _busy
+                          ? null
+                          : () async {
+                              if (!widget.setup) await DeviceLock.clear();
+                              ref.read(sessionProvider.notifier).logout();
+                            },
                       child: Text(widget.setup ? 'Sign out' : 'Forgot PIN? Sign out'),
                     ),
                   ],

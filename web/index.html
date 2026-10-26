@@ -28,6 +28,36 @@
 <body>
   <div id="splash"><img src="icons/Icon-192.png" alt=""><div>Loading FlatSphere…</div></div>
   <script>
+    // Device-only biometric gate: the browser asks the OS (Touch ID, Windows Hello, Android fingerprint); no biometric data reaches the app.
+    window.flatsphereBiometric = {
+      async available() {
+        try { return !!window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); } catch (e) { return false; }
+      },
+      async register(label) {
+        try {
+          const cred = await navigator.credentials.create({ publicKey: {
+            challenge: crypto.getRandomValues(new Uint8Array(32)),
+            rp: { name: 'FlatSphere' },
+            user: { id: crypto.getRandomValues(new Uint8Array(16)), name: label, displayName: label },
+            pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+            authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
+            timeout: 60000 } });
+          localStorage.setItem('fs_bio_cred', btoa(String.fromCharCode(...new Uint8Array(cred.rawId))));
+          return true;
+        } catch (e) { return false; }
+      },
+      async verify() {
+        try {
+          const id = localStorage.getItem('fs_bio_cred');
+          if (!id) return false;
+          await navigator.credentials.get({ publicKey: {
+            challenge: crypto.getRandomValues(new Uint8Array(32)),
+            allowCredentials: [{ type: 'public-key', id: Uint8Array.from(atob(id), c => c.charCodeAt(0)) }],
+            userVerification: 'required', timeout: 60000 } });
+          return true;
+        } catch (e) { return false; }
+      },
+    };
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', async () => {
         const reg = await navigator.serviceWorker.register('sw.js');
