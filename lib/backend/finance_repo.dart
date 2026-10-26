@@ -387,6 +387,20 @@ class FinanceRepo {
   static Future<int> sendDuesReminders(List<String> flatIds) async =>
       ((await db.rpc('send_dues_reminders', params: {'p_flats': flatIds})) as num).toInt();
 
+  /// Active reminders for the signed-in owner's flats; they stay until the dues are paid.
+  static Future<List<({String flat, int pending, int count, DateTime lastSent})>> myDueReminders() async {
+    final rows = await db.rpc('my_due_reminders') as List;
+    return [
+      for (final r in rows)
+        (
+          flat: r['flat_number'] as String,
+          pending: (r['pending'] as num).toInt(),
+          count: (r['reminder_count'] as num).toInt(),
+          lastSent: DateTime.parse(r['last_sent_on'] as String),
+        ),
+    ];
+  }
+
   /// Emails the receipt to the flat's owners from noreply.flatsphere@gmail.com (Edge Function).
   static Future<void> emailReceipt(String receiptNo) =>
       db.functions.invoke('send-receipt-email', body: {'receipt_no': receiptNo});

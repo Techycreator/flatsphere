@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
+import '../../backend/finance_repo.dart';
+import '../../backend/backend.dart' show backendEnabled;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../models/sla.dart';
@@ -487,6 +489,46 @@ class _TreasurerDash extends ConsumerWidget {
   }
 }
 
+final dueRemindersProvider = FutureProvider.autoDispose<List<({String flat, int pending, int count, DateTime lastSent})>>(
+  (ref) async => backendEnabled ? FinanceRepo.myDueReminders() : const [],
+);
+
+class _DueReminderBanners extends ConsumerWidget {
+  const _DueReminderBanners();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reminders = ref.watch(dueRemindersProvider).value ?? const [];
+    if (reminders.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final r in reminders)
+          Card(
+            color: r.count > 1 ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7),
+            child: ListTile(
+              leading: Icon(
+                r.count > 1 ? Icons.notification_important : Icons.notifications_active_outlined,
+                color: r.count > 1 ? AppColors.red : AppColors.amber,
+              ),
+              title: Text(
+                r.count > 1
+                    ? 'Reminder ${r.count}: the association has sent another dues reminder'
+                    : 'The association has sent a dues reminder',
+              ),
+              subtitle: Text(
+                'Flat ${r.flat} · ${inr.format(r.pending)} pending · last sent ${dateFmt.format(r.lastSent)}. '
+                'This stays until the dues are paid.',
+              ),
+              trailing: FilledButton.tonal(onPressed: () => context.go('/dues'), child: const Text('View dues')),
+            ),
+          ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+}
+
 class _OwnerDash extends ConsumerWidget {
   const _OwnerDash();
 
@@ -494,6 +536,9 @@ class _OwnerDash extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(sessionProvider)!;
     final pending = ref.watch(duesProvider).pendingFor(s.user.flatNumber ?? '');
+    final myReminder = (ref.watch(dueRemindersProvider).value ?? const [])
+        .where((x) => x.flat == s.user.flatNumber)
+        .firstOrNull;
     final mine = visibleComplaints(ref);
     final notices = ref.watch(noticesProvider);
     final approvals = ref.watch(approvalsProvider);
@@ -505,6 +550,7 @@ class _OwnerDash extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const _DueReminderBanners(),
         for (final f in rented) ...[
           Card(
             child: ListTile(
@@ -540,7 +586,11 @@ class _OwnerDash extends ConsumerWidget {
               value: inr.format(pending),
               icon: Icons.payments_outlined,
               color: pending > 0 ? AppColors.red : AppColors.green,
-              sub: pending > 0 ? 'Tap to pay now' : 'All paid',
+              sub: pending > 0
+                  ? (myReminder == null
+                        ? 'Tap to pay now'
+                        : 'Reminder ${myReminder.count} sent ${dateFmt.format(myReminder.lastSent)} · tap to pay')
+                  : 'All paid',
               onTap: () => context.go('/dues'),
             ),
             StatCard(
