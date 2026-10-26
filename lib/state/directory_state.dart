@@ -203,9 +203,9 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
     );
   }
 
-  Future<void> removePerson(Person p) async {
+  Future<void> removePerson(Person p, {String reason = ''}) async {
     if (backendEnabled) {
-      await DirectoryRepo.remove(p);
+      await DirectoryRepo.remove(p, reason);
       return refresh();
     }
     _set(people: state.people.where((x) => x.id != p.id).toList());

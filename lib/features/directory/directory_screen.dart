@@ -8,7 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
-import '../../backend/directory_repo.dart' show friendlyError;
+import '../../backend/directory_repo.dart' show DirectoryRepo, friendlyError;
+import '../../backend/backend.dart' show backendEnabled;
 import '../../backend/upload_preparation.dart' show maxSourceUploadBytes;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
@@ -609,11 +610,15 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     );
     try {
       final r = await ref.read(directoryProvider.notifier).addPerson(p);
-      _toast(
-        r == 'invited'
-            ? 'Invited ${p.name}. They can now sign in with this email; a login code is emailed when they request it.'
-            : '${p.role.label} role added to ${p.name}\'s existing account.',
-      );
+      if (r == 'invited' && backendEnabled) {
+        await _emailInvite(p.email);
+      } else {
+        _toast(
+          r == 'invited'
+              ? 'Invited ${p.name}. They can now sign in with this email.'
+              : '${p.role.label} role added to ${p.name}\'s existing account.',
+        );
+      }
     } catch (e) {
       _toast(friendlyError(e));
     }
@@ -628,6 +633,12 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
           ? () {
               Navigator.pop(ctx);
               _addPerson(ref.read(directoryProvider), true, existing: p);
+            }
+          : null,
+      onResendInvite: p.invited && canModify
+          ? () {
+              Navigator.pop(ctx);
+              _emailInvite(p.email);
             }
           : null,
       onEdit: () {
@@ -738,28 +749,62 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
   }
 
   Future<void> _remove(Person p) async {
+    final reason = TextEditingController();
+    String? err;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Remove ${p.name}?'),
-        content: Text(
-          p.invited
-              ? 'The invitation as ${p.role.label} will be cancelled.'
-              : 'Their ${p.role.label} access${p.flatNumber != null ? ' for ${p.flatNumber}' : ''} ends now. '
-                    'Their ID proofs for this flat move to the archive. Other roles they hold are not affected.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remove'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: Text('Revoke ${p.role.label} role for ${p.name}?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                p.invited
+                    ? 'The invitation as ${p.role.label} will be cancelled.'
+                    : 'Only the ${p.role.label} access${p.flatNumber != null ? ' for ${p.flatNumber}' : ''} ends now. '
+                          'Their ID proofs for this flat move to the archive. Other roles they hold are not affected.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reason,
+                maxLength: 300,
+                decoration: const InputDecoration(labelText: 'Reason * (kept in the audit log)'),
+              ),
+              if (err != null) _ErrorText(err!),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+              onPressed: () {
+                if (reason.text.trim().length < 3) return set(() => err = 'Enter a reason');
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('Revoke role'),
+            ),
+          ],
+        ),
       ),
     );
+    final why = reason.text.trim();
+    reason.dispose();
     if (ok != true) return;
-    await _run(() => ref.read(directoryProvider.notifier).removePerson(p), '${p.name} removed as ${p.role.label}');
+    await _run(
+      () => ref.read(directoryProvider.notifier).removePerson(p, reason: why),
+      '${p.role.label} role revoked for ${p.name}',
+    );
+  }
+
+  Future<void> _emailInvite(String email) async {
+    try {
+      await DirectoryRepo.sendInviteEmail(email);
+      _toast('Invitation email sent to $email.');
+    } catch (_) {
+      _toast('Could not send the invitation email. Ask them to open the app and sign in with $email.');
+    }
   }
 
   // ---------------------------------------------------------------- Monitors
@@ -956,11 +1001,12 @@ class _AreaPicker extends StatelessWidget {
 
 /// Person details with private ID proofs (upload, view via a 60-second link; every view is logged).
 class _PersonDialog extends ConsumerStatefulWidget {
-  const _PersonDialog({required this.person, required this.canModify, required this.onEdit, required this.onRemove, this.onAddRole});
+  const _PersonDialog({required this.person, required this.canModify, required this.onEdit, required this.onRemove, this.onAddRole, this.onResendInvite});
 
   final Person person;
   final bool canModify;
   final VoidCallback? onAddRole;
+  final VoidCallback? onResendInvite;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
 
@@ -1147,8 +1193,9 @@ class _PersonDialogState extends ConsumerState<_PersonDialog> {
           TextButton(
             style: TextButton.styleFrom(foregroundColor: AppColors.red),
             onPressed: widget.onRemove,
-            child: const Text('Remove'),
+            child: const Text('Revoke role'),
           ),
+        if (widget.onResendInvite != null) TextButton(onPressed: widget.onResendInvite, child: const Text('Resend invite email')),
         if (widget.onAddRole != null) TextButton(onPressed: widget.onAddRole, child: const Text('Assign another role')),
         if (editable) TextButton(onPressed: widget.onEdit, child: const Text('Edit areas / designation')),
         OutlinedButton.icon(

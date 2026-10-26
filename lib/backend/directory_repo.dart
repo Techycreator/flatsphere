@@ -289,8 +289,13 @@ class DirectoryRepo {
     params: {'p_kind': person.invited ? 'invited' : 'member', 'p_id': person.id, 'p_birth_date': _date(birthDate)},
   );
 
-  static Future<void> remove(Person p) =>
-      db.rpc('remove_member', params: {'p_kind': p.invited ? 'invited' : 'member', 'p_id': p.id});
+  static Future<void> remove(Person p, String reason) => db.rpc(
+    'revoke_member_role',
+    params: {'p_kind': p.invited ? 'invited' : 'member', 'p_id': p.id, 'p_reason': reason.trim()},
+  );
+
+  static Future<void> sendInviteEmail(String email) =>
+      db.functions.invoke('send-invite-email', body: {'email': email.trim().toLowerCase()});
 
   static Future<List<IdDocument>> docs(String email) async {
     final rows = await db
