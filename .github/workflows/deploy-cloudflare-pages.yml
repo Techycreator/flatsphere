@@ -50,6 +50,8 @@ jobs:
             --base-href "/" \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+      - name: Stamp service worker version
+        run: sed -i "s/const CACHE = 'flatsphere-v2'/const CACHE = 'flatsphere-${GITHUB_SHA::8}'/" build/web/sw.js
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v4
         with:

@@ -70,10 +70,21 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
     final dueDay = int.tryParse(_dueDay.text.trim());
     final minimumLoginAge = int.tryParse(_familyMinimumAge.text.trim());
     final familyMemberLimit = int.tryParse(_familyMemberLimit.text.trim());
-    if (name.isEmpty || state.isEmpty || !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(brand) ||
-      fiscalMonth == null || fiscalMonth < 1 || fiscalMonth > 12 || dueDay == null || dueDay < 1 || dueDay > 28 ||
-      minimumLoginAge == null || minimumLoginAge < 1 || minimumLoginAge > 21 ||
-      familyMemberLimit == null || familyMemberLimit < 0 || familyMemberLimit > 30) {
+    if (name.isEmpty ||
+        state.isEmpty ||
+        !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(brand) ||
+        fiscalMonth == null ||
+        fiscalMonth < 1 ||
+        fiscalMonth > 12 ||
+        dueDay == null ||
+        dueDay < 1 ||
+        dueDay > 28 ||
+        minimumLoginAge == null ||
+        minimumLoginAge < 1 ||
+        minimumLoginAge > 21 ||
+        familyMemberLimit == null ||
+        familyMemberLimit < 0 ||
+        familyMemberLimit > 30) {
       toast(context, 'Check the required fields and their ranges');
       return;
     }
@@ -89,10 +100,7 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
         fiscalYearStartMonth: fiscalMonth,
         defaultDueDay: dueDay,
       );
-      await AssociationSettingsRepo.updateFamilyRules(
-        minimumLoginAge: minimumLoginAge,
-        memberLimit: familyMemberLimit,
-      );
+      await AssociationSettingsRepo.updateFamilyRules(minimumLoginAge: minimumLoginAge, memberLimit: familyMemberLimit);
       await ref.read(sessionProvider.notifier).switchAssociation(associationId);
       if (mounted) toast(context, AppLocalizations.of(context).settingsSaved);
     } catch (error) {
@@ -151,11 +159,23 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(controller: name, maxLength: 120, decoration: const InputDecoration(labelText: 'Association name *')),
+                  TextField(
+                    controller: name,
+                    maxLength: 120,
+                    decoration: const InputDecoration(labelText: 'Association name *'),
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: state, maxLength: 80, decoration: const InputDecoration(labelText: 'State *')),
+                  TextField(
+                    controller: state,
+                    maxLength: 80,
+                    decoration: const InputDecoration(labelText: 'State *'),
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: city, maxLength: 80, decoration: const InputDecoration(labelText: 'City')),
+                  TextField(
+                    controller: city,
+                    maxLength: 80,
+                    decoration: const InputDecoration(labelText: 'City'),
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: brand,
@@ -163,7 +183,10 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
                     decoration: const InputDecoration(labelText: 'Brand color *', helperText: '#RRGGBB'),
                   ),
                   if (error != null)
-                    Align(alignment: Alignment.centerLeft, child: Text(error!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error))),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(error!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+                    ),
                 ],
               ),
             ),
@@ -247,11 +270,20 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
           title: l.associationIdentity,
           child: Column(
             children: [
-              TextField(controller: _name, decoration: InputDecoration(labelText: '${l.associationName} *')),
+              TextField(
+                controller: _name,
+                decoration: InputDecoration(labelText: '${l.associationName} *'),
+              ),
               const SizedBox(height: 12),
-              TextField(controller: _state, decoration: InputDecoration(labelText: '${l.state} *')),
+              TextField(
+                controller: _state,
+                decoration: InputDecoration(labelText: '${l.state} *'),
+              ),
               const SizedBox(height: 12),
-              TextField(controller: _city, decoration: InputDecoration(labelText: l.city)),
+              TextField(
+                controller: _city,
+                decoration: InputDecoration(labelText: l.city),
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: _brand,
@@ -275,7 +307,10 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
                 controller: _fiscalMonth,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
-                decoration: InputDecoration(labelText: '${l.fiscalYearStartMonth} *', helperText: '1 = January, 4 = April'),
+                decoration: InputDecoration(
+                  labelText: '${l.fiscalYearStartMonth} *',
+                  helperText: '1 = January, 4 = April',
+                ),
               ),
               TextField(
                 controller: _dueDay,
@@ -339,7 +374,9 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
                         ? (enabled) => _setIdDocumentAccess(entry, enabled)
                         : null,
                     title: Text(entry.name),
-                    subtitle: Text('${entry.roles} · ${entry.isOfficeBearer ? 'Office bearer' : 'Membership Desk POC'}'),
+                    subtitle: Text(
+                      '${entry.roles} · ${entry.isOfficeBearer ? 'Office bearer' : 'Membership Desk POC'}',
+                    ),
                     secondary: _updatingIdDocumentAccessFor == entry.userId
                         ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.verified_user_outlined),

@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/nav.dart';
+import '../../backend/backend.dart' show backendEnabled;
 import '../../backend/notifications_repo.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/common.dart' show dateTimeFmt, EmptyState;
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
+import 'privacy_notice_screen.dart';
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.location, required this.child});
@@ -19,6 +21,8 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
     if (session == null) return const SizedBox.shrink();
+    ref.watch(idleLogoutProvider);
+    if (backendEnabled && ref.watch(privacyAcceptedProvider).value == false) return const PrivacyNoticeScreen();
     final birthdayWish = ref.watch(birthdayWishProvider);
     final l = AppLocalizations.of(context);
     final items = navFor(session.activeRole, membershipDesk: session.user.canInitiateMembership(session.activeRole));
@@ -86,12 +90,7 @@ class AppShell extends ConsumerWidget {
             MaterialBanner(
               leading: const Icon(Icons.cake_outlined),
               content: Text(l.birthdayWish(session.user.name)),
-              actions: [
-                TextButton(
-                  onPressed: () => ref.invalidate(birthdayWishProvider),
-                  child: Text(l.dismiss),
-                ),
-              ],
+              actions: [TextButton(onPressed: () => ref.invalidate(birthdayWishProvider), child: Text(l.dismiss))],
             ),
           Expanded(
             child: wide
@@ -104,7 +103,8 @@ class AppShell extends ConsumerWidget {
                         onDestinationSelected: (i) =>
                             i < barItems.length ? context.go(barItems[i].path) : _showMore(context, moreItems, l),
                         destinations: [
-                          for (final i in barItems) NavigationRailDestination(icon: Icon(i.icon), label: Text(i.label(l))),
+                          for (final i in barItems)
+                            NavigationRailDestination(icon: Icon(i.icon), label: Text(i.label(l))),
                           if (moreItems.isNotEmpty)
                             NavigationRailDestination(icon: const Icon(Icons.more_horiz), label: Text(l.more)),
                         ],
@@ -140,10 +140,7 @@ class AppShell extends ConsumerWidget {
       borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 320,
-          maxHeight: MediaQuery.sizeOf(ctx).height - 32,
-        ),
+        constraints: BoxConstraints(maxWidth: 320, maxHeight: MediaQuery.sizeOf(ctx).height - 32),
         child: ListView(
           shrinkWrap: true,
           padding: const EdgeInsets.only(bottom: 8),
@@ -189,7 +186,9 @@ class AppShell extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(child: SizedBox(height: MediaQuery.sizeOf(ctx).height * 0.72, child: menu(ctx))),
+      builder: (ctx) => SafeArea(
+        child: SizedBox(height: MediaQuery.sizeOf(ctx).height * 0.72, child: menu(ctx)),
+      ),
     );
   }
 
@@ -226,9 +225,13 @@ class AppShell extends ConsumerWidget {
               if (notifications.hasValue)
                 for (final notice in notifications.value!)
                   ListTile(
-                    leading: Icon(notice.readAt == null ? Icons.notifications_active_outlined : Icons.notifications_none),
+                    leading: Icon(
+                      notice.readAt == null ? Icons.notifications_active_outlined : Icons.notifications_none,
+                    ),
                     title: Text(notice.title),
-                    subtitle: Text('${notice.body}${notice.body.isEmpty ? '' : ' · '}${dateTimeFmt.format(notice.createdAt)}'),
+                    subtitle: Text(
+                      '${notice.body}${notice.body.isEmpty ? '' : ' · '}${dateTimeFmt.format(notice.createdAt)}',
+                    ),
                     onTap: () async {
                       try {
                         await NotificationsRepo.markRead(notice.id);
@@ -320,6 +323,8 @@ class _ProfileMenu extends ConsumerWidget {
         switch (v) {
           case 'en' || 'ml':
             ref.read(localeProvider.notifier).set(Locale(v));
+          case 'audit':
+            context.go('/audit');
           case 'logout':
             ref.read(sessionProvider.notifier).logout();
         }
@@ -338,6 +343,15 @@ class _ProfileMenu extends ConsumerWidget {
           const PopupMenuItem(value: 'en', child: Text('English')),
           const PopupMenuItem(value: 'ml', child: Text('മലയാളം')),
         ],
+        if (const {Role.admin, Role.president, Role.secretary}.contains(session.activeRole))
+          const PopupMenuItem(
+            value: 'audit',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.history),
+              title: Text('Audit log & export'),
+            ),
+          ),
         const PopupMenuDivider(),
         PopupMenuItem(
           value: 'logout',

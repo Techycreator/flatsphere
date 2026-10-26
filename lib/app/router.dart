@@ -28,6 +28,7 @@ import '../features/notices/notices_screen.dart';
 import '../features/visitors/visitors_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/shell/association_settings_screen.dart';
+import '../features/shell/audit_export_screen.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
 import 'nav.dart';
@@ -97,6 +98,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/registers', pageBuilder: (_, _) => _page(const AssociationRegisterScreen())),
           GoRoute(path: '/association-documents', pageBuilder: (_, _) => _page(const AssociationDocumentsScreen())),
           GoRoute(path: '/association-settings', pageBuilder: (_, _) => _page(const AssociationSettingsScreen())),
+          GoRoute(path: '/audit', pageBuilder: (_, _) => _page(const AuditExportScreen())),
           GoRoute(path: '/amenities', pageBuilder: (_, _) => _page(const AmenitiesScreen())),
           GoRoute(
             path: '/community',

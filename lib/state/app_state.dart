@@ -1,3 +1,8 @@
+import '../backend/compliance_repo.dart';
+
+import 'package:flutter/gestures.dart';
+
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -854,3 +859,27 @@ class MeetingsNotifier extends Notifier<List<Meeting>> {
 }
 
 final noticesProvider = Provider<List<Notice>>((ref) => buildDemoNotices(ref.read(clockProvider)));
+
+final privacyAcceptedProvider = FutureProvider.autoDispose<bool>((ref) async {
+  final userId = ref.watch(sessionProvider.select((s) => s?.user.id));
+  if (!backendEnabled || userId == null) return true;
+  return ComplianceRepo.privacyAccepted();
+});
+
+/// Committee roles are logged out after 30 minutes without any tap or click.
+final idleLogoutProvider = Provider.autoDispose<void>((ref) {
+  final role = ref.watch(sessionProvider.select((s) => s?.activeRole));
+  if (!backendEnabled || role == null || !(role.isCommittee || role == Role.admin)) return;
+  Timer? timer;
+  void reset([PointerEvent? _]) {
+    timer?.cancel();
+    timer = Timer(const Duration(minutes: 30), () => ref.read(sessionProvider.notifier).logout());
+  }
+
+  reset();
+  GestureBinding.instance.pointerRouter.addGlobalRoute(reset);
+  ref.onDispose(() {
+    timer?.cancel();
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(reset);
+  });
+});
