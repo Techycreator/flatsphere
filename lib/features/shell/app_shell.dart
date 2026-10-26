@@ -213,7 +213,7 @@ class AppShell extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.verified_outlined),
                   title: Text(approval.title),
-                  subtitle: Text('${approval.code} · waiting for your approval'),
+                  subtitle: Text('${approval.title} · waiting for your approval'),
                   onTap: () {
                     Navigator.pop(ctx);
                     context.go('/approvals/${approval.id}');

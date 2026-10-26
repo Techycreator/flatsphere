@@ -90,7 +90,7 @@ class ApprovalDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${a.code} · ${a.id}'),
+        title: Text('Request ${a.id}'),
         actions: [
           if (paymentGate != null)
             IconButton(

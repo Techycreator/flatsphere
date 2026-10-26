@@ -365,7 +365,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
     };
 
     return Scaffold(
-      appBar: AppBar(title: Text('${t.code} · ${t.label}')),
+      appBar: AppBar(title: Text(t.label)),
       body: PageBody(
         maxWidth: 720,
         children: [

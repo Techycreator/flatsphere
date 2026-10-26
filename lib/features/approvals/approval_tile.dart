@@ -25,7 +25,7 @@ class ApprovalTile extends StatelessWidget {
       onTap: () => context.go('/approvals/${a.id}'),
       leading: CircleAvatar(
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-        child: Text(a.code, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+        child: const Icon(Icons.fact_check_outlined, size: 20),
       ),
       title: Text(a.title, maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: Padding(

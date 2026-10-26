@@ -67,7 +67,7 @@ class ApprovalsScreen extends ConsumerWidget {
                                   value: t,
                                   child: ListTile(
                                     contentPadding: EdgeInsets.zero,
-                                    title: Text('${t.code} · ${t.label}'),
+                                    title: Text(t.label),
                                     subtitle: Text(t.hint),
                                   ),
                                 ),
