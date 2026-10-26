@@ -147,6 +147,15 @@ class DirectoryRepo {
     );
   }
 
+  static Future<void> requestFamilyMemberAddition({
+    required String flatId,
+    required String name,
+    required DateTime dateOfBirth,
+  }) => db.rpc(
+    'request_family_member_addition',
+    params: {'p_flat': flatId, 'p_full_name': name.trim(), 'p_date_of_birth': _date(dateOfBirth)},
+  );
+
   static Future<List<FamilyMemberRecord>> familyMembers() async {
     final rows = await db
         .from('family_members')

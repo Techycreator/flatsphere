@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/attendance_repo.dart';
 import '../../backend/directory_repo.dart' show DirectoryRepo, friendlyError;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
@@ -83,6 +84,88 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
     }
   }
 
+  Future<void> _addMember() async {
+    final flats = await AttendanceRepo.myResidentialFlats();
+    if (!mounted) return;
+    if (flats.isEmpty) return toast(context, 'No active owner/resident flat is linked to this account.');
+    final name = TextEditingController();
+    var flat = flats.first;
+    DateTime? dob;
+    String? err;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: const Text('Add family member'),
+          content: SizedBox(
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (flats.length > 1) ...[
+                  DropdownButtonFormField<(String, String)>(
+                    initialValue: flat,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Flat'),
+                    items: [for (final f in flats) DropdownMenuItem(value: f, child: Text(f.$2))],
+                    onChanged: (v) => set(() => flat = v ?? flat),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                TextField(controller: name, decoration: const InputDecoration(labelText: 'Full name *')),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: dob ?? DateTime.now().subtract(const Duration(days: 365 * 10)),
+                      firstDate: DateTime(1900),
+                      lastDate: DateTime.now(),
+                    );
+                    if (d != null) set(() => dob = d);
+                  },
+                  icon: const Icon(Icons.cake_outlined),
+                  label: Text(dob == null ? 'Date of birth *' : 'Date of birth · ${dateFmt.format(dob!)}'),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'The Secretary must approve this request. After approval you can add a login email for members who meet the age rule.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                if (err != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(err!, style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (name.text.trim().isEmpty || dob == null) return set(() => err = 'Enter a name and date of birth');
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('Submit for approval'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final memberName = name.text.trim();
+    name.dispose();
+    if (ok != true || dob == null || !mounted) return;
+    try {
+      await DirectoryRepo.requestFamilyMemberAddition(flatId: flat.$1, name: memberName, dateOfBirth: dob!);
+      await _load();
+      if (mounted) toast(context, 'Request sent to the Secretary for approval.');
+    } catch (error) {
+      if (mounted) toast(context, friendlyError(error));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
@@ -100,6 +183,11 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
         Row(
           children: [
             Expanded(child: Text('Family accounts', style: Theme.of(context).textTheme.headlineSmall)),
+            FilledButton.icon(
+              onPressed: backendEnabled ? _addMember : null,
+              icon: const Icon(Icons.person_add_alt),
+              label: const Text('Add family member'),
+            ),
             IconButton(onPressed: _load, tooltip: 'Refresh', icon: const Icon(Icons.refresh)),
           ],
         ),
