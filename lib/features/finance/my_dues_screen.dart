@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
 import 'charts.dart';
+import 'receipt_pdf.dart';
 
 class MyDuesScreen extends ConsumerWidget {
   const MyDuesScreen({super.key});
@@ -111,6 +112,27 @@ class MyDuesScreen extends ConsumerWidget {
             ],
           ),
         ),
+        if (ref.watch(duesProvider).payments.where((p) => p.flatNumber == flat).isNotEmpty) ...[
+          const SizedBox(height: 16),
+          SectionCard(
+            title: 'Receipts',
+            child: Column(
+              children: [
+                for (final p in ref.watch(duesProvider).payments.reversed.where((p) => p.flatNumber == flat))
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${p.receiptNo} · ${inr.format(p.amount)}'),
+                    subtitle: Text('${dateFmt.format(p.paidOn)} · ${p.head ?? 'Advance / other'}'),
+                    trailing: IconButton(
+                      tooltip: 'Download receipt (PDF)',
+                      icon: const Icon(Icons.download_outlined),
+                      onPressed: () => downloadReceipt(p, s.user.association?.name ?? 'Association'),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         const SectionCard(title: 'September 2026 statement (published)', child: ExpensePie()),
         const SizedBox(height: 8),

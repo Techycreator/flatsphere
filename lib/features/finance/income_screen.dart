@@ -36,13 +36,15 @@ class IncomeScreen extends ConsumerWidget {
       final draft = await _incomeDialog(context, active);
       if (draft == null || !context.mounted) return;
       try {
-        await ref.read(incomeProvider.notifier).record(
-          categoryId: draft.categoryId,
-          receivedOn: draft.receivedOn,
-          amount: draft.amount,
-          source: draft.source,
-          description: draft.description,
-        );
+        await ref
+            .read(incomeProvider.notifier)
+            .record(
+              categoryId: draft.categoryId,
+              receivedOn: draft.receivedOn,
+              amount: draft.amount,
+              source: draft.source,
+              description: draft.description,
+            );
         if (context.mounted) toast(context, 'Income recorded');
       } catch (error) {
         if (context.mounted) toast(context, friendlyError(error));
@@ -55,7 +57,11 @@ class IncomeScreen extends ConsumerWidget {
           children: [
             Expanded(child: Text('Income records', style: Theme.of(context).textTheme.headlineSmall)),
             if (canRecord) ...[
-              OutlinedButton.icon(onPressed: requestCategory, icon: const Icon(Icons.category_outlined), label: const Text('New category')),
+              OutlinedButton.icon(
+                onPressed: requestCategory,
+                icon: const Icon(Icons.category_outlined),
+                label: const Text('New category'),
+              ),
               const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: active.isEmpty ? null : recordIncome,
@@ -86,7 +92,9 @@ class IncomeScreen extends ConsumerWidget {
                           color: category.status == IncomeCategoryStatus.active ? AppColors.green : AppColors.amber,
                         ),
                         title: Text(category.name),
-                        subtitle: category.status == IncomeCategoryStatus.active ? null : Text('${_statusLabel(category.status)} · ${category.requestRef}'),
+                        subtitle: category.status == IncomeCategoryStatus.active
+                            ? null
+                            : Text('${_statusLabel(category.status)} · ${category.requestRef}'),
                         trailing: Pill(
                           _statusLabel(category.status),
                           color: category.status == IncomeCategoryStatus.active
@@ -157,7 +165,9 @@ Future<_IncomeDraft?> _incomeDialog(BuildContext context, List<IncomeCategory> c
                 DropdownButtonFormField<String>(
                   initialValue: categoryId,
                   decoration: const InputDecoration(labelText: 'Category *'),
-                  items: [for (final category in categories) DropdownMenuItem(value: category.id, child: Text(category.name))],
+                  items: [
+                    for (final category in categories) DropdownMenuItem(value: category.id, child: Text(category.name)),
+                  ],
                   onChanged: (value) => setState(() => categoryId = value ?? categoryId),
                 ),
                 const SizedBox(height: 12),
@@ -168,7 +178,10 @@ Future<_IncomeDraft?> _incomeDialog(BuildContext context, List<IncomeCategory> c
                   decoration: const InputDecoration(labelText: 'Amount in rupees *', prefixText: '₹ '),
                 ),
                 const SizedBox(height: 12),
-                TextField(controller: source, decoration: const InputDecoration(labelText: 'Source / sponsor')),
+                TextField(
+                  controller: source,
+                  decoration: const InputDecoration(labelText: 'Source / sponsor'),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: description,
@@ -192,7 +205,11 @@ Future<_IncomeDraft?> _incomeDialog(BuildContext context, List<IncomeCategory> c
                     label: Text('Received ${dateFmt.format(receivedOn)}'),
                   ),
                 ),
-                if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error))),
+                if (error != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(error!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+                  ),
               ],
             ),
           ),
@@ -205,16 +222,13 @@ Future<_IncomeDraft?> _incomeDialog(BuildContext context, List<IncomeCategory> c
               if (parsedAmount == null || parsedAmount <= 0) {
                 return setState(() => error = 'Enter an amount greater than zero');
               }
-              Navigator.pop(
-                dialogContext,
-                (
-                  categoryId: categoryId,
-                  receivedOn: receivedOn,
-                  amount: parsedAmount,
-                  source: source.text.trim(),
-                  description: description.text.trim(),
-                ),
-              );
+              Navigator.pop(dialogContext, (
+                categoryId: categoryId,
+                receivedOn: receivedOn,
+                amount: parsedAmount,
+                source: source.text.trim(),
+                description: description.text.trim(),
+              ));
             },
             child: const Text('Save'),
           ),

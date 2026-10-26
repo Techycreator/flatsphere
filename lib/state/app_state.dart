@@ -512,6 +512,7 @@ class DuesNotifier extends Notifier<DuesState> {
         reference: reference,
         paidOn: paidOn,
       );
+      FinanceRepo.emailReceipt(r).ignore();
       await refresh();
       return r;
     }

@@ -51,15 +51,7 @@ class _AnalysisTabState extends ConsumerState<AnalysisTab> {
       for (final name in dueCategories) ('dues:$name', 'Dues · $name'),
     ];
     if (!categories.any((item) => item.$1 == _category)) _category = categories.first.$1;
-    final series = _liveSeries(
-      _category,
-      expenses,
-      income,
-      dues.payments,
-      currentStart,
-      previousStart,
-      fiscalMonth,
-    );
+    final series = _liveSeries(_category, expenses, income, dues.payments, currentStart, previousStart, fiscalMonth);
     final currentTotal = series.current.take(closedMonths).fold(0.0, (sum, value) => sum + value);
     final previousTotal = series.previous.take(closedMonths).fold(0.0, (sum, value) => sum + value);
     final theme = Theme.of(context);
@@ -115,7 +107,8 @@ class _AnalysisTabState extends ConsumerState<AnalysisTab> {
               StatCard(label: '$previousFyName · same period', value: inr.format(previousTotal), icon: Icons.history),
               StatCard(
                 label: 'Change',
-                value: '${_pct(currentTotal, previousTotal) >= 0 ? '+' : ''}${_pct(currentTotal, previousTotal).toStringAsFixed(1)}%',
+                value:
+                    '${_pct(currentTotal, previousTotal) >= 0 ? '+' : ''}${_pct(currentTotal, previousTotal).toStringAsFixed(1)}%',
                 icon: Icons.trending_up,
               ),
             ],
@@ -179,16 +172,21 @@ class _AnalysisTabState extends ConsumerState<AnalysisTab> {
             loading: () => const LinearProgressIndicator(),
             error: (error, _) => Text('$error'),
             data: (records) {
-              final budget = records.where((record) =>
-                  record.status == 'approved' && record.fiscalYearStart == currentStart).firstOrNull;
+              final budget = records
+                  .where((record) => record.status == 'approved' && record.fiscalYearStart == currentStart)
+                  .firstOrNull;
               if (budget == null) return Text(l.noBudgetRecorded);
               return Column(
                 children: [
                   for (final entry in budget.categoryAmounts.entries)
                     () {
                       final actual = expenses
-                          .where((expense) => expense.category == entry.key &&
-                              !expense.date.isBefore(currentStart) && !expense.date.isAfter(today))
+                          .where(
+                            (expense) =>
+                                expense.category == entry.key &&
+                                !expense.date.isBefore(currentStart) &&
+                                !expense.date.isAfter(today),
+                          )
                           .fold(0, (sum, expense) => sum + expense.amount);
                       final ratio = entry.value == 0 ? 0.0 : actual / entry.value;
                       return Padding(
@@ -196,10 +194,12 @@ class _AnalysisTabState extends ConsumerState<AnalysisTab> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(children: [
-                              Expanded(child: Text(entry.key)),
-                              Text('${inr.format(actual)} / ${inr.format(entry.value)}'),
-                            ]),
+                            Row(
+                              children: [
+                                Expanded(child: Text(entry.key)),
+                                Text('${inr.format(actual)} / ${inr.format(entry.value)}'),
+                              ],
+                            ),
                             const SizedBox(height: 4),
                             LinearProgressIndicator(
                               value: ratio.clamp(0, 1),
@@ -255,12 +255,16 @@ class _AnalysisTabState extends ConsumerState<AnalysisTab> {
       }
     } else {
       for (final item in payments) {
-        if (filter == item.head || (filter == 'Advance' && item.head == null)) add(item.paidOn, item.amount, item.head ?? 'Advance');
+        if (filter == item.head || (filter == 'Advance' && item.head == null))
+          add(item.paidOn, item.amount, item.head ?? 'Advance');
       }
     }
     return CategorySeries(
-      isExpense ? (filter == 'all' ? 'All expenses' : filter) :
-          isIncome ? (filter == 'all' ? 'All income' : filter) : filter,
+      isExpense
+          ? (filter == 'all' ? 'All expenses' : filter)
+          : isIncome
+          ? (filter == 'all' ? 'All income' : filter)
+          : filter,
       previous,
       current,
     );

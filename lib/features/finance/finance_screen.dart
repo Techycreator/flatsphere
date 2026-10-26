@@ -21,6 +21,7 @@ import 'analysis_data.dart';
 import 'analysis_tab.dart';
 import 'charts.dart';
 import 'income_screen.dart';
+import 'receipt_pdf.dart';
 import 'treasurer_forms.dart';
 
 final monthlyStatementsProvider = FutureProvider.autoDispose<List<MonthlyStatement>>(
@@ -398,7 +399,18 @@ class _DuesTab extends ConsumerWidget {
                       '${dateFmt.format(p.paidOn)} · ${paymentModes[p.mode] ?? p.mode}'
                       '${p.reference == null ? '' : ' · ref ${p.reference}'}',
                     ),
-                    trailing: Text(inr.format(p.amount), style: const TextStyle(fontWeight: FontWeight.w600)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(inr.format(p.amount), style: const TextStyle(fontWeight: FontWeight.w600)),
+                        IconButton(
+                          tooltip: 'Download receipt (PDF)',
+                          icon: const Icon(Icons.download_outlined),
+                          onPressed: () =>
+                              downloadReceipt(p, ref.read(sessionProvider)!.user.association?.name ?? associationName),
+                        ),
+                      ],
+                    ),
                   ),
               ],
             ),

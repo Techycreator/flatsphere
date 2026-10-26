@@ -386,4 +386,8 @@ class FinanceRepo {
   /// Returns how many flats were reminded (flats already reminded today or with nothing pending are skipped).
   static Future<int> sendDuesReminders(List<String> flatIds) async =>
       ((await db.rpc('send_dues_reminders', params: {'p_flats': flatIds})) as num).toInt();
+
+  /// Emails the receipt to the flat's owners from noreply.flatsphere@gmail.com (Edge Function).
+  static Future<void> emailReceipt(String receiptNo) =>
+      db.functions.invoke('send-receipt-email', body: {'receipt_no': receiptNo});
 }

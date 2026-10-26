@@ -37,7 +37,7 @@ Future<PickedFile?> pickBill(BuildContext context) async {
 }
 
 DateTime _fyStart(DateTime now, int startMonth) =>
-  DateTime(now.month >= startMonth ? now.year : now.year - 1, startMonth, 1);
+    DateTime(now.month >= startMonth ? now.year : now.year - 1, startMonth, 1);
 
 Future<DateTime?> _pickDate(BuildContext context, DateTime initial) =>
     showDatePicker(context: context, initialDate: initial, firstDate: DateTime(2015), lastDate: DateTime(2040));
@@ -243,7 +243,10 @@ Future<void> showRaiseDuesPerSqftForm(BuildContext context, WidgetRef ref) async
       return null;
     },
     fields: (set) => [
-      TextField(controller: head, decoration: InputDecoration(labelText: '${l.duesName} *')),
+      TextField(
+        controller: head,
+        decoration: InputDecoration(labelText: '${l.duesName} *'),
+      ),
       TextField(
         controller: rateController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -264,11 +267,9 @@ Future<void> showRaiseDuesPerSqftForm(BuildContext context, WidgetRef ref) async
   if (ok != true || !context.mounted) return;
   final feeHead = head.text.trim();
   await _run(context, () async {
-    final count = await ref.read(duesProvider.notifier).raiseDuesPerSqft(
-      feeHead,
-      dueDate,
-      double.parse(rateController.text.trim()),
-    );
+    final count = await ref
+        .read(duesProvider.notifier)
+        .raiseDuesPerSqft(feeHead, dueDate, double.parse(rateController.text.trim()));
     return count == 0 ? 'No new dues were created' : 'Raised "$feeHead" for $count flats';
   });
 }
@@ -288,7 +289,10 @@ Future<void> showFixedLateFeeForm(BuildContext context, WidgetRef ref) async {
       return null;
     },
     fields: (set) => [
-      TextField(controller: feeName, decoration: InputDecoration(labelText: '${l.duesName} *')),
+      TextField(
+        controller: feeName,
+        decoration: InputDecoration(labelText: '${l.duesName} *'),
+      ),
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,
@@ -303,7 +307,10 @@ Future<void> showFixedLateFeeForm(BuildContext context, WidgetRef ref) async {
           if (selected != null) set(() => dueDate = selected);
         },
       ),
-      const Text('Applied once to each flat with a past-due unpaid charge. The fee name prevents duplicate application.', style: _note),
+      const Text(
+        'Applied once to each flat with a past-due unpaid charge. The fee name prevents duplicate application.',
+        style: _note,
+      ),
     ],
   );
   if (ok != true || !context.mounted) return;
@@ -451,7 +458,10 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
           items: [
             const DropdownMenuItem<String?>(value: null, child: Text('Not linked to an event')),
             for (final event in events)
-              DropdownMenuItem<String?>(value: event.id, child: Text(event.title, maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem<String?>(
+                value: event.id,
+                child: Text(event.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
           ],
           onChanged: (value) => set(() => eventId = value),
         ),
