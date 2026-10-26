@@ -23,11 +23,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _otpSent = false;
   bool _busy = false;
   String? _error;
+  String? _info;
 
   Future<void> _run(Future<void> Function() action) async {
     setState(() {
       _busy = true;
       _error = null;
+      _info = null;
     });
     try {
       await action();
@@ -38,6 +40,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ? 'This email is not registered with any association. Ask your Secretary for an invite.'
             : msg.contains('expired') || msg.contains('invalid')
             ? 'Code is wrong or expired. Request a new one.'
+            : msg.contains('security purposes') || msg.contains('rate limit')
+            ? 'Please wait a minute before requesting another code.'
             : 'Could not complete login. Please try again.',
       );
     } finally {
@@ -55,6 +59,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => _otpSent = true);
     });
   }
+
+  void _resend() => _run(() async {
+    await AuthService.sendCode(_mobile.text);
+    setState(() {
+      _otp.clear();
+      _info = 'New code sent. Any earlier code no longer works.';
+    });
+  });
 
   void _verifyEmail() {
     if (!RegExp(r'^\d{6}$').hasMatch(_otp.text.trim())) {
@@ -134,6 +146,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const SizedBox(height: 8),
               Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
             ],
+            if (_otpSent && backendEnabled && _error == null) ...[
+              const SizedBox(height: 8),
+              Text(_info ?? 'The code is valid for 10 minutes.', style: theme.textTheme.bodySmall),
+            ],
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _busy
@@ -143,6 +159,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   : () => _otpSent ? _verify() : setState(() => _otpSent = true),
               child: Padding(padding: const EdgeInsets.all(12), child: Text(_otpSent ? l.verify : l.sendOtp)),
             ),
+            if (backendEnabled && _otpSent)
+              TextButton(
+                onPressed: _busy ? null : _resend,
+                child: const Text('Resend code'),
+              ),
             if (backendEnabled && _otpSent)
               TextButton(
                 onPressed: _busy
