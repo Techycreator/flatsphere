@@ -15,3 +15,17 @@ begin
   end loop;
 end $$;
 alter default privileges in schema public revoke execute on functions from anon;
+
+-- PUBLIC holds a default EXECUTE grant too; move it to signed-in users only.
+do $$
+declare f record;
+begin
+  for f in select p.oid::regprocedure as sig, p.proname from pg_proc p
+           where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.prorettype <> 'trigger'::regtype loop
+    execute format('revoke execute on function %s from public, anon', f.sig);
+    if f.proname not in ('refresh_membership_payment_gate','seed_workflow_catalog','notify_vendor_amc_renewals',
+                         'meeting_audience','notify_meeting_reminders','notify_expiry_alerts') then
+      execute format('grant execute on function %s to authenticated', f.sig);
+    end if;
+  end loop;
+end $$;
