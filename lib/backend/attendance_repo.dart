@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../models/models.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'backend.dart';
@@ -19,8 +20,7 @@ class AttendanceRepo {
         .inFilter('role', ['owner', 'resident']);
     return [
       for (final row in rows)
-        if (row['flat_id'] case final String id)
-          (id, ((row['flats'] as Map?)?['number'] as String?) ?? ''),
+        if (row['flat_id'] case final String id) (id, ((row['flats'] as Map?)?['number'] as String?) ?? ''),
     ];
   }
 
@@ -44,18 +44,18 @@ class AttendanceRepo {
           () {
             final privateDetails = row['staff_private_details'] as Map? ?? const {};
             return StaffMember(
-            id: row['id'] as String,
-            name: row['full_name'] as String,
-            type: _staffType(row['staff_type']),
-            area: row['area'] as String,
-            active: row['active'] as bool? ?? true,
-            employerType: privateDetails['employer_type'] == 'agency'
-                ? StaffEmployerType.agency
-                : StaffEmployerType.association,
-            agencyName: privateDetails['agency_name'] as String?,
-            monthlySalary: (privateDetails['monthly_salary'] as num?)?.toInt(),
-            idProofPath: privateDetails['id_proof_path'] as String?,
-          );
+              id: row['id'] as String,
+              name: row['full_name'] as String,
+              type: _staffType(row['staff_type']),
+              area: row['area'] as String,
+              active: row['active'] as bool? ?? true,
+              employerType: privateDetails['employer_type'] == 'agency'
+                  ? StaffEmployerType.agency
+                  : StaffEmployerType.association,
+              agencyName: privateDetails['agency_name'] as String?,
+              monthlySalary: (privateDetails['monthly_salary'] as num?)?.toInt(),
+              idProofPath: privateDetails['id_proof_path'] as String?,
+            );
           }(),
       ],
       records: {
@@ -84,11 +84,9 @@ class AttendanceRepo {
     final prepared = await prepareUpload(proofBytes, proofExtension);
     final association = await db.rpc('my_association') as String;
     final path = '$association/${DateTime.now().microsecondsSinceEpoch}.${prepared.extension}';
-    await db.storage.from('staff-proofs').uploadBinary(
-      path,
-      prepared.bytes,
-      fileOptions: FileOptions(contentType: prepared.contentType),
-    );
+    await db.storage
+        .from('staff-proofs')
+        .uploadBinary(path, prepared.bytes, fileOptions: FileOptions(contentType: prepared.contentType));
     try {
       await db.rpc(
         'add_staff_member',
@@ -169,11 +167,9 @@ class AttendanceRepo {
     final prepared = await prepareUpload(proofBytes, proofExtension);
     final association = await db.rpc('my_association') as String;
     final path = '$association/$flatId/${DateTime.now().microsecondsSinceEpoch}.${prepared.extension}';
-    await db.storage.from('housekeeping-proofs').uploadBinary(
-      path,
-      prepared.bytes,
-      fileOptions: FileOptions(contentType: prepared.contentType),
-    );
+    await db.storage
+        .from('housekeeping-proofs')
+        .uploadBinary(path, prepared.bytes, fileOptions: FileOptions(contentType: prepared.contentType));
     try {
       await db.rpc(
         'add_flat_housekeeping_worker',
@@ -200,12 +196,7 @@ class AttendanceRepo {
   }) async {
     await db.rpc(
       'mark_staff_attendance',
-      params: {
-        'p_staff': staffId,
-        'p_date': _date(date),
-        'p_status': _attendanceStatusDb(status),
-        'p_note': note,
-      },
+      params: {'p_staff': staffId, 'p_date': _date(date), 'p_status': _attendanceStatusDb(status), 'p_note': note},
     );
   }
 }

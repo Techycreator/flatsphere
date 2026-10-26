@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../backend/meetings_repo.dart';
+import '../../backend/directory_repo.dart' show friendlyError;
 import '../../app/theme.dart';
 import '../../backend/backend.dart' show backendEnabled;
 import '../../l10n/app_localizations.dart';
@@ -59,6 +63,7 @@ class MeetingsScreen extends ConsumerWidget {
     var at = DateTime.now().add(const Duration(days: 7));
     final title = TextEditingController(text: 'EC meeting – special');
     final agenda = TextEditingController();
+    final link = TextEditingController();
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -74,13 +79,22 @@ class MeetingsScreen extends ConsumerWidget {
                     initialValue: type,
                     decoration: InputDecoration(labelText: l.meetingType),
                     items: [
-                      for (final value in const ['Executive Committee', 'Office bearers', 'Staff meeting', 'General Body'])
+                      for (final value in const [
+                        'Executive Committee',
+                        'Office bearers',
+                        'Staff meeting',
+                        'General Body',
+                      ])
                         DropdownMenuItem(value: value, child: Text(value)),
                     ],
                     onChanged: (value) => setDialogState(() => type = value ?? type),
                   ),
                   const SizedBox(height: 12),
-                  TextField(controller: title, maxLength: 200, decoration: InputDecoration(labelText: '${l.meetingTitle} *')),
+                  TextField(
+                    controller: title,
+                    maxLength: 200,
+                    decoration: InputDecoration(labelText: '${l.meetingTitle} *'),
+                  ),
                   const SizedBox(height: 12),
                   SegmentedButton<MeetingMode>(
                     segments: [
@@ -113,7 +127,10 @@ class MeetingsScreen extends ConsumerWidget {
                         lastDate: DateTime.now().add(const Duration(days: 730)),
                       );
                       if (date == null || !dialogContext.mounted) return;
-                      final time = await showTimePicker(context: dialogContext, initialTime: TimeOfDay.fromDateTime(at));
+                      final time = await showTimePicker(
+                        context: dialogContext,
+                        initialTime: TimeOfDay.fromDateTime(at),
+                      );
                       if (time != null && dialogContext.mounted) {
                         setDialogState(() => at = DateTime(date.year, date.month, date.day, time.hour, time.minute));
                       }
@@ -121,7 +138,23 @@ class MeetingsScreen extends ConsumerWidget {
                     icon: const Icon(Icons.calendar_month_outlined),
                     label: Text(dateTimeFmt.format(at)),
                   ),
-                  TextField(controller: agenda, maxLength: 2000, maxLines: 3, decoration: InputDecoration(labelText: l.meetingAgenda)),
+                  if (mode != MeetingMode.inPerson)
+                    TextField(
+                      controller: link,
+                      keyboardType: TextInputType.url,
+                      decoration: const InputDecoration(
+                        labelText: 'Meeting link (optional now)',
+                        hintText: 'https://meet.google.com/abc-defg-hij',
+                        helperText: 'Create the meeting in Google Meet / Zoom and paste its link here.',
+                        helperMaxLines: 2,
+                      ),
+                    ),
+                  TextField(
+                    controller: agenda,
+                    maxLength: 2000,
+                    maxLines: 3,
+                    decoration: InputDecoration(labelText: l.meetingAgenda),
+                  ),
                   const SizedBox(height: 8),
                   Text(l.meetingSaved, style: const TextStyle(fontSize: 12)),
                 ],
@@ -144,18 +177,21 @@ class MeetingsScreen extends ConsumerWidget {
       return;
     }
     try {
-      await ref.read(meetingsProvider.notifier).add(
-        Meeting(
-          id: backendEnabled ? '' : 'M-${DateTime.now().microsecondsSinceEpoch}',
-          type: type,
-          title: title.text.trim(),
-          at: at,
-          mode: mode,
-          platform: mode == MeetingMode.inPerson ? null : platform,
-          venue: mode == MeetingMode.online ? null : 'Association office',
-          agenda: agenda.text.split('\n').where((line) => line.trim().isNotEmpty).toList(),
-        ),
-      );
+      await ref
+          .read(meetingsProvider.notifier)
+          .add(
+            Meeting(
+              id: backendEnabled ? '' : 'M-${DateTime.now().microsecondsSinceEpoch}',
+              type: type,
+              title: title.text.trim(),
+              at: at,
+              mode: mode,
+              platform: mode == MeetingMode.inPerson ? null : platform,
+              venue: mode == MeetingMode.online ? null : 'Association office',
+              link: mode == MeetingMode.inPerson ? null : link.text.trim(),
+              agenda: agenda.text.split('\n').where((line) => line.trim().isNotEmpty).toList(),
+            ),
+          );
       if (context.mounted) toast(context, l.meetingSaved);
     } catch (error) {
       if (context.mounted) toast(context, '$error');
@@ -212,10 +248,14 @@ class _MeetingCard extends ConsumerWidget {
                 Pill('${meeting.accepted} ${l.accepted}', color: AppColors.green),
                 Pill('${meeting.tentative} ${l.tentativeCount}', color: AppColors.amber),
                 Pill('${meeting.declined} ${l.declined}', color: AppColors.red),
-                Pill('${meeting.invited - meeting.accepted - meeting.tentative - meeting.declined} ${l.noReply}', color: Colors.blueGrey),
+                Pill(
+                  '${meeting.invited - meeting.accepted - meeting.tentative - meeting.declined} ${l.noReply}',
+                  color: Colors.blueGrey,
+                ),
               ],
             ),
             const SizedBox(height: 12),
+            _OnlineRow(meeting: meeting, canManage: canManage),
             if (upcoming)
               Wrap(
                 spacing: 8,
@@ -239,8 +279,6 @@ class _MeetingCard extends ConsumerWidget {
                       }
                     },
                   ),
-                  if (meeting.platform != null)
-                    Text(l.meetingLinkNotConfigured, style: const TextStyle(fontSize: 12)),
                   if (canManage)
                     TextButton.icon(
                       onPressed: () => _reschedule(context, ref, meeting),
@@ -306,7 +344,11 @@ class _MeetingCard extends ConsumerWidget {
             controller: minutes,
             maxLines: 14,
             maxLength: 30000,
-            decoration: const InputDecoration(labelText: 'Minutes', alignLabelWithHint: true, border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+              labelText: 'Minutes',
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(),
+            ),
           ),
         ),
         actions: [
@@ -353,7 +395,9 @@ class _MeetingCard extends ConsumerWidget {
     final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(meeting.at));
     if (time == null || !context.mounted) return;
     try {
-      await ref.read(meetingsProvider.notifier).reschedule(meeting.id, DateTime(date.year, date.month, date.day, time.hour, time.minute));
+      await ref
+          .read(meetingsProvider.notifier)
+          .reschedule(meeting.id, DateTime(date.year, date.month, date.day, time.hour, time.minute));
       if (context.mounted) toast(context, l.meetingSaved);
     } catch (error) {
       if (context.mounted) toast(context, '$error');
@@ -385,4 +429,135 @@ class _MeetingCard extends ConsumerWidget {
     '',
     'Action items:',
   ].join('\n');
+}
+
+/// Join button (online/hybrid, from 15 minutes before the start until 3 hours after), link editing and attendance.
+class _OnlineRow extends ConsumerWidget {
+  const _OnlineRow({required this.meeting, required this.canManage});
+
+  final Meeting meeting;
+  final bool canManage;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final now = DateTime.now();
+    final online = meeting.mode != MeetingMode.inPerson;
+    final opens = meeting.at.subtract(const Duration(minutes: 15));
+    final closes = meeting.at.add(const Duration(hours: 3));
+    final joinable = online && meeting.link != null && now.isAfter(opens) && now.isBefore(closes);
+    final children = <Widget>[
+      if (joinable)
+        FilledButton.icon(
+          onPressed: () => _join(context),
+          icon: const Icon(Icons.video_call_outlined),
+          label: const Text('Join meeting'),
+        )
+      else if (online && now.isBefore(opens))
+        Text(
+          meeting.link == null
+              ? 'Meeting link not added yet'
+              : 'Join button appears at ${dateTimeFmt.format(opens)} (15 min before start)',
+          style: const TextStyle(fontSize: 12),
+        ),
+      if (online && canManage && now.isBefore(closes))
+        TextButton.icon(
+          onPressed: () => _editLink(context, ref),
+          icon: const Icon(Icons.link),
+          label: Text(meeting.link == null ? 'Add meeting link' : 'Change link'),
+        ),
+      if (canManage && now.isAfter(opens))
+        TextButton.icon(
+          onPressed: () => _attendance(context),
+          icon: const Icon(Icons.how_to_reg_outlined),
+          label: const Text('Attendance'),
+        ),
+    ];
+    if (children.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: children),
+    );
+  }
+
+  Future<void> _join(BuildContext context) async {
+    // Open first (browsers block pop-ups opened after an await), then record attendance.
+    await launchUrl(Uri.parse(meeting.link!), webOnlyWindowName: '_blank');
+    if (!backendEnabled) return;
+    try {
+      await MeetingsRepo.join(meeting.id);
+    } catch (error) {
+      if (context.mounted) toast(context, friendlyError(error));
+    }
+  }
+
+  Future<void> _editLink(BuildContext context, WidgetRef ref) async {
+    final link = await promptText(context, title: 'Meeting link', hint: 'https://meet.google.com/abc-defg-hij');
+    if (link == null) return;
+    try {
+      await ref.read(meetingsProvider.notifier).setLink(meeting.id, link);
+      if (context.mounted) toast(context, 'Meeting link saved');
+    } catch (error) {
+      if (context.mounted) toast(context, friendlyError(error));
+    }
+  }
+
+  Future<void> _attendance(BuildContext context) async {
+    if (!backendEnabled) return toast(context, 'Attendance is saved in the cloud version');
+    var people = MeetingsRepo.attendance(meeting.id);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text('Attendance · ${meeting.title}'),
+          content: SizedBox(
+            width: 460,
+            child: FutureBuilder(
+              future: people,
+              builder: (_, snap) {
+                if (snap.hasError) return Text(friendlyError(snap.error!));
+                if (!snap.hasData) return const LinearProgressIndicator();
+                final list = snap.data!;
+                final present = list.where((p) => p.present == true).length;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$present of ${list.length} present. Online joiners are marked automatically.'),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: [
+                          for (final p in list)
+                            CheckboxListTile(
+                              value: p.present ?? false,
+                              title: Text(p.name),
+                              subtitle: Text(
+                                [
+                                  if (p.rsvp != null) 'RSVP: ${p.rsvp}',
+                                  if (p.how == 'joined_online') 'joined online',
+                                ].join(' · '),
+                              ),
+                              onChanged: (v) async {
+                                try {
+                                  await MeetingsRepo.markAttendance(meeting.id, p.userId, v ?? false);
+                                  setState(() => people = MeetingsRepo.attendance(meeting.id));
+                                } catch (error) {
+                                  if (ctx.mounted) toast(ctx, friendlyError(error));
+                                }
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+        ),
+      ),
+    );
+  }
 }

@@ -23,8 +23,10 @@ import 'charts.dart';
 import 'income_screen.dart';
 import 'treasurer_forms.dart';
 
-final monthlyStatementsProvider = FutureProvider.autoDispose<List<MonthlyStatement>>((ref) async =>
-  backendEnabled ? FinanceRepo.statements() : const []);
+final monthlyStatementsProvider = FutureProvider.autoDispose<List<MonthlyStatement>>(
+  (ref) async => backendEnabled ? FinanceRepo.statements() : const [],
+);
+
 class FinanceScreen extends ConsumerWidget {
   const FinanceScreen({super.key});
 
@@ -58,12 +60,7 @@ class FinanceScreen extends ConsumerWidget {
             MaterialBanner(
               content: const Text('Read-only auditor access · FY 2025-26 · expires 31 Dec 2026'),
               leading: const Icon(Icons.lock_clock),
-              actions: [
-                TextButton(
-                  onPressed: () => _exportLedger(context, ref),
-                    child: Text(l.exportLedgerCsv),
-                ),
-              ],
+              actions: [TextButton(onPressed: () => _exportLedger(context, ref), child: Text(l.exportLedgerCsv))],
             ),
           Expanded(child: TabBarView(children: [for (final t in tabs) t.$2])),
         ],
@@ -107,7 +104,12 @@ class _Overview extends ConsumerWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            Chip(avatar: const Icon(Icons.date_range, size: 18), label: Text('$currentFyLabel · ${DateFormat('MMM').format(fyStart)} $fiscalStartYear – ${DateFormat('MMM').format(DateTime(fiscalStartYear + 1, fiscalStartMonth, 0))} ${fiscalStartYear + 1}')),
+            Chip(
+              avatar: const Icon(Icons.date_range, size: 18),
+              label: Text(
+                '$currentFyLabel · ${DateFormat('MMM').format(fyStart)} $fiscalStartYear – ${DateFormat('MMM').format(DateTime(fiscalStartYear + 1, fiscalStartMonth, 0))} ${fiscalStartYear + 1}',
+              ),
+            ),
             Chip(avatar: const Icon(Icons.update, size: 18), label: Text('Figures as of ${dateFmt.format(today)}')),
           ],
         ),
@@ -280,9 +282,13 @@ class _DuesTab extends ConsumerWidget {
                 if (canRemind)
                   FilledButton.icon(
                     onPressed: n.canBulk && pendingFlats.isNotEmpty
-                        ? () {
-                            final c = n.remindAll();
-                            toast(context, 'Reminder sent to $c flats (push + email; WhatsApp/SMS after 2nd reminder)');
+                        ? () async {
+                            try {
+                              final c = await n.remindAll();
+                              if (context.mounted) toast(context, 'In-app reminder sent to the owners of $c flats');
+                            } catch (error) {
+                              if (context.mounted) toast(context, friendlyError(error));
+                            }
                           }
                         : null,
                     icon: const Icon(Icons.campaign),
@@ -353,9 +359,14 @@ class _DuesTab extends ConsumerWidget {
                                 if (pending > 0 && canRemind)
                                   n.canRemind(number)
                                       ? TextButton.icon(
-                                          onPressed: () {
-                                            n.remind(number);
-                                            toast(context, 'Reminder sent to $number');
+                                          onPressed: () async {
+                                            try {
+                                              await n.remind(number);
+                                              if (context.mounted)
+                                                toast(context, 'Reminder sent to the owner of $number');
+                                            } catch (error) {
+                                              if (context.mounted) toast(context, friendlyError(error));
+                                            }
                                           },
                                           icon: const Icon(Icons.notifications_active_outlined, size: 18),
                                           label: const Text('Remind'),
@@ -596,7 +607,8 @@ class _FundRequestsTab extends ConsumerWidget {
     final role = ref.watch(sessionProvider)!.activeRole;
     final l = AppLocalizations.of(context);
     final records = ref.watch(fundRequestsProvider);
-    final canRequest = role == Role.secretary || role == Role.jointSecretary || role == Role.treasurer || role == Role.jointTreasurer;
+    final canRequest =
+        role == Role.secretary || role == Role.jointSecretary || role == Role.treasurer || role == Role.jointTreasurer;
 
     Future<void> addRequest() async {
       final draft = await _fundRequestDialog(context);
@@ -627,12 +639,19 @@ class _FundRequestsTab extends ConsumerWidget {
           children: [
             const Expanded(child: Text('Fund requests require President approval and an EC MOM reference.')),
             if (canRequest)
-              FilledButton.tonalIcon(onPressed: addRequest, icon: const Icon(Icons.add), label: const Text('New request')),
+              FilledButton.tonalIcon(
+                onPressed: addRequest,
+                icon: const Icon(Icons.add),
+                label: const Text('New request'),
+              ),
           ],
         ),
         const SizedBox(height: 12),
         if (records.isLoading) const LinearProgressIndicator(),
-        if (records.hasError) Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${records.error}'))),
+        if (records.hasError)
+          Card(
+            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${records.error}')),
+          ),
         if (records.hasValue && records.value!.isEmpty)
           const EmptyState('No fund requests yet.', icon: Icons.request_quote_outlined),
         if (records.hasValue)
@@ -664,7 +683,12 @@ class _FundRequestsTab extends ConsumerWidget {
           child: Column(
             children: [
               for (final e in maintenanceRates.entries)
-                ListTile(dense: true, contentPadding: EdgeInsets.zero, title: Text(e.key), trailing: Text('${inr.format(e.value)} / month')),
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(e.key),
+                  trailing: Text('${inr.format(e.value)} / month'),
+                ),
               const Text(
                 'Per-square-foot billing and late-fee rules will be configured and approved separately.',
                 style: TextStyle(fontSize: 12),
@@ -678,7 +702,14 @@ class _FundRequestsTab extends ConsumerWidget {
 }
 
 class _FundRequestDraft {
-  const _FundRequestDraft({required this.title, required this.type, required this.amount, required this.basis, required this.dueDay, required this.momRef});
+  const _FundRequestDraft({
+    required this.title,
+    required this.type,
+    required this.amount,
+    required this.basis,
+    required this.dueDay,
+    required this.momRef,
+  });
   final String title;
   final String type;
   final int? amount;
@@ -703,35 +734,83 @@ Future<_FundRequestDraft?> _fundRequestDialog(BuildContext context) async {
         content: SizedBox(
           width: 440,
           child: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-                TextField(controller: title, maxLength: 120, decoration: const InputDecoration(labelText: 'Request name *')),
-              DropdownButtonFormField<String>(
-                initialValue: type,
-                decoration: const InputDecoration(labelText: 'Type'),
-                items: const [DropdownMenuItem(value: 'ad_hoc', child: Text('Ad hoc')), DropdownMenuItem(value: 'recurring', child: Text('Recurring'))],
-                onChanged: (value) => set(() => type = value ?? type),
-              ),
-              TextField(controller: amount, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'Amount (optional)', prefixText: '₹ ')),
-              TextField(controller: basis, maxLength: 300, decoration: const InputDecoration(labelText: 'Basis / per-flat details')),
-              if (type == 'recurring') TextField(controller: dueDay, maxLength: 120, decoration: const InputDecoration(labelText: 'Due day / schedule *')),
-              TextField(controller: momRef, maxLength: 120, decoration: const InputDecoration(labelText: 'EC MOM reference *')),
-              if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
-            ]),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: title,
+                  maxLength: 120,
+                  decoration: const InputDecoration(labelText: 'Request name *'),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: type,
+                  decoration: const InputDecoration(labelText: 'Type'),
+                  items: const [
+                    DropdownMenuItem(value: 'ad_hoc', child: Text('Ad hoc')),
+                    DropdownMenuItem(value: 'recurring', child: Text('Recurring')),
+                  ],
+                  onChanged: (value) => set(() => type = value ?? type),
+                ),
+                TextField(
+                  controller: amount,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(labelText: 'Amount (optional)', prefixText: '₹ '),
+                ),
+                TextField(
+                  controller: basis,
+                  maxLength: 300,
+                  decoration: const InputDecoration(labelText: 'Basis / per-flat details'),
+                ),
+                if (type == 'recurring')
+                  TextField(
+                    controller: dueDay,
+                    maxLength: 120,
+                    decoration: const InputDecoration(labelText: 'Due day / schedule *'),
+                  ),
+                TextField(
+                  controller: momRef,
+                  maxLength: 120,
+                  decoration: const InputDecoration(labelText: 'EC MOM reference *'),
+                ),
+                if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
+              ],
+            ),
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () {
-            if (title.text.trim().isEmpty || momRef.text.trim().isEmpty) return set(() => error = 'Name and MOM reference are required');
-            if (type == 'recurring' && dueDay.text.trim().isEmpty) return set(() => error = 'Enter a schedule for recurring requests');
-            if (amount.text.trim().isNotEmpty && (int.tryParse(amount.text.trim()) ?? 0) <= 0) return set(() => error = 'Amount must be greater than zero');
-            Navigator.pop(ctx, _FundRequestDraft(title: title.text.trim(), type: type, amount: int.tryParse(amount.text), basis: basis.text.trim(), dueDay: dueDay.text.trim(), momRef: momRef.text.trim()));
-          }, child: const Text('Submit')),
+          FilledButton(
+            onPressed: () {
+              if (title.text.trim().isEmpty || momRef.text.trim().isEmpty)
+                return set(() => error = 'Name and MOM reference are required');
+              if (type == 'recurring' && dueDay.text.trim().isEmpty)
+                return set(() => error = 'Enter a schedule for recurring requests');
+              if (amount.text.trim().isNotEmpty && (int.tryParse(amount.text.trim()) ?? 0) <= 0)
+                return set(() => error = 'Amount must be greater than zero');
+              Navigator.pop(
+                ctx,
+                _FundRequestDraft(
+                  title: title.text.trim(),
+                  type: type,
+                  amount: int.tryParse(amount.text),
+                  basis: basis.text.trim(),
+                  dueDay: dueDay.text.trim(),
+                  momRef: momRef.text.trim(),
+                ),
+              );
+            },
+            child: const Text('Submit'),
+          ),
         ],
       ),
     ),
   );
-  title.dispose(); amount.dispose(); basis.dispose(); dueDay.dispose(); momRef.dispose();
+  title.dispose();
+  amount.dispose();
+  basis.dispose();
+  dueDay.dispose();
+  momRef.dispose();
   return draft;
 }
 
@@ -760,8 +839,8 @@ class StatementsScreen extends ConsumerWidget {
       try {
         await FinanceRepo.createMonthlyStatement(DateTime(selected.year, selected.month, 1));
         ref.invalidate(monthlyStatementsProvider);
-          ref.invalidate(appNotificationsProvider);
-          if (context.mounted) toast(context, l.statementAwaitingTreasurer);
+        ref.invalidate(appNotificationsProvider);
+        if (context.mounted) toast(context, l.statementAwaitingTreasurer);
       } catch (error) {
         if (context.mounted) toast(context, friendlyError(error));
       }
@@ -770,7 +849,7 @@ class StatementsScreen extends ConsumerWidget {
     Future<void> decide(MonthlyStatement statement, String action) async {
       String? note;
       if (action == 'reject') {
-          note = await promptText(context, title: l.rejected, hint: 'Reason (required)');
+        note = await promptText(context, title: l.rejected, hint: 'Reason (required)');
         if (note == null) return;
       }
       try {
@@ -822,33 +901,35 @@ class StatementsScreen extends ConsumerWidget {
       children: [
         Row(
           children: [
-              Expanded(child: Text(l.monthlyStatementDescription)),
+            Expanded(child: Text(l.monthlyStatementDescription)),
             if (canGenerate)
-                FilledButton.icon(onPressed: generate, icon: const Icon(Icons.add), label: Text(l.createStatement)),
+              FilledButton.icon(onPressed: generate, icon: const Icon(Icons.add), label: Text(l.createStatement)),
           ],
         ),
         const SizedBox(height: 12),
-          if (role.isOfficeBearer || role == Role.auditor)
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: () => _exportLedger(context, ref),
-                icon: const Icon(Icons.download_outlined),
-                  label: Text(l.exportLedgerCsv),
-              ),
+        if (role.isOfficeBearer || role == Role.auditor)
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: () => _exportLedger(context, ref),
+              icon: const Icon(Icons.download_outlined),
+              label: Text(l.exportLedgerCsv),
             ),
-            Text(l.statementApprovalDescription),
-          const SizedBox(height: 12),
-          if (statements.isLoading) const LinearProgressIndicator(),
-          if (statements.hasError)
-            Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${statements.error}'))),
-          if (statements.hasValue && statements.value!.isEmpty)
-              EmptyState(l.noStatements, icon: Icons.receipt_long_outlined),
-          if (statements.hasValue)
-          for (final statement in statements.value!)
+          ),
+        Text(l.statementApprovalDescription),
+        const SizedBox(height: 12),
+        if (statements.isLoading) const LinearProgressIndicator(),
+        if (statements.hasError)
           Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
+            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${statements.error}')),
+          ),
+        if (statements.hasValue && statements.value!.isEmpty)
+          EmptyState(l.noStatements, icon: Icons.receipt_long_outlined),
+        if (statements.hasValue)
+          for (final statement in statements.value!)
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
                 leading: Icon(statement.status == 'published' ? Icons.lock : Icons.edit_document),
                 title: Text('Income & expenditure · ${DateFormat('MMMM yyyy').format(statement.periodStart)}'),
                 subtitle: Padding(
@@ -867,38 +948,47 @@ class StatementsScreen extends ConsumerWidget {
                       ),
                       if (statement.snapshot['totals'] case final Map totals)
                         Text(
-                            '${l.incomeTotal} ${inr.format((totals['income'] as num?)?.toInt() ?? 0)} · '
-                            '${l.approvedExpenses} ${inr.format((totals['approved_expenses'] as num?)?.toInt() ?? 0)} · '
-                            '${l.paymentsReceived} ${inr.format((totals['payments_received'] as num?)?.toInt() ?? 0)}',
+                          '${l.incomeTotal} ${inr.format((totals['income'] as num?)?.toInt() ?? 0)} · '
+                          '${l.approvedExpenses} ${inr.format((totals['approved_expenses'] as num?)?.toInt() ?? 0)} · '
+                          '${l.paymentsReceived} ${inr.format((totals['payments_received'] as num?)?.toInt() ?? 0)}',
                         ),
+                      TextButton.icon(
+                        onPressed: () => _reviewStatement(context, statement),
+                        icon: const Icon(Icons.fact_check_outlined),
+                        label: const Text('Review details'),
+                      ),
                       if (statement.status == 'rejected' && statement.rejectionNote != null)
                         Text('Rejected: ${statement.rejectionNote}'),
                     ],
                   ),
                 ),
-                  trailing: _statementAction(context, role, currentUserId, statement, decide),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(child: Text(l.annualBudget, style: Theme.of(context).textTheme.titleMedium)),
-              if (canGenerate) FilledButton.icon(onPressed: submitBudget, icon: const Icon(Icons.add), label: Text(l.submitBudget)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (budgets.isLoading) const LinearProgressIndicator(),
-          if (budgets.hasError) Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${budgets.error}'))),
-          if (budgets.hasValue && budgets.value!.isEmpty)
-            EmptyState(l.annualBudgetNoRecords, icon: Icons.account_balance_outlined),
-          if (budgets.hasValue)
-            for (final budget in budgets.value!)
-              _AnnualBudgetCard(
-                budget: budget,
-                role: role,
-                currentUserId: currentUserId,
-                onDecision: (action) => decideBudget(budget, action),
+                trailing: _statementAction(context, role, currentUserId, statement, decide),
               ),
+            ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(child: Text(l.annualBudget, style: Theme.of(context).textTheme.titleMedium)),
+            if (canGenerate)
+              FilledButton.icon(onPressed: submitBudget, icon: const Icon(Icons.add), label: Text(l.submitBudget)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (budgets.isLoading) const LinearProgressIndicator(),
+        if (budgets.hasError)
+          Card(
+            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${budgets.error}')),
+          ),
+        if (budgets.hasValue && budgets.value!.isEmpty)
+          EmptyState(l.annualBudgetNoRecords, icon: Icons.account_balance_outlined),
+        if (budgets.hasValue)
+          for (final budget in budgets.value!)
+            _AnnualBudgetCard(
+              budget: budget,
+              role: role,
+              currentUserId: currentUserId,
+              onDecision: (action) => decideBudget(budget, action),
+            ),
       ],
     );
   }
@@ -1017,14 +1107,18 @@ Future<_AnnualBudgetDraft?> _annualBudgetDialog(BuildContext context, WidgetRef 
                   if ((int.tryParse(entry.value.text.trim()) ?? 0) > 0) entry.key: int.parse(entry.value.text.trim()),
               };
               if (values.isEmpty) return setDialogState(() => error = l.annualBudgetRequiredCategory);
-              if (resolutionRef.text.trim().isEmpty) return setDialogState(() => error = '${l.annualBudgetReference} is required');
-              Navigator.pop(dialogContext, _AnnualBudgetDraft(
-                fiscalYearStart: fiscalYearStart,
-                fiscalYearEnd: fiscalYearEnd,
-                amounts: values,
-                resolutionRef: resolutionRef.text.trim(),
-                resolutionDate: resolutionDate,
-              ));
+              if (resolutionRef.text.trim().isEmpty)
+                return setDialogState(() => error = '${l.annualBudgetReference} is required');
+              Navigator.pop(
+                dialogContext,
+                _AnnualBudgetDraft(
+                  fiscalYearStart: fiscalYearStart,
+                  fiscalYearEnd: fiscalYearEnd,
+                  amounts: values,
+                  resolutionRef: resolutionRef.text.trim(),
+                  resolutionDate: resolutionDate,
+                ),
+              );
             },
             child: Text(l.submitBudgetReview),
           ),
@@ -1057,8 +1151,8 @@ class _AnnualBudgetCard extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final isAwaitingSecretary = budget.status == 'awaiting_secretary';
     final isAwaitingPresident = budget.status == 'awaiting_president';
-    final canApprove = (isAwaitingSecretary && role == Role.secretary) ||
-        (isAwaitingPresident && role == Role.president);
+    final canApprove =
+        (isAwaitingSecretary && role == Role.secretary) || (isAwaitingPresident && role == Role.president);
     final sameReviewer = budget.createdBy == currentUserId || budget.secretaryApprovedBy == currentUserId;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1069,15 +1163,18 @@ class _AnnualBudgetCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(child: Text('FY ${budget.fiscalYearStart.year}-${budget.fiscalYearEnd.year}',
-                    style: Theme.of(context).textTheme.titleMedium)),
+                Expanded(
+                  child: Text(
+                    'FY ${budget.fiscalYearStart.year}-${budget.fiscalYearEnd.year}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
                 Pill(switch (budget.status) {
                   'awaiting_secretary' => l.awaitingSecretary,
                   'awaiting_president' => l.awaitingPresident,
                   'approved' => l.approve,
                   _ => l.rejected,
-                },
-                    color: budget.status == 'approved' ? AppColors.green : AppColors.amber),
+                }, color: budget.status == 'approved' ? AppColors.green : AppColors.amber),
               ],
             ),
             Text('AGM/GBM ${budget.resolutionRef} · ${dateFmt.format(budget.resolutionDate)}'),
@@ -1111,15 +1208,70 @@ Future<void> _exportLedger(BuildContext context, WidgetRef ref) async {
   final expenses = ref.read(expensesProvider);
   String cell(Object? value) => '"${'${value ?? ''}'.replaceAll('"', '""')}"';
   final rows = <List<Object?>>[
-    ['record_type', 'date', 'flat', 'category_or_head', 'description', 'amount', 'paid', 'pending', 'reference', 'status'],
+    [
+      'record_type',
+      'date',
+      'flat',
+      'category_or_head',
+      'description',
+      'amount',
+      'paid',
+      'pending',
+      'reference',
+      'status',
+    ],
     for (final due in dues.lines)
-      ['due', DateFormat('yyyy-MM-dd').format(due.dueDate), due.flatNumber, due.head, '', due.amount, due.paid, due.pending, due.receiptNo, due.isPaid ? 'paid' : 'open'],
+      [
+        'due',
+        DateFormat('yyyy-MM-dd').format(due.dueDate),
+        due.flatNumber,
+        due.head,
+        '',
+        due.amount,
+        due.paid,
+        due.pending,
+        due.receiptNo,
+        due.isPaid ? 'paid' : 'open',
+      ],
     for (final payment in dues.payments)
-      ['receipt', DateFormat('yyyy-MM-dd').format(payment.paidOn), payment.flatNumber, payment.head ?? 'Advance', payment.mode, payment.amount, payment.amount, 0, '${payment.receiptNo}${payment.reference == null ? '' : ' / ${payment.reference}'}', 'received'],
+      [
+        'receipt',
+        DateFormat('yyyy-MM-dd').format(payment.paidOn),
+        payment.flatNumber,
+        payment.head ?? 'Advance',
+        payment.mode,
+        payment.amount,
+        payment.amount,
+        0,
+        '${payment.receiptNo}${payment.reference == null ? '' : ' / ${payment.reference}'}',
+        'received',
+      ],
     for (final entry in income.entries)
-      ['income', DateFormat('yyyy-MM-dd').format(entry.receivedOn), '', entry.categoryName, entry.description, entry.amount, entry.amount, 0, entry.source ?? '', 'received'],
+      [
+        'income',
+        DateFormat('yyyy-MM-dd').format(entry.receivedOn),
+        '',
+        entry.categoryName,
+        entry.description,
+        entry.amount,
+        entry.amount,
+        0,
+        entry.source ?? '',
+        'received',
+      ],
     for (final expense in expenses)
-      ['expense', DateFormat('yyyy-MM-dd').format(expense.date), '', expense.category, '${expense.vendor} · ${expense.description}', expense.amount, 0, 0, expense.id, expense.status.label],
+      [
+        'expense',
+        DateFormat('yyyy-MM-dd').format(expense.date),
+        '',
+        expense.category,
+        '${expense.vendor} · ${expense.description}',
+        expense.amount,
+        0,
+        0,
+        expense.id,
+        expense.status.label,
+      ],
   ];
   final csv = rows.map((row) => row.map(cell).join(',')).join('\r\n');
   try {
@@ -1134,4 +1286,61 @@ Future<void> _exportLedger(BuildContext context, WidgetRef ref) async {
   } catch (error) {
     if (context.mounted) toast(context, 'Could not export ledger: $error');
   }
+}
+
+void _reviewStatement(BuildContext context, MonthlyStatement s) {
+  List<Map> rows(String k) => [for (final r in (s.snapshot[k] as List? ?? const [])) r as Map];
+  String amt(Object? v) => inr.format((v as num?)?.toInt() ?? 0);
+  Widget section(String title, List<Map> list, String Function(Map) line) => ExpansionTile(
+    title: Text('$title (${list.length})'),
+    children: [for (final r in list) ListTile(dense: true, title: Text(line(r)))],
+  );
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Statement · ${DateFormat('MMMM yyyy').format(s.periodStart)}'),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              section(
+                'Income',
+                rows('income'),
+                (r) =>
+                    '${r['date']} · ${r['category']} · ${amt(r['amount'])}'
+                    '${(r['source'] ?? '') == '' ? '' : ' · ${r['source']}'}',
+              ),
+              section(
+                'Approved expenses',
+                rows('expenses'),
+                (r) => '${r['date']} · ${r['reference']} · ${r['category']} · ${r['vendor']} · ${amt(r['amount'])}',
+              ),
+              section(
+                'Payments received',
+                rows('payments'),
+                (r) => '${r['date']} · ${r['flat']} · ${r['receipt']} · ${amt(r['amount'])}',
+              ),
+              section(
+                'Dues raised this month',
+                rows('dues'),
+                (r) => '${r['flat']} · ${r['head']} · paid ${amt(r['paid'])} · pending ${amt(r['pending'])}',
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'This is a snapshot taken when the statement was created. If anything is wrong, the Treasurer '
+                  'rejects it with a note, corrects the entries and creates it again. Nothing reaches the Secretary '
+                  'or President until the Treasurer approves.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+    ),
+  );
 }

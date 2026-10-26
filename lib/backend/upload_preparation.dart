@@ -9,7 +9,7 @@ const _targetImageBytes = 4500 * 1024;
 const _imageExtensions = {'jpg', 'jpeg', 'png', 'webp'};
 
 int maxSourceUploadBytes(String extension) =>
-  _imageExtensions.contains(extension.toLowerCase().replaceFirst('.', '')) ? maxOriginalImageBytes : maxUploadBytes;
+    _imageExtensions.contains(extension.toLowerCase().replaceFirst('.', '')) ? maxOriginalImageBytes : maxUploadBytes;
 
 class PreparedUpload {
   const PreparedUpload({required this.bytes, required this.extension, required this.contentType});

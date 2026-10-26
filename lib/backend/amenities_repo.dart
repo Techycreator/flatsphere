@@ -3,7 +3,11 @@ import 'backend.dart';
 
 class AmenitiesRepo {
   static Future<List<Amenity>> amenities() async {
-    final rows = await db.from('amenities').select('id,name,rules,fee,requires_approval').eq('active', true).order('name');
+    final rows = await db
+        .from('amenities')
+        .select('id,name,rules,fee,requires_approval')
+        .eq('active', true)
+        .order('name');
     return [
       for (final row in rows)
         Amenity(
@@ -22,7 +26,7 @@ class AmenitiesRepo {
         .select('flat_id,flats(number)')
         .eq('user_id', db.auth.currentUser!.id)
         .isFilter('ended_at', null)
-        .inFilter('role', ['owner','resident']);
+        .inFilter('role', ['owner', 'resident']);
     return [
       for (final row in rows)
         if (row['flat_id'] case final String id) (id, ((row['flats'] as Map?)?['number'] as String?) ?? ''),
@@ -30,10 +34,13 @@ class AmenitiesRepo {
   }
 
   static Future<List<AmenityBooking>> bookings() async {
-    final rows = await db.from('amenity_bookings').select(
-      'id,starts_at,ends_at,guest_count,amount_due,payment_status,status,note,amenities(name),flats(number),'
-      'host:profiles!amenity_bookings_booked_by_fkey(full_name)',
-    ).order('starts_at', ascending: false);
+    final rows = await db
+        .from('amenity_bookings')
+        .select(
+          'id,starts_at,ends_at,guest_count,amount_due,payment_status,status,note,amenities(name),flats(number),'
+          'host:profiles!amenity_bookings_booked_by_fkey(full_name)',
+        )
+        .order('starts_at', ascending: false);
     return [
       for (final row in rows)
         AmenityBooking(
@@ -60,18 +67,37 @@ class AmenitiesRepo {
     required int guestCount,
     required String note,
   }) async {
-    await db.rpc('request_amenity_booking', params: {
-      'p_amenity': amenityId,
-      'p_flat': flatId,
-      'p_starts_at': startsAt.toUtc().toIso8601String(),
-      'p_ends_at': endsAt.toUtc().toIso8601String(),
-      'p_guest_count': guestCount,
-      'p_note': note,
-    });
+    await db.rpc(
+      'request_amenity_booking',
+      params: {
+        'p_amenity': amenityId,
+        'p_flat': flatId,
+        'p_starts_at': startsAt.toUtc().toIso8601String(),
+        'p_ends_at': endsAt.toUtc().toIso8601String(),
+        'p_guest_count': guestCount,
+        'p_note': note,
+      },
+    );
   }
 
   static Future<void> recordPayment(String id, {String reference = '', bool waive = false}) =>
       db.rpc('record_amenity_payment', params: {'p_booking': id, 'p_reference': reference, 'p_waive': waive});
+
+  /// Pending/approved bookings that overlap [day] (India time), without personal details.
+  static Future<List<(DateTime, DateTime, String)>> busySlots(String amenityId, DateTime day) async {
+    final rows = await db.rpc(
+      'amenity_busy_slots',
+      params: {'p_amenity': amenityId, 'p_day': day.toIso8601String().substring(0, 10)},
+    ) as List;
+    return [
+      for (final r in rows.cast<Map<String, dynamic>>())
+        (
+          DateTime.parse(r['starts_at'] as String).toLocal(),
+          DateTime.parse(r['ends_at'] as String).toLocal(),
+          r['status'] as String,
+        ),
+    ];
+  }
 }
 
 AmenityBookingStatus _bookingStatus(Object? value) => switch (value) {

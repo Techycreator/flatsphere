@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:intl/intl.dart';
+
 import '../../app/theme.dart';
 import '../../backend/amenities_repo.dart';
 import '../../models/models.dart';
@@ -10,7 +12,9 @@ import '../../widgets/common.dart';
 
 final amenitiesProvider = FutureProvider.autoDispose<List<Amenity>>((ref) => AmenitiesRepo.amenities());
 final amenityBookingsProvider = FutureProvider.autoDispose<List<AmenityBooking>>((ref) => AmenitiesRepo.bookings());
-final amenityFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>((ref) => AmenitiesRepo.myFlats());
+final amenityFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>(
+  (ref) => AmenitiesRepo.myFlats(),
+);
 
 class AmenitiesScreen extends ConsumerWidget {
   const AmenitiesScreen({super.key});
@@ -73,7 +77,10 @@ class AmenitiesScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         if (amenities.isLoading || bookings.isLoading) const LinearProgressIndicator(),
-        if (amenities.hasError) Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${amenities.error}'))),
+        if (amenities.hasError)
+          Card(
+            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${amenities.error}')),
+          ),
         SectionCard(
           title: 'Available amenities',
           child: amenities.hasValue && amenities.value!.isNotEmpty
@@ -115,17 +122,33 @@ class AmenitiesScreen extends ConsumerWidget {
                               children: [
                                 Pill(booking.status.name, color: _bookingColor(booking.status)),
                                 const SizedBox(height: 4),
-                                Pill(_paymentLabel(booking.paymentStatus), color: booking.paymentStatus == AmenityPaymentStatus.paid || booking.paymentStatus == AmenityPaymentStatus.waived ? AppColors.green : AppColors.amber),
+                                Pill(
+                                  _paymentLabel(booking.paymentStatus),
+                                  color:
+                                      booking.paymentStatus == AmenityPaymentStatus.paid ||
+                                          booking.paymentStatus == AmenityPaymentStatus.waived
+                                      ? AppColors.green
+                                      : AppColors.amber,
+                                ),
                               ],
                             ),
-                            if (canRecordPayment && booking.status == AmenityBookingStatus.approved && booking.paymentStatus == AmenityPaymentStatus.unpaid)
-                              IconButton(tooltip: 'Record payment', onPressed: () => recordPayment(booking), icon: const Icon(Icons.payments_outlined)),
+                            if (canRecordPayment &&
+                                booking.status == AmenityBookingStatus.approved &&
+                                booking.paymentStatus == AmenityPaymentStatus.unpaid)
+                              IconButton(
+                                tooltip: 'Record payment',
+                                onPressed: () => recordPayment(booking),
+                                icon: const Icon(Icons.payments_outlined),
+                              ),
                           ],
                         ),
                       ),
                   ],
                 )
-              : const Padding(padding: EdgeInsets.all(16), child: EmptyState('No bookings found.', icon: Icons.event_busy_outlined)),
+              : const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: EmptyState('No bookings found.', icon: Icons.event_busy_outlined),
+                ),
         ),
       ],
     );
@@ -133,7 +156,14 @@ class AmenitiesScreen extends ConsumerWidget {
 }
 
 class _BookingDraft {
-  const _BookingDraft({required this.amenityId, required this.flatId, required this.startsAt, required this.endsAt, required this.guestCount, required this.note});
+  const _BookingDraft({
+    required this.amenityId,
+    required this.flatId,
+    required this.startsAt,
+    required this.endsAt,
+    required this.guestCount,
+    required this.note,
+  });
   final String amenityId;
   final String flatId;
   final DateTime startsAt;
@@ -142,7 +172,11 @@ class _BookingDraft {
   final String note;
 }
 
-Future<_BookingDraft?> _bookingDialog(BuildContext context, List<Amenity> amenities, List<(String id, String number)> flats) async {
+Future<_BookingDraft?> _bookingDialog(
+  BuildContext context,
+  List<Amenity> amenities,
+  List<(String id, String number)> flats,
+) async {
   if (amenities.isEmpty || flats.isEmpty) return null;
   var amenityId = amenities.first.id;
   var flatId = flats.first.$1;
@@ -151,6 +185,12 @@ Future<_BookingDraft?> _bookingDialog(BuildContext context, List<Amenity> amenit
   final guests = TextEditingController(text: '10');
   final note = TextEditingController();
   String? error;
+  String? busyKey;
+  Future<List<(DateTime, DateTime, String)>>? busy;
+  var lastSlots = const <(DateTime, DateTime, String)>[];
+  bool clashes(List<(DateTime, DateTime, String)> slots) =>
+      slots.any((s) => startsAt.isBefore(s.$2) && endsAt.isAfter(s.$1));
+  final hm = DateFormat('h:mm a');
   final draft = await showDialog<_BookingDraft>(
     context: context,
     builder: (dialogContext) => StatefulBuilder(
@@ -165,7 +205,13 @@ Future<_BookingDraft?> _bookingDialog(BuildContext context, List<Amenity> amenit
                 DropdownButtonFormField<String>(
                   initialValue: amenityId,
                   decoration: const InputDecoration(labelText: 'Amenity'),
-                  items: [for (final amenity in amenities) DropdownMenuItem(value: amenity.id, child: Text('${amenity.name} · ${amenity.fee == 0 ? 'No fee' : inr.format(amenity.fee)}'))],
+                  items: [
+                    for (final amenity in amenities)
+                      DropdownMenuItem(
+                        value: amenity.id,
+                        child: Text('${amenity.name} · ${amenity.fee == 0 ? 'No fee' : inr.format(amenity.fee)}'),
+                      ),
+                  ],
                   onChanged: (value) => setState(() => amenityId = value ?? amenityId),
                 ),
                 const SizedBox(height: 12),
@@ -178,6 +224,46 @@ Future<_BookingDraft?> _bookingDialog(BuildContext context, List<Amenity> amenit
                 const SizedBox(height: 12),
                 _dateTimeButton(dialogContext, 'Starts', startsAt, (value) => setState(() => startsAt = value)),
                 _dateTimeButton(dialogContext, 'Ends', endsAt, (value) => setState(() => endsAt = value)),
+                Builder(
+                  builder: (_) {
+                    final key = '$amenityId|${DateUtils.dateOnly(startsAt)}';
+                    if (key != busyKey) {
+                      busyKey = key;
+                      busy = AmenitiesRepo.busySlots(
+                        amenityId,
+                        DateUtils.dateOnly(startsAt),
+                      ).catchError((_) => <(DateTime, DateTime, String)>[]);
+                    }
+                    return FutureBuilder(
+                      future: busy,
+                      builder: (_, snap) {
+                        if (!snap.hasData) return const LinearProgressIndicator();
+                        lastSlots = snap.data!;
+                        final clash = clashes(lastSlots);
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 8),
+                              Text(
+                                lastSlots.isEmpty
+                                    ? 'No bookings on ${dateFmt.format(startsAt)} – the whole day is free'
+                                    : 'Already booked on ${dateFmt.format(startsAt)}:',
+                              ),
+                              for (final s in lastSlots) Text('• ${hm.format(s.$1)} – ${hm.format(s.$2)} (${s.$3})'),
+                              const SizedBox(height: 4),
+                              Pill(
+                                clash ? 'Selected time clashes with a booking' : 'Selected time is available',
+                                color: clash ? AppColors.red : AppColors.green,
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
                 TextField(
                   controller: guests,
                   keyboardType: TextInputType.number,
@@ -185,7 +271,12 @@ Future<_BookingDraft?> _bookingDialog(BuildContext context, List<Amenity> amenit
                   maxLength: 5,
                   decoration: const InputDecoration(labelText: 'Expected guests'),
                 ),
-                TextField(controller: note, maxLength: 500, maxLines: 2, decoration: const InputDecoration(labelText: 'Note / event type')),
+                TextField(
+                  controller: note,
+                  maxLength: 500,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Note / event type'),
+                ),
                 if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
               ],
             ),
@@ -199,8 +290,20 @@ Future<_BookingDraft?> _bookingDialog(BuildContext context, List<Amenity> amenit
               if (guestCount == null || guestCount <= 0) {
                 return setState(() => error = 'Enter at least one expected guest');
               }
-              if (endsAt.isBefore(startsAt) || endsAt.isAtSameMomentAs(startsAt)) return setState(() => error = 'End time must be after start time');
-              Navigator.pop(dialogContext, _BookingDraft(amenityId: amenityId, flatId: flatId, startsAt: startsAt, endsAt: endsAt, guestCount: guestCount, note: note.text.trim()));
+              if (endsAt.isBefore(startsAt) || endsAt.isAtSameMomentAs(startsAt))
+                return setState(() => error = 'End time must be after start time');
+              if (clashes(lastSlots)) return setState(() => error = 'That time is already booked. Choose a free slot.');
+              Navigator.pop(
+                dialogContext,
+                _BookingDraft(
+                  amenityId: amenityId,
+                  flatId: flatId,
+                  startsAt: startsAt,
+                  endsAt: endsAt,
+                  guestCount: guestCount,
+                  note: note.text.trim(),
+                ),
+              );
             },
             child: const Text('Send for approval'),
           ),

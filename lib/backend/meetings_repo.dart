@@ -4,6 +4,8 @@ import 'backend.dart';
 class MeetingsRepo {
   static Future<List<Meeting>> load() async {
     final rows = await db.rpc('list_association_meetings') as List;
+    final linkRows = await db.from('association_meetings').select('id, meeting_link');
+    final links = {for (final l in linkRows) l['id'] as String: l['meeting_link'] as String?};
     return [
       for (final row in rows.cast<Map<String, dynamic>>())
         Meeting(
@@ -31,48 +33,77 @@ class MeetingsRepo {
           },
           minutesStatus: row['minutes_status'] as String?,
           minutesText: row['minutes_text'] as String?,
+          link: links[row['id']],
         ),
     ];
   }
 
-  static Future<String> create(Meeting meeting) async => await db.rpc(
-    'create_association_meeting',
-    params: {
-      'p_type': meeting.type,
-      'p_title': meeting.title.trim(),
-      'p_starts_at': meeting.at.toUtc().toIso8601String(),
-      'p_mode': switch (meeting.mode) {
-        MeetingMode.inPerson => 'inPerson',
-        MeetingMode.online => 'online',
-        MeetingMode.hybrid => 'hybrid',
+  static Future<String> create(Meeting meeting) async {
+    final id = await db.rpc(
+      'create_association_meeting',
+      params: {
+        'p_type': meeting.type,
+        'p_title': meeting.title.trim(),
+        'p_starts_at': meeting.at.toUtc().toIso8601String(),
+        'p_mode': switch (meeting.mode) {
+          MeetingMode.inPerson => 'inPerson',
+          MeetingMode.online => 'online',
+          MeetingMode.hybrid => 'hybrid',
+        },
+        'p_platform': meeting.platform,
+        'p_venue': meeting.venue,
+        'p_agenda': meeting.agenda,
       },
-      'p_platform': meeting.platform,
-      'p_venue': meeting.venue,
-      'p_agenda': meeting.agenda,
-    },
-  ) as String;
+    ) as String;
+    if ((meeting.link ?? '').trim().isNotEmpty) await setLink(id, meeting.link);
+    return id;
+  }
 
-  static Future<void> rsvp(String id, Rsvp rsvp) => db.rpc('set_meeting_rsvp', params: {
-    'p_meeting': id,
-    'p_status': switch (rsvp) {
-      Rsvp.accepted => 'accepted',
-      Rsvp.tentative => 'tentative',
-      Rsvp.declined => 'declined',
-      Rsvp.pending => throw ArgumentError.value(rsvp, 'rsvp', 'Cannot submit a pending RSVP'),
+  static Future<void> setLink(String id, String? link) =>
+      db.rpc('set_meeting_link', params: {'p_meeting': id, 'p_link': link});
+
+  /// Records the caller as present (joined online) and returns the link.
+  static Future<String> join(String id) async => await db.rpc('join_meeting', params: {'p_meeting': id}) as String;
+
+  static Future<List<({String userId, String name, String? rsvp, bool? present, String? how})>> attendance(
+    String id,
+  ) async {
+    final rows = await db.rpc('meeting_attendance_list', params: {'p_meeting': id}) as List;
+    return [
+      for (final r in rows.cast<Map<String, dynamic>>())
+        (
+          userId: r['user_id'] as String,
+          name: r['full_name'] as String? ?? '',
+          rsvp: r['rsvp'] as String?,
+          present: r['present'] as bool?,
+          how: r['how'] as String?,
+        ),
+    ];
+  }
+
+  static Future<void> markAttendance(String id, String userId, bool present) =>
+      db.rpc('mark_meeting_attendance', params: {'p_meeting': id, 'p_user': userId, 'p_present': present});
+
+  static Future<void> rsvp(String id, Rsvp rsvp) => db.rpc(
+    'set_meeting_rsvp',
+    params: {
+      'p_meeting': id,
+      'p_status': switch (rsvp) {
+        Rsvp.accepted => 'accepted',
+        Rsvp.tentative => 'tentative',
+        Rsvp.declined => 'declined',
+        Rsvp.pending => throw ArgumentError.value(rsvp, 'rsvp', 'Cannot submit a pending RSVP'),
+      },
     },
-  });
+  );
 
   static Future<void> saveMinutes(String id, String text) =>
       db.rpc('save_meeting_minutes', params: {'p_meeting': id, 'p_text': text});
 
-  static Future<void> submitMinutes(String id) =>
-      db.rpc('submit_meeting_minutes', params: {'p_meeting': id});
+  static Future<void> submitMinutes(String id) => db.rpc('submit_meeting_minutes', params: {'p_meeting': id});
 
-  static Future<void> approveMinutes(String id) =>
-      db.rpc('approve_meeting_minutes', params: {'p_meeting': id});
+  static Future<void> approveMinutes(String id) => db.rpc('approve_meeting_minutes', params: {'p_meeting': id});
 
-  static Future<void> reschedule(String id, DateTime at) => db.rpc('reschedule_association_meeting', params: {
-    'p_meeting': id,
-    'p_starts_at': at.toUtc().toIso8601String(),
-  });
+  static Future<void> reschedule(String id, DateTime at) =>
+      db.rpc('reschedule_association_meeting', params: {'p_meeting': id, 'p_starts_at': at.toUtc().toIso8601String()});
 }

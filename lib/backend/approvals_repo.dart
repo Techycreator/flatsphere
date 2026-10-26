@@ -51,7 +51,7 @@ class ApprovalsRepo {
           'owner_flat': s.role == Role.owner ? a.details['Flat']?.split(' ').first : null,
         },
     ]);
-      return id;
+    return id;
   }
 
   static Future<void> decide(String ref, Decision d, String? comment) =>

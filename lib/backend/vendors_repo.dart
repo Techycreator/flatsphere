@@ -70,13 +70,16 @@ class VendorsRepo {
     required int renewalNoticeDays,
     num? annualCost,
   }) async {
-    await db.from('vendor_amc_contracts').update({
-      'service_name': serviceName.trim(),
-      'start_date': _date(startDate),
-      'end_date': _date(endDate),
-      'renewal_notice_days': renewalNoticeDays,
-      'annual_cost': annualCost,
-    }).eq('id', id);
+    await db
+        .from('vendor_amc_contracts')
+        .update({
+          'service_name': serviceName.trim(),
+          'start_date': _date(startDate),
+          'end_date': _date(endDate),
+          'renewal_notice_days': renewalNoticeDays,
+          'annual_cost': annualCost,
+        })
+        .eq('id', id);
   }
 
   static Future<void> setContractActive(String id, bool active) =>
@@ -96,14 +99,17 @@ class VendorsRepo {
     final path = '$association/${DateTime.now().microsecondsSinceEpoch}.${prepared.extension}';
     await db.storage.from('vendor-contracts').uploadBinary(path, prepared.bytes);
     try {
-      await db.rpc('register_vendor_document', params: {
-        'p_vendor': vendorId,
-        'p_contract': contractId,
-        'p_type': type,
-        'p_title': title.trim(),
-        'p_storage_path': path,
-        'p_expires_on': _date(expiresOn),
-      });
+      await db.rpc(
+        'register_vendor_document',
+        params: {
+          'p_vendor': vendorId,
+          'p_contract': contractId,
+          'p_type': type,
+          'p_title': title.trim(),
+          'p_storage_path': path,
+          'p_expires_on': _date(expiresOn),
+        },
+      );
     } catch (_) {
       await db.storage.from('vendor-contracts').remove([path]);
       rethrow;
@@ -124,9 +130,7 @@ class VendorsRepo {
     email: row['email'] as String? ?? '',
     address: row['address'] as String? ?? '',
     securityDeposit: row['security_deposit'] as num? ?? 0,
-    escalationContacts: [
-      for (final contact in (row['escalation_contacts'] as List? ?? const [])) contact.toString(),
-    ],
+    escalationContacts: [for (final contact in (row['escalation_contacts'] as List? ?? const [])) contact.toString()],
     active: row['active'] as bool? ?? true,
     contracts: [
       for (final contract in (row['vendor_amc_contracts'] as List? ?? const []))

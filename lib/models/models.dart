@@ -940,6 +940,7 @@ class Meeting {
     this.myRsvp = Rsvp.pending,
     this.minutesStatus,
     this.minutesText,
+    this.link,
   });
 
   final String id;
@@ -957,6 +958,9 @@ class Meeting {
   final Rsvp myRsvp;
   final String? minutesStatus;
   final String? minutesText;
+
+  /// Online meeting link (e.g. Google Meet); null until the Secretary adds it.
+  final String? link;
 
   Meeting withRsvp(Rsvp r) {
     int a = accepted, t = tentative, d = declined;
@@ -984,10 +988,11 @@ class Meeting {
       myRsvp: r,
       minutesStatus: minutesStatus,
       minutesText: minutesText,
+      link: link,
     );
   }
 
-  Meeting copyWith({DateTime? at, String? minutesStatus, String? minutesText}) => Meeting(
+  Meeting copyWith({DateTime? at, String? minutesStatus, String? minutesText, String? link}) => Meeting(
     id: id,
     type: type,
     title: title,
@@ -1003,6 +1008,7 @@ class Meeting {
     myRsvp: myRsvp,
     minutesStatus: minutesStatus ?? this.minutesStatus,
     minutesText: minutesText ?? this.minutesText,
+    link: link ?? this.link,
   );
 }
 
@@ -1189,7 +1195,13 @@ class AssociationRegisterItem {
 }
 
 class Amenity {
-  const Amenity({required this.id, required this.name, required this.rules, required this.fee, required this.requiresApproval});
+  const Amenity({
+    required this.id,
+    required this.name,
+    required this.rules,
+    required this.fee,
+    required this.requiresApproval,
+  });
 
   final String id;
   final String name;
@@ -1231,7 +1243,14 @@ class AmenityBooking {
 }
 
 class EmergencyContact {
-  const EmergencyContact({required this.id, required this.label, required this.name, required this.phone, required this.category, this.notes = ''});
+  const EmergencyContact({
+    required this.id,
+    required this.label,
+    required this.name,
+    required this.phone,
+    required this.category,
+    this.notes = '',
+  });
   final String id;
   final String label;
   final String name;
@@ -1241,7 +1260,20 @@ class EmergencyContact {
 }
 
 class CommunityEvent {
-  const CommunityEvent({required this.id, required this.title, required this.type, required this.startsAt, required this.endsAt, required this.location, this.description = '', this.budget, this.status = 'scheduled', this.photoPaths = const [], this.fundRequestId, this.fundRequestTitle});
+  const CommunityEvent({
+    required this.id,
+    required this.title,
+    required this.type,
+    required this.startsAt,
+    required this.endsAt,
+    required this.location,
+    this.description = '',
+    this.budget,
+    this.status = 'scheduled',
+    this.photoPaths = const [],
+    this.fundRequestId,
+    this.fundRequestTitle,
+  });
   final String id;
   final String title;
   final String type;
@@ -1257,7 +1289,15 @@ class CommunityEvent {
 }
 
 class MeetingAction {
-  const MeetingAction({required this.id, required this.momRef, required this.title, required this.owner, required this.status, this.dueDate, this.eventId});
+  const MeetingAction({
+    required this.id,
+    required this.momRef,
+    required this.title,
+    required this.owner,
+    required this.status,
+    this.dueDate,
+    this.eventId,
+  });
   final String id;
   final String momRef;
   final String title;
@@ -1268,7 +1308,16 @@ class MeetingAction {
 }
 
 class MarketplacePost {
-  const MarketplacePost({required this.id, required this.type, required this.title, required this.description, required this.contact, required this.expiresAt, required this.author, this.price});
+  const MarketplacePost({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.description,
+    required this.contact,
+    required this.expiresAt,
+    required this.author,
+    this.price,
+  });
   final String id;
   final String type;
   final String title;

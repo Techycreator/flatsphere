@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../backend/directory_repo.dart' show friendlyError;
 import '../../app/theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
@@ -68,6 +69,15 @@ class ChecklistScreen extends ConsumerWidget {
             ),
           ),
         ),
+        if (const {Role.president, Role.secretary, Role.jointSecretary}.contains(role))
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => _manageItems(context),
+              icon: const Icon(Icons.edit_note),
+              label: const Text('Manage checklist items'),
+            ),
+          ),
         const SizedBox(height: 12),
         for (final e in byCat.entries) ...[
           Padding(
@@ -257,5 +267,119 @@ class _ChecklistRow extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// Add or remove the caretaker's daily items (removed items keep their past photo proofs).
+Future<void> _manageItems(BuildContext context) => showDialog<void>(
+  context: context,
+  builder: (ctx) => Consumer(
+    builder: (ctx, ref, _) {
+      final items = ref.watch(checklistProvider).items;
+      return AlertDialog(
+        title: const Text('Caretaker checklist items'),
+        content: SizedBox(
+          width: 480,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final i in items)
+                ListTile(
+                  dense: true,
+                  title: Text(i.title),
+                  subtitle: Text(
+                    [
+                      i.category,
+                      if (i.timeWindow.isNotEmpty) i.timeWindow,
+                      if (i.proofRequired) 'photo proof',
+                    ].join(' · '),
+                  ),
+                  trailing: IconButton(
+                    tooltip: 'Remove',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () async {
+                      try {
+                        await ref.read(checklistProvider.notifier).removeItem(i.id);
+                      } catch (error) {
+                        if (ctx.mounted) toast(ctx, friendlyError(error));
+                      }
+                    },
+                  ),
+                ),
+              if (items.isEmpty) const Padding(padding: EdgeInsets.all(8), child: Text('No items yet.')),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          FilledButton.icon(
+            onPressed: () => _addItem(ctx, ref, items),
+            icon: const Icon(Icons.add),
+            label: const Text('Add item'),
+          ),
+        ],
+      );
+    },
+  ),
+);
+
+Future<void> _addItem(BuildContext context, WidgetRef ref, List<ChecklistItem> items) async {
+  final title = TextEditingController();
+  final window = TextEditingController();
+  final categories = {'Caretaker functions', ...items.map((i) => i.category), ...monitorAreas}.toList();
+  var category = categories.first;
+  var proof = false;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => AlertDialog(
+        title: const Text('Add checklist item'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: title,
+              decoration: const InputDecoration(labelText: 'Task *', hintText: 'e.g. Fire extinguisher pressure check'),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: category,
+              decoration: const InputDecoration(labelText: 'Category (monitors see their categories)'),
+              items: [for (final c in categories) DropdownMenuItem(value: c, child: Text(c))],
+              onChanged: (v) => setState(() => category = v ?? category),
+            ),
+            TextField(
+              controller: window,
+              decoration: const InputDecoration(labelText: 'When', hintText: 'e.g. Before 9:00 AM'),
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: proof,
+              onChanged: (v) => setState(() => proof = v ?? false),
+              title: const Text('Photo proof required'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, title.text.trim().isNotEmpty), child: const Text('Add')),
+        ],
+      ),
+    ),
+  );
+  if (ok != true) return;
+  try {
+    await ref
+        .read(checklistProvider.notifier)
+        .addItem(
+          ChecklistItem(
+            id: 'c${DateTime.now().microsecondsSinceEpoch}',
+            title: title.text.trim(),
+            category: category,
+            timeWindow: window.text.trim(),
+            proofRequired: proof,
+          ),
+        );
+  } catch (error) {
+    if (context.mounted) toast(context, friendlyError(error));
   }
 }

@@ -5,7 +5,9 @@ class RegisterRepo {
   static Future<List<AssociationRegisterItem>> list() async {
     final rows = await db
         .from('association_register_items')
-        .select('id, record_type, name, category, status, vendor, purchase_date, warranty_end, amc_end, expires_on, expected_life_years, replacement_cost, details, created_at')
+        .select(
+          'id, record_type, name, category, status, vendor, purchase_date, warranty_end, amc_end, expires_on, expected_life_years, replacement_cost, details, created_at',
+        )
         .order('created_at', ascending: false);
     return [for (final row in rows) _item(row)];
   }

@@ -73,6 +73,7 @@ class SessionNotifier extends Notifier<Session?> {
     if (user == null) throw StateError('No active membership in that association');
     state = Session(user: user, activeRole: user.roles.first);
   }
+
   void switchRole(Role r) => state = state?.copyWith(activeRole: r);
   void logout() {
     if (backendEnabled) AuthService.signOut();
@@ -122,7 +123,11 @@ class ComplaintsNotifier extends Notifier<List<Complaint>> {
         status: status,
         remarks: [
           ...complaint.remarks,
-          TicketRemark(by: ref.read(sessionProvider)?.user.name ?? 'Demo user', at: DateTime.now(), text: '[${status.label}] $note'),
+          TicketRemark(
+            by: ref.read(sessionProvider)?.user.name ?? 'Demo user',
+            at: DateTime.now(),
+            text: '[${status.label}] $note',
+          ),
         ],
       ),
     );
@@ -139,13 +144,18 @@ class ChecklistState {
   int get doneCount => items.where((i) => i.done).length;
   double get progress => items.isEmpty ? 0 : doneCount / items.length;
 
-  ChecklistState copyWith({List<ChecklistItem>? items, bool? submitted, bool? approved, String? error, bool clearError = false}) =>
-      ChecklistState(
-        items: items ?? this.items,
-        submitted: submitted ?? this.submitted,
-        approved: approved ?? this.approved,
-        error: clearError ? null : (error ?? this.error),
-      );
+  ChecklistState copyWith({
+    List<ChecklistItem>? items,
+    bool? submitted,
+    bool? approved,
+    String? error,
+    bool clearError = false,
+  }) => ChecklistState(
+    items: items ?? this.items,
+    submitted: submitted ?? this.submitted,
+    approved: approved ?? this.approved,
+    error: clearError ? null : (error ?? this.error),
+  );
 }
 
 final checklistProvider = NotifierProvider<ChecklistNotifier, ChecklistState>(ChecklistNotifier.new);
@@ -155,9 +165,37 @@ class ChecklistNotifier extends Notifier<ChecklistState> {
   ChecklistState build() {
     if (backendEnabled) {
       final session = ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId)));
-      if (session.$1 != null) refreshProofs(DateUtils.dateOnly(DateTime.now()));
+      if (session.$1 != null) _loadCloud();
+      return const ChecklistState(items: []);
     }
     return ChecklistState(items: buildDemoChecklist());
+  }
+
+  Future<void> _loadCloud() async {
+    try {
+      final items = await ChecklistRepo.items();
+      state = state.copyWith(items: items, clearError: true);
+      await refreshProofs(DateUtils.dateOnly(DateTime.now()));
+    } catch (e) {
+      state = state.copyWith(error: '$e');
+    }
+  }
+
+  /// Secretary / President / JS maintain the caretaker's daily items.
+  Future<void> addItem(ChecklistItem item) async {
+    if (backendEnabled) {
+      await ChecklistRepo.addItem(item, state.items.length);
+      return _loadCloud();
+    }
+    state = state.copyWith(items: [...state.items, item]);
+  }
+
+  Future<void> removeItem(String id) async {
+    if (backendEnabled) {
+      await ChecklistRepo.removeItem(id);
+      return _loadCloud();
+    }
+    state = state.copyWith(items: state.items.where((i) => i.id != id).toList());
   }
 
   Future<void> refreshProofs(DateTime date) async {
@@ -197,8 +235,7 @@ class ChecklistNotifier extends Notifier<ChecklistState> {
 
   Future<String?> proofUrl(String path) async => backendEnabled ? ChecklistRepo.viewUrl(path) : null;
 
-  void _items(List<ChecklistItem> items) =>
-      state = state.copyWith(items: items);
+  void _items(List<ChecklistItem> items) => state = state.copyWith(items: items);
 
   void toggle(String id, bool done) {
     if (state.approved) return;
@@ -357,15 +394,29 @@ class DuesNotifier extends Notifier<DuesState> {
 
   bool get canBulk => state.bulkSentAt == null || !_sameDay(state.bulkSentAt!, DateTime.now());
 
-  void remind(String flat) => state = state.copyWith(reminded: {...state.reminded, flat: DateTime.now()});
+  /// Cloud: sends an in-app reminder to the flat's owners (server allows one per flat per day).
+  Future<void> remind(String flat) async {
+    if (backendEnabled) {
+      final id = state.flats.where((f) => f.number == flat).firstOrNull?.id;
+      if (id != null) await FinanceRepo.sendDuesReminders([id]);
+    }
+    state = state.copyWith(reminded: {...state.reminded, flat: DateTime.now()});
+  }
 
-  int remindAll() {
+  Future<int> remindAll() async {
     final flats = {
       for (final l in state.lines)
         if (!l.isPaid) l.flatNumber,
     }.where(canRemind).toList();
     final now = DateTime.now();
     state = state.copyWith(reminded: {...state.reminded, for (final f in flats) f: now}, bulkSentAt: now);
+    if (backendEnabled) {
+      final ids = [
+        for (final f in state.flats)
+          if (flats.contains(f.number)) f.id!,
+      ];
+      return FinanceRepo.sendDuesReminders(ids);
+    }
     return flats.length;
   }
 
@@ -411,7 +462,13 @@ class DuesNotifier extends Notifier<DuesState> {
     final added = [
       for (final flat in demoFlats)
         if (flat.sqft > 0 && !state.lines.any((line) => line.flatNumber == flat.number && line.head == head))
-          DueLine(flatNumber: flat.number, head: head, amount: (flat.sqft * ratePerSqft).round(), paid: 0, dueDate: dueDate),
+          DueLine(
+            flatNumber: flat.number,
+            head: head,
+            amount: (flat.sqft * ratePerSqft).round(),
+            paid: 0,
+            dueDate: dueDate,
+          ),
     ];
     state = state.copyWith(lines: [...state.lines, ...added]);
     return added.length;
@@ -748,12 +805,23 @@ class MeetingsNotifier extends Notifier<List<Meeting>> {
     state = [...state, m]..sort((a, b) => a.at.compareTo(b.at));
   }
 
+  Future<void> setLink(String id, String? link) async {
+    if (backendEnabled) {
+      await MeetingsRepo.setLink(id, link);
+      return refresh();
+    }
+    state = [for (final meeting in state) meeting.id == id ? meeting.copyWith(link: link) : meeting];
+  }
+
   Future<void> saveMinutes(String id, String text) async {
     if (backendEnabled) {
       await MeetingsRepo.saveMinutes(id, text);
       return refresh();
     }
-    state = [for (final meeting in state) meeting.id == id ? meeting.copyWith(minutesStatus: 'draft', minutesText: text) : meeting];
+    state = [
+      for (final meeting in state)
+        meeting.id == id ? meeting.copyWith(minutesStatus: 'draft', minutesText: text) : meeting,
+    ];
   }
 
   Future<void> submitMinutes(String id) async {
@@ -761,7 +829,9 @@ class MeetingsNotifier extends Notifier<List<Meeting>> {
       await MeetingsRepo.submitMinutes(id);
       return refresh();
     }
-    state = [for (final meeting in state) meeting.id == id ? meeting.copyWith(minutesStatus: 'pending_approval') : meeting];
+    state = [
+      for (final meeting in state) meeting.id == id ? meeting.copyWith(minutesStatus: 'pending_approval') : meeting,
+    ];
   }
 
   Future<void> approveMinutes(String id) async {

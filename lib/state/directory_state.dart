@@ -46,8 +46,8 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
             if (u.roles.contains(Role.owner) && u.flatNumber != null) u.flatNumber!,
         },
         myFlatNumbers: ref.read(sessionProvider)?.user.flatNumber == null
-          ? const {}
-          : {ref.read(sessionProvider)!.user.flatNumber!},
+            ? const {}
+            : {ref.read(sessionProvider)!.user.flatNumber!},
       );
     }
     if (ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId))).$1 != null) refresh();
@@ -61,7 +61,12 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
       final people = await DirectoryRepo.people();
       final ownedFlatNumbers = await DirectoryRepo.ownedFlatNumbers();
       final myFlatNumbers = await DirectoryRepo.myFlatNumbers();
-      state = DirectoryState(flats: flats, people: people, ownedFlatNumbers: ownedFlatNumbers, myFlatNumbers: myFlatNumbers);
+      state = DirectoryState(
+        flats: flats,
+        people: people,
+        ownedFlatNumbers: ownedFlatNumbers,
+        myFlatNumbers: myFlatNumbers,
+      );
     } catch (e) {
       state = DirectoryState(
         flats: state.flats,
@@ -171,29 +176,31 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
       await DirectoryRepo.setBirthDate(person, birthDate);
       return refresh();
     }
-    _set(people: [
-      for (final current in state.people)
-        if (current.id == person.id)
-          Person(
-            id: current.id,
-            name: current.name,
-            email: current.email,
-            mobile: current.mobile,
-            role: current.role,
-            flatNumber: current.flatNumber,
-            birthDate: birthDate,
-            invited: current.invited,
-            designations: current.designations,
-            monitorCategories: current.monitorCategories,
-            monitorFrom: current.monitorFrom,
-            monitorUntil: current.monitorUntil,
-            assignedBy: current.assignedBy,
-            since: current.since,
-            supportFlags: current.supportFlags,
-          )
-        else
-          current,
-    ]);
+    _set(
+      people: [
+        for (final current in state.people)
+          if (current.id == person.id)
+            Person(
+              id: current.id,
+              name: current.name,
+              email: current.email,
+              mobile: current.mobile,
+              role: current.role,
+              flatNumber: current.flatNumber,
+              birthDate: birthDate,
+              invited: current.invited,
+              designations: current.designations,
+              monitorCategories: current.monitorCategories,
+              monitorFrom: current.monitorFrom,
+              monitorUntil: current.monitorUntil,
+              assignedBy: current.assignedBy,
+              since: current.since,
+              supportFlags: current.supportFlags,
+            )
+          else
+            current,
+      ],
+    );
   }
 
   Future<void> removePerson(Person p) async {

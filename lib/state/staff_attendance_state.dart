@@ -178,22 +178,24 @@ class StaffAttendanceNotifier extends Notifier<StaffAttendanceState> {
       );
       return refresh(state.date);
     }
-    state = state.copyWith(staff: [
-      for (final current in state.staff)
-        if (current.id == staff.id)
-          StaffMember(
-            id: current.id,
-            name: name.trim(),
-            type: type,
-            area: area,
-            active: active,
-            employerType: employerType,
-            agencyName: employerType == StaffEmployerType.agency ? agencyName.trim() : null,
-            monthlySalary: monthlySalary,
-            idProofPath: current.idProofPath,
-          )
-        else
-          current,
-    ]);
+    state = state.copyWith(
+      staff: [
+        for (final current in state.staff)
+          if (current.id == staff.id)
+            StaffMember(
+              id: current.id,
+              name: name.trim(),
+              type: type,
+              area: area,
+              active: active,
+              employerType: employerType,
+              agencyName: employerType == StaffEmployerType.agency ? agencyName.trim() : null,
+              monthlySalary: monthlySalary,
+              idProofPath: current.idProofPath,
+            )
+          else
+            current,
+      ],
+    );
   }
 }

@@ -211,19 +211,16 @@ class FinanceRepo {
   static Future<int> raiseDues(String head, DateTime dueDate, Map<String, int> rates) async =>
       _int(await db.rpc('raise_dues', params: {'p_head': head, 'p_due_date': _date(dueDate), 'p_rates': rates}));
 
-  static Future<int> raiseDuesPerSqft(String head, DateTime dueDate, double ratePerSqft) async =>
-      _int(await db.rpc('raise_dues_per_sqft', params: {
-        'p_head': head,
-        'p_due_date': _date(dueDate),
-        'p_rate_per_sqft': ratePerSqft,
-      }));
+  static Future<int> raiseDuesPerSqft(String head, DateTime dueDate, double ratePerSqft) async => _int(
+    await db.rpc(
+      'raise_dues_per_sqft',
+      params: {'p_head': head, 'p_due_date': _date(dueDate), 'p_rate_per_sqft': ratePerSqft},
+    ),
+  );
 
-  static Future<int> applyFixedLateFee(String head, DateTime dueDate, int amount) async =>
-      _int(await db.rpc('apply_fixed_late_fee', params: {
-        'p_head': head,
-        'p_due_date': _date(dueDate),
-        'p_amount': amount,
-      }));
+  static Future<int> applyFixedLateFee(String head, DateTime dueDate, int amount) async => _int(
+    await db.rpc('apply_fixed_late_fee', params: {'p_head': head, 'p_due_date': _date(dueDate), 'p_amount': amount}),
+  );
 
   static Future<List<MonthlyStatement>> statements() async {
     final rows = await db.rpc('list_monthly_statements') as List;
@@ -279,13 +276,16 @@ class FinanceRepo {
     required Map<String, int> categoryAmounts,
     required String resolutionRef,
     required DateTime resolutionDate,
-  }) => db.rpc('submit_annual_budget', params: {
-    'p_fiscal_year_start': _date(fiscalYearStart),
-    'p_fiscal_year_end': _date(fiscalYearEnd),
-    'p_category_amounts': categoryAmounts,
-    'p_gbm_resolution_ref': resolutionRef,
-    'p_gbm_resolution_date': _date(resolutionDate),
-  });
+  }) => db.rpc(
+    'submit_annual_budget',
+    params: {
+      'p_fiscal_year_start': _date(fiscalYearStart),
+      'p_fiscal_year_end': _date(fiscalYearEnd),
+      'p_category_amounts': categoryAmounts,
+      'p_gbm_resolution_ref': resolutionRef,
+      'p_gbm_resolution_date': _date(resolutionDate),
+    },
+  );
 
   static Future<void> decideAnnualBudget(String id, String action, [String? note]) =>
       db.rpc('decide_annual_budget', params: {'p_budget': id, 'p_action': action, 'p_note': note});
@@ -345,11 +345,9 @@ class FinanceRepo {
     final prepared = await prepareUpload(bytes, ext);
     final assoc = await db.rpc('my_association') as String;
     final path = '$assoc/${DateTime.now().microsecondsSinceEpoch}.${prepared.extension}';
-    await db.storage.from(_bucket).uploadBinary(
-      path,
-      prepared.bytes,
-      fileOptions: FileOptions(contentType: prepared.contentType),
-    );
+    await db.storage
+        .from(_bucket)
+        .uploadBinary(path, prepared.bytes, fileOptions: FileOptions(contentType: prepared.contentType));
     return path;
   }
 
@@ -384,4 +382,8 @@ class FinanceRepo {
       db.rpc('decide_expense', params: {'p_id': id, 'p_action': action, 'p_comment': comment});
 
   static Future<String> billUrl(String path) => db.storage.from(_bucket).createSignedUrl(path, 60);
+
+  /// Returns how many flats were reminded (flats already reminded today or with nothing pending are skipped).
+  static Future<int> sendDuesReminders(List<String> flatIds) async =>
+      ((await db.rpc('send_dues_reminders', params: {'p_flats': flatIds})) as num).toInt();
 }

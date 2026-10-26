@@ -32,9 +32,10 @@ class DirectoryRepo {
   static const _bucket = 'id-proofs';
 
   static Future<List<VehicleContact>> searchVehicle(String registrationNumber) async {
-    final rows = await db.rpc('search_vehicle_contacts', params: {
-      'p_vehicle_number': registrationNumber.trim().toUpperCase(),
-    }) as List;
+    final rows = await db.rpc(
+      'search_vehicle_contacts',
+      params: {'p_vehicle_number': registrationNumber.trim().toUpperCase()},
+    ) as List;
     return [
       for (final row in rows.cast<Map<String, dynamic>>())
         VehicleContact(
@@ -62,9 +63,11 @@ class DirectoryRepo {
 
   static Future<List<FlatInfo>> flats() async {
     final rows = await db
-      .from('flats')
-      .select('id, number, block, flat_type, sqft, occupancy, flat_vehicles(vehicle_type, registration_number, parking_slot)')
-      .order('number');
+        .from('flats')
+        .select(
+          'id, number, block, flat_type, sqft, occupancy, flat_vehicles(vehicle_type, registration_number, parking_slot)',
+        )
+        .order('number');
     return [
       for (final r in rows)
         FlatInfo(
@@ -74,17 +77,17 @@ class DirectoryRepo {
           type: r['flat_type'] as String,
           sqft: r['sqft'] as int?,
           occupancy: _occupancy(r['occupancy']),
-            carNumber: (r['flat_vehicles'] as List? ?? const [])
+          carNumber: (r['flat_vehicles'] as List? ?? const [])
               .cast<Map<String, dynamic>>()
               .where((v) => v['vehicle_type'] == 'car')
               .map((v) => v['registration_number'] as String?)
               .firstOrNull,
-            bikeNumber: (r['flat_vehicles'] as List? ?? const [])
+          bikeNumber: (r['flat_vehicles'] as List? ?? const [])
               .cast<Map<String, dynamic>>()
               .where((v) => v['vehicle_type'] == 'bike')
               .map((v) => v['registration_number'] as String?)
               .firstOrNull,
-            parkingSlot: (r['flat_vehicles'] as List? ?? const [])
+          parkingSlot: (r['flat_vehicles'] as List? ?? const [])
               .cast<Map<String, dynamic>>()
               .map((v) => v['parking_slot'] as String?)
               .whereType<String>()
@@ -122,27 +125,31 @@ class DirectoryRepo {
     required String leasePeriod,
     required List<({String name, DateTime dateOfBirth, String? email})> familyMembers,
   }) async {
-    await db.rpc('create_membership_change_with_family', params: {
-      'p_request': requestId,
-      'p_flat': flatId,
-      'p_type': type,
-      'p_name': name.trim(),
-      'p_email': email.trim().toLowerCase(),
-      'p_mobile': mobile.trim(),
-      'p_lease': leasePeriod.trim(),
-      'p_family': [
-        for (final member in familyMembers)
-          {
-            'full_name': member.name.trim(),
-            'date_of_birth': _date(member.dateOfBirth),
-            'email': (member.email?.trim().isEmpty ?? true) ? null : member.email!.trim().toLowerCase(),
-          },
-      ],
-    });
+    await db.rpc(
+      'create_membership_change_with_family',
+      params: {
+        'p_request': requestId,
+        'p_flat': flatId,
+        'p_type': type,
+        'p_name': name.trim(),
+        'p_email': email.trim().toLowerCase(),
+        'p_mobile': mobile.trim(),
+        'p_lease': leasePeriod.trim(),
+        'p_family': [
+          for (final member in familyMembers)
+            {
+              'full_name': member.name.trim(),
+              'date_of_birth': _date(member.dateOfBirth),
+              'email': (member.email?.trim().isEmpty ?? true) ? null : member.email!.trim().toLowerCase(),
+            },
+        ],
+      },
+    );
   }
 
   static Future<List<FamilyMemberRecord>> familyMembers() async {
-    final rows = await db.from('family_members')
+    final rows = await db
+        .from('family_members')
         .select('id,full_name,date_of_birth,email,approved_at,flats(number)')
         .isFilter('archived_at', null)
         .order('created_at');
@@ -159,10 +166,8 @@ class DirectoryRepo {
     ];
   }
 
-  static Future<void> updateFamilyMemberEmail(String id, String email) => db.rpc(
-    'update_family_member_email',
-    params: {'p_member': id, 'p_email': email.trim().toLowerCase()},
-  );
+  static Future<void> updateFamilyMemberEmail(String id, String email) =>
+      db.rpc('update_family_member_email', params: {'p_member': id, 'p_email': email.trim().toLowerCase()});
 
   static Future<void> uploadRequestProof({
     required String requestId,
@@ -175,11 +180,9 @@ class DirectoryRepo {
     final prepared = await prepareUpload(bytes, ext);
     final association = await db.rpc('my_association') as String;
     final path = '$association/$flatId/$requestId/${DateTime.now().microsecondsSinceEpoch}.${prepared.extension}';
-    await db.storage.from(_bucket).uploadBinary(
-      path,
-      prepared.bytes,
-      fileOptions: FileOptions(contentType: prepared.contentType),
-    );
+    await db.storage
+        .from(_bucket)
+        .uploadBinary(path, prepared.bytes, fileOptions: FileOptions(contentType: prepared.contentType));
     await db.from('id_documents').insert({
       'request_id': requestId,
       'subject_email': person.email.toLowerCase(),
@@ -198,20 +201,13 @@ class DirectoryRepo {
       'sqft': f.sqft,
       'occupancy': _occupancyDb(f.occupancy),
     };
-    final flatId = f.id == null
-        ? (await db.from('flats').insert(row).select('id').single())['id'] as String
-        : f.id!;
+    final flatId = f.id == null ? (await db.from('flats').insert(row).select('id').single())['id'] as String : f.id!;
     if (f.id != null) {
       await db.from('flats').update(row).eq('id', flatId);
     }
     await db.rpc(
       'save_flat_vehicles',
-      params: {
-        'p_flat': flatId,
-        'p_car': f.carNumber,
-        'p_bike': f.bikeNumber,
-        'p_slot': f.parkingSlot,
-      },
+      params: {'p_flat': flatId, 'p_car': f.carNumber, 'p_bike': f.bikeNumber, 'p_slot': f.parkingSlot},
     );
   }
 
@@ -281,11 +277,7 @@ class DirectoryRepo {
 
   static Future<void> setBirthDate(Person person, DateTime birthDate) => db.rpc(
     'set_member_birth_date',
-    params: {
-      'p_kind': person.invited ? 'invited' : 'member',
-      'p_id': person.id,
-      'p_birth_date': _date(birthDate),
-    },
+    params: {'p_kind': person.invited ? 'invited' : 'member', 'p_id': person.id, 'p_birth_date': _date(birthDate)},
   );
 
   static Future<void> remove(Person p) =>
@@ -321,11 +313,9 @@ class DirectoryRepo {
     final prepared = await prepareUpload(bytes, ext);
     final assoc = await db.rpc('my_association') as String;
     final path = '$assoc/${flatId ?? 'none'}/${DateTime.now().microsecondsSinceEpoch}.${prepared.extension}';
-    await db.storage.from(_bucket).uploadBinary(
-      path,
-      prepared.bytes,
-      fileOptions: FileOptions(contentType: prepared.contentType),
-    );
+    await db.storage
+        .from(_bucket)
+        .uploadBinary(path, prepared.bytes, fileOptions: FileOptions(contentType: prepared.contentType));
     await db.from('id_documents').insert({
       'subject_email': person.email.toLowerCase(),
       'subject_name': person.name,

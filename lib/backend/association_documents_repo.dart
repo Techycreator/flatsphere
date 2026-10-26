@@ -37,11 +37,7 @@ class AssociationDocumentsRepo {
           status: row['archived_at'] == null ? 'active' : 'archived',
           createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
           expiresOn: row['expiry_date'] == null ? null : DateTime.parse(row['expiry_date'] as String),
-          details: {
-            'version': row['version'],
-            'issue_date': row['issue_date'],
-            'archived_at': row['archived_at'],
-          },
+          details: {'version': row['version'], 'issue_date': row['issue_date'], 'archived_at': row['archived_at']},
         ),
     ];
   }
@@ -57,15 +53,20 @@ class AssociationDocumentsRepo {
     final prepared = await prepareUpload(bytes, extension);
     final association = await db.rpc('my_association') as String;
     final path = '$association/${DateTime.now().microsecondsSinceEpoch}.${prepared.extension}';
-    await db.storage.from(_bucket).uploadBinary(path, prepared.bytes, fileOptions: FileOptions(contentType: prepared.contentType));
+    await db.storage
+        .from(_bucket)
+        .uploadBinary(path, prepared.bytes, fileOptions: FileOptions(contentType: prepared.contentType));
     try {
-      final id = await db.rpc('add_association_document', params: {
-        'p_type': type,
-        'p_title': title.trim(),
-        'p_storage_path': path,
-        'p_issue_date': _date(issueDate),
-        'p_expiry_date': _date(expiryDate),
-      }) as String;
+      final id = await db.rpc(
+        'add_association_document',
+        params: {
+          'p_type': type,
+          'p_title': title.trim(),
+          'p_storage_path': path,
+          'p_issue_date': _date(issueDate),
+          'p_expiry_date': _date(expiryDate),
+        },
+      ) as String;
       return id;
     } catch (_) {
       await db.storage.from(_bucket).remove([path]);

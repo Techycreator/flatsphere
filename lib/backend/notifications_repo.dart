@@ -17,6 +17,5 @@ class NotificationsRepo {
     ];
   }
 
-  static Future<void> markRead(String id) =>
-      db.rpc('mark_app_notification_read', params: {'p_notification': id});
+  static Future<void> markRead(String id) => db.rpc('mark_app_notification_read', params: {'p_notification': id});
 }

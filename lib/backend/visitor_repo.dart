@@ -28,7 +28,8 @@ class VisitorRepo {
         () {
           final flat = row['flats'] as Map? ?? const {};
           final vehicles = List<Map<String, dynamic>>.from(flat['flat_vehicles'] as List? ?? const []);
-          String? vehicle(String type) => vehicles.where((v) => v['vehicle_type'] == type)
+          String? vehicle(String type) => vehicles
+              .where((v) => v['vehicle_type'] == type)
               .map((v) => v['registration_number'] as String?)
               .firstOrNull;
           final slots = vehicles.map((v) => v['parking_slot'] as String?).whereType<String>();
