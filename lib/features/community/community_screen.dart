@@ -38,6 +38,7 @@ class CommunityScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionProvider)!.activeRole;
+    final me = ref.watch(sessionProvider)!.user.id;
     final canManage = role == Role.admin || role == Role.president || role == Role.secretary;
     final canOrganize = canManage || role == Role.jointSecretary;
     final marketplaceTypes = marketplacePostTypesFor(role);
@@ -59,7 +60,7 @@ class CommunityScreen extends ConsumerWidget {
             color: Theme.of(context).colorScheme.surface,
             child: const TabBar(
               isScrollable: true,
-              tabs: [Tab(text: 'Emergency'), Tab(text: 'Events'), Tab(text: 'MOM actions'), Tab(text: 'Marketplace')],
+              tabs: [Tab(text: 'Emergency'), Tab(text: 'Marketplace'), Tab(text: 'Events'), Tab(text: 'MOM actions')],
             ),
           ),
           Expanded(
@@ -80,6 +81,44 @@ class CommunityScreen extends ConsumerWidget {
                             title: Text(contact.label),
                             subtitle: Text('${contact.name} · ${contact.phone}${contact.notes.isEmpty ? '' : '\n${contact.notes}'}'),
                             isThreeLine: contact.notes.isNotEmpty,
+                          ),
+                        ),
+                  ],
+                ),
+                PageBody(
+                  children: [
+                    _header(
+                      'Owner marketplace',
+                      marketplaceTypes.isNotEmpty ? 'Create post' : null,
+                      marketplaceTypes.isNotEmpty
+                          ? () => _addPost(context, ref, serviceOnly: role == Role.caretaker)
+                          : null,
+                    ),
+                    const Text('Posts are visible to members of this association and expire after 30 days. Removed posts are archived after 3 months.'),
+                    if (posts.isLoading) const LinearProgressIndicator(),
+                    if (posts.hasError) _errorCard(posts.error),
+                    if (posts.hasValue && posts.value!.isEmpty)
+                      const EmptyState('No active marketplace posts.', icon: Icons.storefront_outlined),
+                    if (posts.hasValue)
+                      for (final post in posts.value!)
+                        Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.storefront_outlined),
+                            title: Text(post.title),
+                            subtitle: Text('${post.type.replaceAll('_', ' ')} · ${post.author} · ${post.contact}\n${post.description}'),
+                            isThreeLine: true,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (post.price != null) Text(inr.format(post.price)),
+                                if (post.createdBy == me || role == Role.president || role == Role.secretary)
+                                  IconButton(
+                                    tooltip: 'Remove post',
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () => _removePost(context, ref, post),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                   ],
@@ -167,39 +206,33 @@ class CommunityScreen extends ConsumerWidget {
                         ),
                   ],
                 ),
-                PageBody(
-                  children: [
-                    _header(
-                      'Owner marketplace',
-                      marketplaceTypes.isNotEmpty ? 'Create post' : null,
-                      marketplaceTypes.isNotEmpty
-                          ? () => _addPost(context, ref, serviceOnly: role == Role.caretaker)
-                          : null,
-                    ),
-                    const Text('Owner posts are visible to members of this association and expire after 30 days.'),
-                    if (posts.isLoading) const LinearProgressIndicator(),
-                    if (posts.hasError) _errorCard(posts.error),
-                    if (posts.hasValue && posts.value!.isEmpty)
-                      const EmptyState('No active marketplace posts.', icon: Icons.storefront_outlined),
-                    if (posts.hasValue)
-                      for (final post in posts.value!)
-                        Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.storefront_outlined),
-                            title: Text(post.title),
-                            subtitle: Text('${post.type.replaceAll('_', ' ')} · ${post.author} · ${post.contact}\n${post.description}'),
-                            isThreeLine: true,
-                            trailing: post.price == null ? null : Text(inr.format(post.price)),
-                          ),
-                        ),
-                  ],
-                ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+Future<void> _removePost(BuildContext context, WidgetRef ref, MarketplacePost post) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (c) => AlertDialog(
+      title: const Text('Remove post?'),
+      content: Text('"${post.title}" will be hidden and archived after 3 months.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Remove')),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  try {
+    await CommunityRepo.removeMarketplacePost(post.id);
+    ref.invalidate(marketplaceProvider);
+  } catch (error) {
+    if (context.mounted) toast(context, '$error');
   }
 }
 

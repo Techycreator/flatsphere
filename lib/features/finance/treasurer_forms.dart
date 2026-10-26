@@ -64,7 +64,7 @@ Future<bool?> _form(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ...fields(set),
+                for (final w in fields(set)) Padding(padding: const EdgeInsets.only(bottom: 12), child: w),
                 if (error != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),

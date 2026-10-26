@@ -1317,6 +1317,7 @@ class MarketplacePost {
     required this.expiresAt,
     required this.author,
     this.price,
+    this.createdBy,
   });
   final String id;
   final String type;
@@ -1326,4 +1327,5 @@ class MarketplacePost {
   final DateTime expiresAt;
   final String author;
   final int? price;
+  final String? createdBy;
 }

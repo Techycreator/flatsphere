@@ -53,16 +53,18 @@ class IncomeScreen extends ConsumerWidget {
 
     return PageBody(
       children: [
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Expanded(child: Text('Income records', style: Theme.of(context).textTheme.headlineSmall)),
+            Text('Income records', style: Theme.of(context).textTheme.headlineSmall),
             if (canRecord) ...[
               OutlinedButton.icon(
                 onPressed: requestCategory,
                 icon: const Icon(Icons.category_outlined),
                 label: const Text('New category'),
               ),
-              const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: active.isEmpty ? null : recordIncome,
                 icon: const Icon(Icons.add),

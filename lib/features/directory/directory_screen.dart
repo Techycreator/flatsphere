@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -68,6 +71,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
   _Tab tab = _Tab.flats;
   String query = '';
   String filter = 'All';
+  Occupancy? occFilter;
 
   static const _filters = ['All', 'Committee', 'Owners', 'Residents', 'Invited'];
 
@@ -156,25 +160,63 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
   String? _names(String label, List<Person> list) =>
       list.isEmpty ? null : '$label: ${list.map((p) => p.invited ? '${p.name} (invited)' : p.name).join(', ')}';
 
-  List<Widget> _flats(DirectoryState st) => [
-    Align(
-      alignment: Alignment.centerRight,
-      child: FilledButton.icon(
-        onPressed: () => _editFlat(null),
-        icon: const Icon(Icons.add),
-        label: const Text('Add flat'),
-      ),
+  Future<void> _exportFlats(DirectoryState st, List<FlatInfo> flats) async {
+    String cell(String? v) => '"${(v ?? '').replaceAll('"', '""')}"';
+    String names(String number, Role r) => st.at(number, r).map((p) => p.name).join('; ');
+    final csv = [
+      'flat,block,type,sqft,occupancy,owner,resident,car,bike,parking_slot',
+      for (final f in flats)
+        [f.number, f.block, f.type, f.sqft?.toString(), _occLabel(f.occupancy), names(f.number, Role.owner), names(f.number, Role.resident), f.carNumber, f.bikeNumber, f.parkingSlot]
+            .map(cell)
+            .join(','),
+    ].join('\r\n');
+    try {
+      final saved = await FilePicker.saveFile(
+        dialogTitle: 'Export flats',
+        fileName: 'flatsphere-flats.csv',
+        type: FileType.custom,
+        allowedExtensions: const ['csv'],
+        bytes: Uint8List.fromList(utf8.encode(csv)),
+      );
+      if (saved != null) _toast('Exported ${flats.length} flats');
+    } catch (e) {
+      _toast(friendlyError(e));
+    }
+  }
+
+  List<Widget> _flats(DirectoryState st) {
+    final shown = [for (final f in st.flats) if (occFilter == null || f.occupancy == occFilter) f];
+    return [
+    Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        ChoiceChip(label: const Text('All'), selected: occFilter == null, onSelected: (_) => setState(() => occFilter = null)),
+        for (final o in Occupancy.values)
+          ChoiceChip(label: Text(_occLabel(o)), selected: occFilter == o, onSelected: (_) => setState(() => occFilter = o)),
+        OutlinedButton.icon(
+          onPressed: shown.isEmpty ? null : () => _exportFlats(st, shown),
+          icon: const Icon(Icons.download_outlined),
+          label: const Text('Export CSV'),
+        ),
+        FilledButton.icon(
+          onPressed: () => _editFlat(null),
+          icon: const Icon(Icons.add),
+          label: const Text('Add flat'),
+        ),
+      ],
     ),
     const SizedBox(height: 8),
-    if (st.flats.isEmpty)
-      const EmptyState('No flats yet. Add your first flat.', icon: Icons.apartment_outlined)
+    if (shown.isEmpty)
+      const EmptyState('No flats match. Add a flat or change the filter.', icon: Icons.apartment_outlined)
     else
       SectionCard(
-        title: '${st.flats.length} flats',
+        title: '${shown.length} flats',
         padding: false,
         child: Column(
           children: [
-            for (final f in st.flats)
+            for (final f in shown)
               ListTile(
                 leading: CircleAvatar(child: Text(f.block.isEmpty ? '#' : f.block.substring(0, 1))),
                 title: Text(f.number),
@@ -198,7 +240,8 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
           ],
         ),
       ),
-  ];
+    ];
+  }
 
   Future<void> _editFlat(FlatInfo? f) async {
     final number = TextEditingController(text: f?.number);
@@ -470,7 +513,8 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                       if (role != Role.owner && role != Role.resident) supportFlags.clear();
                     }),
                   ),
-                  if (needsFlat())
+                  if (needsFlat()) ...[
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: flat,
                       isExpanded: true,
@@ -478,6 +522,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                       items: [for (final f in st.flats) DropdownMenuItem(value: f.number, child: Text(f.number))],
                       onChanged: (v) => set(() => flat = v),
                     ),
+                  ],
                   if (role == Role.owner || role == Role.resident) ...[
                     const SizedBox(height: 8),
                     const Align(alignment: Alignment.centerLeft, child: Text('Member support details (optional)')),

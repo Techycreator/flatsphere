@@ -104,8 +104,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/community',
             pageBuilder: (_, state) {
               final initialTab = switch (state.uri.queryParameters['tab']) {
-                'events' => 1,
-                'marketplace' => 3,
+                'events' => 2,
+                'marketplace' => 1,
                 _ => 0,
               };
               return _page(CommunityScreen(initialTab: initialTab));
@@ -136,6 +136,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/family-accounts', pageBuilder: (_, _) => _page(const FamilyAccountsScreen())),
           GoRoute(path: '/notices', pageBuilder: (_, _) => _page(const NoticesScreen())),
           GoRoute(path: '/visitors', pageBuilder: (_, _) => _page(const VisitorsScreen())),
+          GoRoute(path: '/vehicles', pageBuilder: (_, _) => _page(const VehicleLookupScreen())),
         ],
       ),
     ],

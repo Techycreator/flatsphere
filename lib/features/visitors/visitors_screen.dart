@@ -31,7 +31,6 @@ class VisitorsScreen extends ConsumerWidget {
     final role = ref.watch(sessionProvider)!.activeRole;
     final canHost = role == Role.owner || role == Role.resident;
     final canVerify = role == Role.security || role == Role.caretaker;
-    final canSearchVehicles = role.isOfficeBearer || role == Role.ecMember || canVerify;
     final requests = ref.watch(visitorRequestsProvider);
     final flats = canHost ? ref.watch(visitorFlatsProvider) : null;
 
@@ -83,10 +82,6 @@ class VisitorsScreen extends ConsumerWidget {
             canHost ? l.visitorHostIntro : canVerify ? l.visitorGateIntro : l.visitorRoleIntro,
           style: Theme.of(context).textTheme.bodySmall,
         ),
-        if (canSearchVehicles) ...[
-          const SizedBox(height: 12),
-          const _VehicleLookupPanel(),
-        ],
         if (flats?.hasError == true)
           Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${flats!.error}'))),
         const SizedBox(height: 12),
@@ -132,6 +127,13 @@ class VisitorsScreen extends ConsumerWidget {
       ],
     );
   }
+}
+
+class VehicleLookupScreen extends StatelessWidget {
+  const VehicleLookupScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const PageBody(maxWidth: 1000, children: [_VehicleLookupPanel()]);
 }
 
 class _VehicleLookupPanel extends ConsumerStatefulWidget {
