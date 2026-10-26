@@ -6,6 +6,7 @@ import '../../app/theme.dart';
 import '../../models/models.dart';
 import '../../models/sla.dart';
 import '../../state/app_state.dart';
+import '../../state/directory_state.dart';
 import '../../widgets/common.dart';
 
 class ComplaintDetailScreen extends ConsumerWidget {
@@ -25,6 +26,8 @@ class ComplaintDetailScreen extends ConsumerWidget {
     final reviewer = role == Role.secretary || role == Role.jointSecretary;
     final isRaiser = c.raisedBy == session.user.name || c.flatNumber == session.user.flatNumber;
     final notifier = ref.read(complaintsProvider.notifier);
+    final caretakerName =
+        ref.read(directoryProvider).people.where((p) => p.role == Role.caretaker).firstOrNull?.name ?? 'Caretaker';
     final theme = Theme.of(context);
 
     void addRemark(String text, {TicketStatus? status, Criticality? crit}) {
@@ -278,7 +281,7 @@ class ComplaintDetailScreen extends ConsumerWidget {
                     FilledButton.tonalIcon(
                       onPressed: () => notifier.update(
                         id,
-                        (x) => x.copyWith(assignee: 'Suresh Kumar', status: TicketStatus.assigned),
+                        (x) => x.copyWith(assignee: caretakerName, status: TicketStatus.assigned),
                       ),
                       icon: const Icon(Icons.person_add_alt),
                       label: const Text('Assign to caretaker'),

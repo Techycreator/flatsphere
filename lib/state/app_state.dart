@@ -858,7 +858,9 @@ class MeetingsNotifier extends Notifier<List<Meeting>> {
   }
 }
 
-final noticesProvider = Provider<List<Notice>>((ref) => buildDemoNotices(ref.read(clockProvider)));
+final noticesProvider = Provider<List<Notice>>(
+  (ref) => backendEnabled ? const [] : buildDemoNotices(ref.read(clockProvider)),
+);
 
 final privacyAcceptedProvider = FutureProvider.autoDispose<bool>((ref) async {
   final userId = ref.watch(sessionProvider.select((s) => s?.user.id));

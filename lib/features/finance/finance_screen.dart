@@ -164,7 +164,7 @@ class _Overview extends ConsumerWidget {
               'Overview trend charts still show illustrative figures. The Analysis tab and ledger exports use recorded association data.',
             ),
           ),
-        const TwoCol(
+        if (!backendEnabled) const TwoCol(
           left: SectionCard(title: 'Income vs expenditure (May – Oct 2026)', child: IncomeExpenseChart()),
           right: SectionCard(title: 'Expenditure by category – Sep 2026 (last closed month)', child: ExpensePie()),
         ),

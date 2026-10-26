@@ -135,7 +135,7 @@ class MyDuesScreen extends ConsumerWidget {
           ),
         ],
         const SizedBox(height: 16),
-        const SectionCard(title: 'September 2026 statement (published)', child: ExpensePie()),
+        if (!backendEnabled) const SectionCard(title: 'September 2026 statement (published)', child: ExpensePie()),
         const SizedBox(height: 8),
         Text(
           'Approved by Treasurer, Secretary and President. Visible to owners only.',

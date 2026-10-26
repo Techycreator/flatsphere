@@ -546,7 +546,7 @@ class _OwnerDash extends ConsumerWidget {
     final consents = approvals.where((a) => a.awaits(Role.owner, s.user.name)).toList();
     final myRequests = approvals.where((a) => a.initiatorName == s.user.name).toList();
     final rented = demoFlats
-        .where((f) => f.ownerName == s.user.name && f.occupancy != Occupancy.ownerOccupied)
+        .where((f) => !backendEnabled && f.ownerName == s.user.name && f.occupancy != Occupancy.ownerOccupied)
         .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -600,7 +600,7 @@ class _OwnerDash extends ConsumerWidget {
               icon: Icons.report_problem_outlined,
               onTap: () => context.go('/complaints'),
             ),
-            const StatCard(
+            if (!backendEnabled) const StatCard(
               label: 'Next General Body',
               value: 'AGM 2026',
               icon: Icons.groups_outlined,
@@ -616,7 +616,9 @@ class _OwnerDash extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         TwoCol(
-          left: const SectionCard(title: 'September 2026 statement (published)', child: ExpensePie()),
+          left: backendEnabled
+              ? const SizedBox.shrink()
+              : const SectionCard(title: 'September 2026 statement (published)', child: ExpensePie()),
           right: SectionCard(
             title: 'My complaints',
             action: TextButton.icon(

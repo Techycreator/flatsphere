@@ -426,15 +426,16 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     ];
   }
 
-  Future<void> _addPerson(DirectoryState st, bool canAssign, {Person? existing}) async {
+  Future<void> _addPerson(DirectoryState st, bool canAssign, {Person? existing, Role? initialRole}) async {
     final name = TextEditingController(text: existing?.name);
     final email = TextEditingController(text: existing?.email);
     final mobile = TextEditingController(text: existing?.mobile);
     DateTime? birthDate;
     final roles = canAssign ? Role.values : const [Role.owner, Role.resident];
-    var role = existing == null
-        ? Role.owner
-        : roles.firstWhere((r) => r != existing.role && r != Role.admin, orElse: () => Role.owner);
+    var role = initialRole ??
+        (existing == null
+            ? Role.owner
+            : roles.firstWhere((r) => r != existing.role && r != Role.admin, orElse: () => Role.owner));
     String? flat = existing?.flatNumber ?? st.flats.firstOrNull?.number;
     var areas = <String>[];
     DateTime? from = DateUtils.dateOnly(DateTime.now());
@@ -630,12 +631,15 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     builder: (ctx) => _PersonDialog(
       person: p,
       canModify: canModify,
-      onAddRole: _assignerRoles.contains(ref.read(sessionProvider)!.activeRole)
-          ? () {
-              Navigator.pop(ctx);
-              _addPerson(ref.read(directoryProvider), true, existing: p);
-            }
-          : null,
+      assignableRoles: _assignerRoles.contains(ref.read(sessionProvider)!.activeRole) ? Role.values : const [],
+      heldRoles: {
+        for (final x in ref.read(directoryProvider).people)
+          if (x.email.toLowerCase() == p.email.toLowerCase()) x.role,
+      },
+      onAssignRole: (r) {
+        Navigator.pop(ctx);
+        _addPerson(ref.read(directoryProvider), true, existing: p, initialRole: r);
+      },
       onResendInvite: p.invited && canModify
           ? () {
               Navigator.pop(ctx);
@@ -1002,11 +1006,13 @@ class _AreaPicker extends StatelessWidget {
 
 /// Person details with private ID proofs (upload, view via a 60-second link; every view is logged).
 class _PersonDialog extends ConsumerStatefulWidget {
-  const _PersonDialog({required this.person, required this.canModify, required this.onEdit, required this.onRemove, this.onAddRole, this.onResendInvite});
+  const _PersonDialog({required this.person, required this.canModify, required this.onEdit, required this.onRemove, this.assignableRoles = const [], this.heldRoles = const {}, this.onAssignRole, this.onResendInvite});
 
   final Person person;
   final bool canModify;
-  final VoidCallback? onAddRole;
+  final List<Role> assignableRoles;
+  final Set<Role> heldRoles;
+  final void Function(Role)? onAssignRole;
   final VoidCallback? onResendInvite;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
@@ -1197,7 +1203,26 @@ class _PersonDialogState extends ConsumerState<_PersonDialog> {
             child: const Text('Revoke role'),
           ),
         if (widget.onResendInvite != null) TextButton(onPressed: widget.onResendInvite, child: const Text('Resend invite email')),
-        if (widget.onAddRole != null) TextButton(onPressed: widget.onAddRole, child: const Text('Assign another role')),
+        if (widget.onAssignRole != null && widget.assignableRoles.isNotEmpty)
+          PopupMenuButton<Role>(
+            tooltip: 'Assign role',
+            onSelected: (r) {
+              if (!widget.heldRoles.contains(r)) widget.onAssignRole!(r);
+            },
+            itemBuilder: (_) => [
+              for (final r in widget.assignableRoles)
+                CheckedPopupMenuItem<Role>(
+                  value: r,
+                  checked: widget.heldRoles.contains(r),
+                  enabled: !widget.heldRoles.contains(r),
+                  child: Text(r.label),
+                ),
+            ],
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Assign role'), Icon(Icons.arrow_drop_down)]),
+            ),
+          ),
         if (editable) TextButton(onPressed: widget.onEdit, child: const Text('Edit areas / designation')),
         OutlinedButton.icon(
           onPressed: busy ? null : _upload,

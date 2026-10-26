@@ -210,7 +210,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
       case MembershipRequestType.committee:
         final steps = _position == 'President'
             ? const [ApproverStep(role: Role.vicePresident, name: 'Vice President', onBehalfOf: 'President')]
-            : const [ApproverStep(role: Role.president, name: 'Rajesh Menon')];
+            : const [ApproverStep(role: Role.president, name: 'President')];
         req = ApprovalRequest(
           id: id,
           code: 'W22',
