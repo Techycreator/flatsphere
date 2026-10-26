@@ -29,6 +29,8 @@ jobs:
           cache: true
       - name: Install dependencies
         run: flutter pub get
+      - name: Analyze (errors block the deploy)
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - name: Run tests
         run: flutter test
       - name: Build PWA

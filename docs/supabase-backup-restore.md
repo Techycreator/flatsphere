@@ -30,3 +30,14 @@ The dump may contain association member details and private application records.
 5. Validate authentication, association isolation/RLS, private document access, and key workflows in staging before selecting a production recovery plan.
 
 `npx supabase db reset` is for local development and can destroy data. Do not use it to restore a remote or production project.
+
+## Free-plan nightly backup (GitHub Actions)
+
+`.github/workflows/backup-supabase.yml` runs at 02:00 IST and stores an encrypted `pg_dump` (schemas `public`, `auth`, `storage` metadata) as a private artifact for 30 days. Storage files themselves are not included.
+
+Restore into a **new/test** project only:
+
+```bash
+gpg -d flatsphere-YYYY-MM-DD.dump.gpg > backup.dump
+pg_restore --no-owner --no-privileges -d "<target connection string>" backup.dump
+```
