@@ -155,6 +155,23 @@ class AttendanceRepo {
     ];
   }
 
+  static Future<List<FlatHousekeepingWorker>> householdStaffOverview() async {
+    final rows = await db.rpc('household_staff_overview') as List;
+    return [
+      for (final row in rows)
+        FlatHousekeepingWorker(
+          id: row['id'] as String,
+          flatNumber: row['flat_number'] as String? ?? '',
+          name: row['full_name'] as String,
+          idProofPath: '',
+          usualIn: row['usual_in'] as String,
+          usualOut: row['usual_out'] as String,
+          residesInFlat: row['resides_in_flat'] as bool? ?? false,
+          active: true,
+        ),
+    ];
+  }
+
   static Future<void> addFlatHousekeeping({
     required String flatId,
     required String name,

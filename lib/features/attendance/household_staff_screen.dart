@@ -9,6 +9,7 @@ import '../../backend/upload_preparation.dart' show maxSourceUploadBytes;
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
+import 'household_staff_overview.dart';
 
 final householdFlatsProvider = FutureProvider<List<(String id, String number)>>((ref) => AttendanceRepo.myResidentialFlats());
 final householdWorkersProvider = FutureProvider<List<FlatHousekeepingWorker>>((ref) => AttendanceRepo.flatHousekeeping());
@@ -19,6 +20,7 @@ class HouseholdStaffScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionProvider)!.activeRole;
+    if (householdStaffViewerRoles.contains(role)) return const HouseholdStaffOverview();
     if (role != Role.owner && role != Role.resident) {
       return const PageBody(children: [EmptyState('Household staff is available to flat owners and residents.', icon: Icons.lock_outline)]);
     }
