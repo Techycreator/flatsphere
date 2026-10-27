@@ -323,6 +323,8 @@ class _ProfileMenu extends ConsumerWidget {
         switch (v) {
           case 'en' || 'ml':
             ref.read(localeProvider.notifier).set(Locale(v));
+          case 'security':
+            context.go('/security');
           case 'audit':
             context.go('/audit');
           case 'logout':
@@ -343,6 +345,15 @@ class _ProfileMenu extends ConsumerWidget {
           const PopupMenuItem(value: 'en', child: Text('English')),
           const PopupMenuItem(value: 'ml', child: Text('മലയാളം')),
         ],
+        if (backendEnabled)
+          const PopupMenuItem(
+            value: 'security',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.lock_outline),
+              title: Text('Security & PIN'),
+            ),
+          ),
         if (const {Role.admin, Role.president, Role.secretary}.contains(session.activeRole))
           const PopupMenuItem(
             value: 'audit',

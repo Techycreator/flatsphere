@@ -43,7 +43,9 @@ class _FirstAssociationSetupScreenState extends ConsumerState<FirstAssociationSe
       context.go('/login');
       return;
     }
-    if (_adminName.text.trim().isEmpty || _associationName.text.trim().isEmpty || _state.text.trim().isEmpty ||
+    if (_adminName.text.trim().isEmpty ||
+        _associationName.text.trim().isEmpty ||
+        _state.text.trim().isEmpty ||
         !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(brand)) {
       toast(context, 'Enter your name, association name, state, and a valid #RRGGBB brand color.');
       return;
@@ -87,18 +89,32 @@ class _FirstAssociationSetupScreenState extends ConsumerState<FirstAssociationSe
                 const SizedBox(height: 8),
                 Text('$email · ${l.verifiedEmailNoAssociation}'),
                 const SizedBox(height: 16),
-                TextField(controller: _adminName, textCapitalization: TextCapitalization.words,
-                  decoration: InputDecoration(labelText: '${l.adminName} *')),
+                TextField(
+                  controller: _adminName,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(labelText: '${l.adminName} *'),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: _associationName,
-                  decoration: InputDecoration(labelText: '${l.associationName} *')),
+                TextField(
+                  controller: _associationName,
+                  decoration: InputDecoration(labelText: '${l.associationName} *'),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: _state, decoration: InputDecoration(labelText: '${l.state} *')),
+                TextField(
+                  controller: _state,
+                  decoration: InputDecoration(labelText: '${l.state} *'),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: _city, decoration: InputDecoration(labelText: l.city)),
+                TextField(
+                  controller: _city,
+                  decoration: InputDecoration(labelText: l.city),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: _brand, inputFormatters: [LengthLimitingTextInputFormatter(7)],
-                  decoration: InputDecoration(labelText: '${l.brandColor} *', helperText: '#RRGGBB')),
+                TextField(
+                  controller: _brand,
+                  inputFormatters: [LengthLimitingTextInputFormatter(7)],
+                  decoration: InputDecoration(labelText: '${l.brandColor} *', helperText: '#RRGGBB'),
+                ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
                   onPressed: _creating ? null : _create,

@@ -1,3 +1,4 @@
+import '../backend/pin_vault.dart';
 import '../backend/compliance_repo.dart';
 
 import 'package:flutter/gestures.dart';
@@ -80,6 +81,17 @@ class SessionNotifier extends Notifier<Session?> {
   }
 
   void switchRole(Role r) => state = state?.copyWith(activeRole: r);
+
+  /// Idle timeout: with PIN unlock on, lock instead of signing out.
+  void lockOrLogout() {
+    if (backendEnabled && PinVault.pinEnabled) {
+      PinVault.lockNow();
+      state = null;
+    } else {
+      logout();
+    }
+  }
+
   void logout() {
     if (backendEnabled) AuthService.signOut();
     state = null;
@@ -873,7 +885,7 @@ final idleLogoutProvider = Provider.autoDispose<void>((ref) {
   Timer? timer;
   void reset([PointerEvent? _]) {
     timer?.cancel();
-    timer = Timer(const Duration(minutes: 30), () => ref.read(sessionProvider.notifier).logout());
+    timer = Timer(const Duration(minutes: 30), () => ref.read(sessionProvider.notifier).lockOrLogout());
   }
 
   reset();

@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/models.dart';
+import 'pin_vault.dart';
 
 /// Supplied at build time: flutter build web --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
 /// When absent the app runs in demo mode on in-memory data.
@@ -9,7 +10,14 @@ const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 const backendEnabled = supabaseUrl != '' && supabaseAnonKey != '';
 
 Future<void> initBackend() async {
-  if (backendEnabled) await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
+  if (!backendEnabled) return;
+  await Supabase.initialize(
+    url: supabaseUrl,
+    publishableKey: supabaseAnonKey,
+    authOptions: FlutterAuthClientOptions(
+      localStorage: PinVault('sb-${Uri.parse(supabaseUrl).host.split('.').first}-auth-token'),
+    ),
+  );
 }
 
 SupabaseClient get db => Supabase.instance.client;
