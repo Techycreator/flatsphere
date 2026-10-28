@@ -17,6 +17,7 @@ import '../../backend/visitor_repo.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
+import 'daily_help.dart';
 
 /// Full-screen gate desk for Security: pass codes, walk-ins waiting for the flat's approval, check in/out.
 class GateScreen extends ConsumerStatefulWidget {
@@ -435,6 +436,15 @@ class _GateScreenState extends ConsumerState<GateScreen> {
             big(Icons.pin_outlined, 'Pass code', _pass),
             const SizedBox(width: 12),
             big(Icons.person_add_alt_1_outlined, 'Walk-in', _walkIn),
+            const SizedBox(width: 12),
+            big(
+              Icons.cleaning_services_outlined,
+              'Daily help',
+              () => showDialog<void>(
+                context: context,
+                builder: (_) => DailyHelpGateDialog(onQueued: () => _load()),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),

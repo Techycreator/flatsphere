@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException, PostgrestException, StorageException;
 
 import '../models/models.dart';
+import 'daily_help_repo.dart';
 import 'directory_repo.dart' show friendlyError;
 import 'gate_repo.dart';
 import 'visitor_repo.dart';
@@ -18,7 +19,10 @@ bool isOffline(Object e) =>
 
 /// Gate actions saved on the phone while offline, sent in order when the network is back.
 class GateOffline {
-  static const _queueKey = 'gate_queue', _cacheKey = 'gate_cache', guardKey = 'gate_guard_on_duty';
+  static const _queueKey = 'gate_queue',
+      _cacheKey = 'gate_cache',
+      _helpKey = 'gate_help_cache',
+      guardKey = 'gate_guard_on_duty';
 
   static Future<List<Map<String, dynamic>>> queue() async {
     final p = await SharedPreferences.getInstance();
@@ -56,6 +60,12 @@ class GateOffline {
                 await GateRepo.attachPhoto(id, base64Decode(photo));
               } catch (_) {}
             }
+          case 'help':
+            await DailyHelpRepo.entry(
+              a['id'] as String,
+              checkIn: a['in'] as bool,
+              at: DateTime.parse(a['at'] as String),
+            );
           case 'verify':
             await VisitorRepo.verify(
               a['id'] as String,
@@ -112,5 +122,16 @@ class GateOffline {
           guardName: null,
         ),
     ];
+  }
+
+  static Future<void> cacheHelp(List<DailyHelp> list) async => (await SharedPreferences.getInstance()).setString(
+    _helpKey,
+    jsonEncode([for (final h in list) DailyHelpRepo.toJson(h)]),
+  );
+
+  static Future<List<DailyHelp>> cachedHelp() async {
+    final raw = (await SharedPreferences.getInstance()).getString(_helpKey);
+    if (raw == null) return const [];
+    return [for (final m in (jsonDecode(raw) as List).cast<Map<String, dynamic>>()) DailyHelpRepo.fromJson(m)];
   }
 }

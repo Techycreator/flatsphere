@@ -18,6 +18,7 @@ import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
 import '../../validation/input_validation.dart';
+import 'daily_help.dart';
 import 'gate_screen.dart';
 
 final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>((ref) {
@@ -66,6 +67,8 @@ class VisitorsScreen extends ConsumerWidget {
       maxWidth: 1000,
       children: [
         const GateAlertsCard(),
+        const DailyHelpSection(),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(child: Text(l.visitorRegister, style: Theme.of(context).textTheme.headlineSmall)),
