@@ -61,13 +61,21 @@
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', async () => {
         const reg = await navigator.serviceWorker.register('sw.js');
-        const hadController = !!navigator.serviceWorker.controller;
-        navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) showUpdateBanner(); });
+        // Ask for consent when a new worker is waiting; it activates only after the user taps Update.
+        const offerWaiting = () => { if (reg.waiting && navigator.serviceWorker.controller) showUpdateRequired(); };
+        offerWaiting();
+        reg.addEventListener('updatefound', () => {
+          const worker = reg.installing;
+          if (worker) worker.addEventListener('statechange', () => { if (worker.state === 'installed') offerWaiting(); });
+        });
+        let reloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (reloading) return;
+          reloading = true;
+          location.reload();
+        });
         setInterval(() => reg.update(), 60 * 60 * 1000);
       });
-    }
-    function showUpdateBanner() {
-      showUpdateRequired();
     }
     // Blocks the whole app until this device runs the latest deployed build; the build id is stamped on deploy.
     const BUILD_ID = '__BUILD_ID__';
@@ -84,6 +92,11 @@
       document.body.style.overflow = 'hidden';
       document.getElementById('fs-update-btn').onclick = async () => {
         try {
+          const current = await navigator.serviceWorker.getRegistration();
+          if (current && current.waiting) {
+            current.waiting.postMessage({ type: 'SKIP_WAITING' });
+            return;
+          }
           const regs = await navigator.serviceWorker.getRegistrations();
           await Promise.all(regs.map((r) => r.unregister()));
           const keys = await caches.keys();
