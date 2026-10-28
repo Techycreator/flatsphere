@@ -7,6 +7,7 @@ import '../../backend/backend.dart';
 import '../../app/theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../state/app_state.dart';
+import '../../models/models.dart' show Role;
 import '../../widgets/common.dart';
 import 'charts.dart';
 import 'receipt_pdf.dart';
@@ -19,7 +20,8 @@ class MyDuesScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final s = ref.watch(sessionProvider)!;
     final flat = s.user.flatNumber ?? '';
-    final lines = ref.watch(duesProvider).lines.where((x) => x.flatNumber == flat).toList();
+    final myFlats = {...s.user.flatsFor(Role.owner), ?s.user.flatNumber};
+    final lines = ref.watch(duesProvider).lines.where((x) => myFlats.contains(x.flatNumber)).toList();
     final pending = lines.fold(0, (a, x) => a + x.pending);
 
     Future<void> pay() async {
@@ -73,7 +75,7 @@ class MyDuesScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Flat $flat · total pending', style: Theme.of(context).textTheme.bodyMedium),
+                      Text('${myFlats.length > 1 ? 'Flats ${myFlats.join(', ')}' : 'Flat $flat'} · total pending', style: Theme.of(context).textTheme.bodyMedium),
                       Text(
                         inr.format(pending),
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
@@ -100,7 +102,7 @@ class MyDuesScreen extends ConsumerWidget {
               for (final x in lines)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(x.head),
+                  title: Text(myFlats.length > 1 ? '${x.flatNumber} · ${x.head}' : x.head),
                   subtitle: Text(x.isPaid ? 'Paid · receipt ${x.receiptNo}' : 'Due ${dateFmt.format(x.dueDate)}'),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -116,13 +118,13 @@ class MyDuesScreen extends ConsumerWidget {
             ],
           ),
         ),
-        if (ref.watch(duesProvider).payments.where((p) => p.flatNumber == flat).isNotEmpty) ...[
+        if (ref.watch(duesProvider).payments.where((p) => myFlats.contains(p.flatNumber)).isNotEmpty) ...[
           const SizedBox(height: 16),
           SectionCard(
             title: 'Receipts',
             child: Column(
               children: [
-                for (final p in ref.watch(duesProvider).payments.reversed.where((p) => p.flatNumber == flat))
+                for (final p in ref.watch(duesProvider).payments.reversed.where((p) => myFlats.contains(p.flatNumber)))
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text('${p.receiptNo} · ${inr.format(p.amount)}'),

@@ -543,9 +543,11 @@ class _OwnerDash extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(sessionProvider)!;
-    final pending = ref.watch(duesProvider).pendingFor(s.user.flatNumber ?? '');
+    final myFlats = {...s.user.flatsFor(Role.owner), ?s.user.flatNumber};
+    final dues = ref.watch(duesProvider);
+    final pending = myFlats.fold(0, (sum, f) => sum + dues.pendingFor(f));
     final myReminder = (ref.watch(dueRemindersProvider).value ?? const [])
-        .where((x) => x.flat == s.user.flatNumber)
+        .where((x) => myFlats.contains(x.flat) && dues.pendingFor(x.flat) > 0)
         .firstOrNull;
     final mine = visibleComplaints(ref);
     final notices = ref.watch(noticesProvider);
