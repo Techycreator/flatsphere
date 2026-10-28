@@ -9,10 +9,13 @@ class VisitorRepo {
         .eq('user_id', db.auth.currentUser!.id)
         .isFilter('ended_at', null)
         .inFilter('role', ['owner', 'resident']);
-    return [
-      for (final row in rows)
-        if (row['flat_id'] case final String id) (id, ((row['flats'] as Map?)?['number'] as String?) ?? ''),
-    ];
+    final unique = <String, String>{};
+    for (final row in rows) {
+      if (row['flat_id'] case final String id) {
+        unique[id] = ((row['flats'] as Map?)?['number'] as String?) ?? '';
+      }
+    }
+    return [for (final e in unique.entries) (e.key, e.value)];
   }
 
   static Future<List<VisitorRequest>> load({bool hostOnly = false}) async {
