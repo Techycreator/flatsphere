@@ -40,6 +40,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       if (mounted) setState(() => _onDuty = p.getString(GateOffline.guardKey));
     });
     _load();
+    if (backendEnabled) GateRepo.purgeOldPhotos().catchError((_) {});
     _timer = Timer.periodic(const Duration(seconds: 10), (_) => _load());
   }
 
@@ -179,7 +180,12 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     final gid = id;
     if (ok != true || gid == null) return;
     try {
-      final name = await GateRepo.startShift(gid, pin.text);
+      final result = await GateRepo.startShift(gid, pin.text);
+      final name = result.name;
+      if (name == null) {
+        if (mounted) toast(context, result.error ?? 'Wrong guard or PIN');
+        return;
+      }
       await (await SharedPreferences.getInstance()).setString(GateOffline.guardKey, name);
       if (mounted) {
         setState(() => _onDuty = name);
@@ -561,10 +567,23 @@ class _GuardsDialogState extends State<_GuardsDialog> {
                 dense: true,
                 leading: const Icon(Icons.badge_outlined),
                 title: Text(g.name),
-                trailing: IconButton(
-                  tooltip: 'Remove',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _run(() => GateRepo.removeGuard(g.id)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Reset PIN',
+                      icon: const Icon(Icons.pin_outlined),
+                      onPressed: () async {
+                        final pin = await promptText(context, title: 'New PIN for ${g.name}', hint: '4 digits');
+                        if (pin != null) await _run(() => GateRepo.saveGuard(g.name, pin.trim(), id: g.id));
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'Remove',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _run(() => GateRepo.removeGuard(g.id)),
+                    ),
+                  ],
                 ),
               ),
             TextField(

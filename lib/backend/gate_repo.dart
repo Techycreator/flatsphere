@@ -90,8 +90,19 @@ class GateRepo {
 
   static Future<void> removeGuard(String id) => db.rpc('remove_gate_guard', params: {'p_id': id});
 
-  static Future<String> startShift(String id, String pin) async =>
-      await db.rpc('gate_start_shift', params: {'p_guard': id, 'p_pin': pin}) as String;
+  /// Returns the guard's name, or an error such as a wrong PIN or a lockout.
+  static Future<({String? name, String? error})> startShift(String id, String pin) async {
+    final r = await db.rpc('gate_start_shift', params: {'p_guard': id, 'p_pin': pin}) as Map;
+    return r['ok'] == true ? (name: r['name'] as String, error: null) : (name: null, error: r['error'] as String?);
+  }
+
+  /// Deletes visitor photos older than 60 days (runs when the Gate screen opens).
+  static Future<void> purgeOldPhotos() async {
+    final paths = [for (final p in await db.rpc('expired_visitor_photos') as List) p as String];
+    if (paths.isEmpty) return;
+    await db.storage.from('visitor-photos').remove(paths);
+    await db.rpc('clear_visitor_photos', params: {'p_paths': paths});
+  }
 
   static Future<void> decide(String id, bool approve) =>
       db.rpc('decide_gate_visitor', params: {'p_request': id, 'p_approve': approve});
