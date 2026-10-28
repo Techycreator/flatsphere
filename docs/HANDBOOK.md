@@ -215,6 +215,7 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 | Date | Change | Sections |
 |---|---|---|
 | 2026-10-28 | Handbook created. Bulk CSV import, ZIP export, flat retirement, association offboarding, last-holder guard, checklist notes and voice notes, invite limit raised to 400/day, fixed the Audit log menu link being redirected | All |
+| 2026-10-28 | App updates no longer interrupt a critical action. While a payment (or any action wrapped in `runWithoutUpdatePrompt`) is in flight, the "Update available" screen is held back and shown right after it finishes (auto-expires after 10 minutes). Groundwork for the future payment gateway | 3.1 / Technical |
 | 2026-10-28 | The "dues reminder" banner on the owner Home now disappears as soon as the flat's dues are zero (it used to linger until the screen reloaded) | 3.1 Home |
 | 2026-10-28 | Home header ("Owner view · Flat X") now shows the flat(s) held under the active role, so an owner and a resident each see their own flat(s) | 3.1 Home |
 | 2026-10-28 | Amenity bookings now always follow W25 approval (previously free amenities were auto-approved and shown Waived instantly). Waived is set only after approval | 3.x Amenities |

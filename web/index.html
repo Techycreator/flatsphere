@@ -77,10 +77,32 @@
         setInterval(() => reg.update(), 60 * 60 * 1000);
       });
     }
+    // Holds the update overlay back while a critical action (e.g. a payment awaiting its gateway) is in flight.
+    // A hold auto-expires after 10 minutes so a stuck action can never block updates forever.
+    window.flatsphereUpdateGuard = (() => {
+      let holds = 0, pending = false;
+      const timers = [];
+      const flush = () => { if (holds === 0 && pending) { pending = false; showUpdateRequired(); } };
+      return {
+        busy: () => holds > 0,
+        defer: () => { pending = true; },
+        hold() {
+          holds++;
+          timers.push(setTimeout(() => this.release(), 10 * 60 * 1000));
+        },
+        release() {
+          if (holds === 0) return;
+          holds--;
+          clearTimeout(timers.pop());
+          flush();
+        },
+      };
+    })();
     // Blocks the whole app until this device runs the latest deployed build; the build id is stamped on deploy.
     const BUILD_ID = '__BUILD_ID__';
     function showUpdateRequired() {
       if (document.getElementById('fs-update')) return;
+      if (window.flatsphereUpdateGuard.busy()) { window.flatsphereUpdateGuard.defer(); return; }
       const o = document.createElement('div');
       o.id = 'fs-update';
       o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#0F766E;color:#fff;display:flex;'
