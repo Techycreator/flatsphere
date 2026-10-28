@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -77,6 +79,15 @@ class AmenitiesScreen extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 12),
+        if ((role == Role.president || role == Role.secretary) && amenities.hasValue)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => _manageAmenities(context, ref, amenities.value!),
+              icon: const Icon(Icons.tune),
+              label: const Text('Add / remove amenities'),
+            ),
+          ),
         if (amenities.isLoading || bookings.isLoading) const LinearProgressIndicator(),
         if (amenities.hasError)
           Card(
@@ -240,17 +251,18 @@ Future<_BookingDraft?> _bookingDialog(
                   maxLines: 3,
                   decoration: const InputDecoration(labelText: 'Note / event type'),
                 ),
-                if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!, style: const TextStyle(color: AppColors.red))),
+                if (error != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(error!, style: const TextStyle(color: AppColors.red)),
+                  ),
                 Builder(
                   builder: (_) {
                     final key = '$amenityId|${DateUtils.dateOnly(startsAt)}';
                     if (key != busyKey) {
                       busyKey = key;
                       busyLoaded = false;
-                      busy = AmenitiesRepo.busySlots(
-                        amenityId,
-                        DateUtils.dateOnly(startsAt),
-                      );
+                      busy = AmenitiesRepo.busySlots(amenityId, DateUtils.dateOnly(startsAt));
                     }
                     return FutureBuilder(
                       future: busy,
@@ -356,3 +368,92 @@ String _paymentLabel(AmenityPaymentStatus status) => switch (status) {
   AmenityPaymentStatus.waived => 'Waived',
   AmenityPaymentStatus.refunded => 'Refunded',
 };
+
+Future<void> _manageAmenities(BuildContext context, WidgetRef ref, List<Amenity> amenities) async {
+  final name = TextEditingController();
+  final fee = TextEditingController(text: '0');
+  final rules = TextEditingController();
+  var approval = true;
+  final added = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => AlertDialog(
+        title: const Text('Amenities'),
+        content: SizedBox(
+          width: 460,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final a in amenities)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: Text(a.name),
+                    subtitle: Text(a.fee == 0 ? 'No fee' : inr.format(a.fee)),
+                    trailing: IconButton(
+                      tooltip: 'Remove (past bookings are kept)',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () async {
+                        try {
+                          await AmenitiesRepo.removeAmenity(a.id);
+                          ref.invalidate(amenitiesProvider);
+                          if (ctx.mounted) Navigator.pop(ctx, false);
+                          if (context.mounted) toast(context, '${a.name} removed');
+                        } catch (error) {
+                          if (ctx.mounted) toast(ctx, '$error');
+                        }
+                      },
+                    ),
+                  ),
+                const Divider(),
+                const Text('Add an amenity'),
+                TextField(
+                  controller: name,
+                  maxLength: 80,
+                  decoration: const InputDecoration(labelText: 'Name *'),
+                ),
+                TextField(
+                  controller: fee,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(labelText: 'Fee per booking (₹)'),
+                ),
+                TextField(
+                  controller: rules,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Rules'),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: approval,
+                  onChanged: (v) => setState(() => approval = v ?? true),
+                  title: const Text('Bookings need committee approval'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Close')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, name.text.trim().isNotEmpty), child: const Text('Add')),
+        ],
+      ),
+    ),
+  );
+  if (added == true) {
+    try {
+      await AmenitiesRepo.addAmenity(
+        name: name.text,
+        fee: int.tryParse(fee.text) ?? 0,
+        rules: rules.text,
+        requiresApproval: approval,
+      );
+      ref.invalidate(amenitiesProvider);
+      if (context.mounted) toast(context, '${name.text.trim()} added');
+    } catch (error) {
+      if (context.mounted) toast(context, '$error');
+    }
+  }
+}

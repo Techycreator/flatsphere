@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../backend/backend.dart' show backendEnabled;
@@ -66,7 +68,10 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Save')),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
@@ -114,7 +119,10 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
                   ),
                   const SizedBox(height: 12),
                 ],
-                TextField(controller: name, decoration: const InputDecoration(labelText: 'Full name *')),
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Full name *'),
+                ),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
                   onPressed: () async {
@@ -172,7 +180,9 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
     final session = ref.watch(sessionProvider);
     final role = session?.activeRole;
     if (role != Role.owner && role != Role.resident) {
-      return const PageBody(children: [EmptyState('Only owners and residents can view family DOBs.', icon: Icons.lock_outline)]);
+      return const PageBody(
+        children: [EmptyState('Only owners and residents can view family DOBs.', icon: Icons.lock_outline)],
+      );
     }
     final setting = session?.user.association?.settings['family_min_login_age'];
     final minimumAge = setting is num ? setting.toInt() : 12;
@@ -197,9 +207,12 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
         ),
         Text(l.familyDobPrivacyNotice),
         const SizedBox(height: 12),
-        if (_loading) const Center(child: CircularProgressIndicator())
-        else if (_error != null) EmptyState(_error!, icon: Icons.error_outline)
-        else if (_members.isEmpty) const EmptyState('No family members are recorded for your flat yet.', icon: Icons.people_outline)
+        if (_loading)
+          const Center(child: CircularProgressIndicator())
+        else if (_error != null)
+          EmptyState(_error!, icon: Icons.error_outline)
+        else if (_members.isEmpty)
+          const EmptyState('No family members are recorded for your flat yet.', icon: Icons.people_outline)
         else
           SectionCard(
             title: '${_members.length} family member${_members.length == 1 ? '' : 's'}',
@@ -216,7 +229,11 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
                     ),
                     trailing: !member.approved
                         ? const Text('Pending')
-                        : !FamilyAccountRules.isLoginEligible(member.dateOfBirth, minimumAge, DateUtils.dateOnly(DateTime.now()))
+                        : !FamilyAccountRules.isLoginEligible(
+                            member.dateOfBirth,
+                            minimumAge,
+                            DateUtils.dateOnly(DateTime.now()),
+                          )
                         ? Text('Login at age $minimumAge')
                         : member.email != null
                         ? const Icon(Icons.mark_email_read_outlined)

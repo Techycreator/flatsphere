@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -64,10 +66,7 @@ class _SlaSummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider);
-    final tracked = ref
-        .watch(complaintsProvider)
-        .where((c) => !c.kind.isEnhancement && !c.inReview)
-        .toList();
+    final tracked = ref.watch(complaintsProvider).where((c) => !c.kind.isEnhancement && !c.inReview).toList();
     int n(SlaColor c) => tracked.where((x) => slaFor(x, now).color == c).length;
     Widget seg(SlaColor c, String label, int flex) => Expanded(
       flex: flex,
@@ -157,6 +156,7 @@ class _MeetingsCard extends ConsumerWidget {
                     title: Text(m.title),
                     subtitle: Text('${dateTimeFmt.format(m.at)} · ${m.mode.name}'),
                     trailing: Text('${m.accepted}/${m.invited}'),
+                    onTap: () => context.go('/meetings'),
                   ),
               ],
             ),
@@ -172,10 +172,8 @@ class _CommunityPreview extends ConsumerWidget {
     final events = ref.watch(communityEventsProvider);
     final posts = ref.watch(marketplaceProvider);
     final now = DateTime.now();
-    final upcoming = events.value
-            ?.where((event) => event.status == 'scheduled' && event.startsAt.isAfter(now))
-            .take(3)
-            .toList() ??
+    final upcoming =
+        events.value?.where((event) => event.status == 'scheduled' && event.startsAt.isAfter(now)).take(3).toList() ??
         const <CommunityEvent>[];
     final activePosts = posts.value?.take(3).toList() ?? const <MarketplacePost>[];
 
@@ -190,39 +188,33 @@ class _CommunityPreview extends ConsumerWidget {
       left: SectionCard(
         title: 'Community events',
         action: TextButton(onPressed: () => context.go('/community?tab=events'), child: const Text('View all')),
-        child: content(
-          events,
-          upcoming,
-          'No upcoming events.',
-          [
-            for (final event in upcoming)
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text(event.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text('${event.type} · ${dateTimeFmt.format(event.startsAt)}', maxLines: 1, overflow: TextOverflow.ellipsis),
+        child: content(events, upcoming, 'No upcoming events.', [
+          for (final event in upcoming)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(event.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text(
+                '${event.type} · ${dateTimeFmt.format(event.startsAt)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-          ],
-        ),
+            ),
+        ]),
       ),
       right: SectionCard(
         title: 'Marketplace',
         action: TextButton(onPressed: () => context.go('/community?tab=marketplace'), child: const Text('View all')),
-        child: content(
-          posts,
-          activePosts,
-          'No active marketplace posts.',
-          [
-            for (final post in activePosts)
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(post.type.replaceAll('_', ' '), maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: post.price == null ? null : Text(inr.format(post.price)),
-              ),
-          ],
-        ),
+        child: content(posts, activePosts, 'No active marketplace posts.', [
+          for (final post in activePosts)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text(post.type.replaceAll('_', ' '), maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: post.price == null ? null : Text(inr.format(post.price)),
+            ),
+        ]),
       ),
     );
   }
@@ -495,9 +487,10 @@ class _TreasurerDash extends ConsumerWidget {
   }
 }
 
-final dueRemindersProvider = FutureProvider.autoDispose<List<({String flat, int pending, int count, DateTime lastSent})>>(
-  (ref) async => backendEnabled ? FinanceRepo.myDueReminders() : const [],
-);
+final dueRemindersProvider =
+    FutureProvider.autoDispose<List<({String flat, int pending, int count, DateTime lastSent})>>(
+      (ref) async => backendEnabled ? FinanceRepo.myDueReminders() : const [],
+    );
 
 class _DueReminderBanners extends ConsumerWidget {
   const _DueReminderBanners();
@@ -506,7 +499,9 @@ class _DueReminderBanners extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.listen(duesProvider, (_, _) => ref.invalidate(dueRemindersProvider));
     final dues = ref.watch(duesProvider);
-    final reminders = (ref.watch(dueRemindersProvider).value ?? const []).where((r) => dues.pendingFor(r.flat) > 0).toList();
+    final reminders = (ref.watch(dueRemindersProvider).value ?? const [])
+        .where((r) => dues.pendingFor(r.flat) > 0)
+        .toList();
     if (reminders.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -609,12 +604,13 @@ class _OwnerDash extends ConsumerWidget {
               icon: Icons.report_problem_outlined,
               onTap: () => context.go('/complaints'),
             ),
-            if (!backendEnabled) const StatCard(
-              label: 'Next General Body',
-              value: 'AGM 2026',
-              icon: Icons.groups_outlined,
-              sub: '15th next month · Hybrid',
-            ),
+            if (!backendEnabled)
+              const StatCard(
+                label: 'Next General Body',
+                value: 'AGM 2026',
+                icon: Icons.groups_outlined,
+                sub: '15th next month · Hybrid',
+              ),
             StatCard(
               label: 'Notices',
               value: '${notices.length}',
@@ -824,24 +820,25 @@ class _AuditorDash extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!backendEnabled) const StatGrid(
-          children: [
-            StatCard(label: 'FY 2025-26 income', value: '₹38,42,600', icon: Icons.south_west, color: AppColors.green),
-            StatCard(
-              label: 'FY 2025-26 expenditure',
-              value: '₹31,18,450',
-              icon: Icons.north_east,
-              color: AppColors.red,
-            ),
-            StatCard(label: 'Vouchers', value: '1,284', icon: Icons.receipt_long),
-            StatCard(
-              label: 'Supporting documents',
-              value: '1,251',
-              icon: Icons.folder_open,
-              sub: '33 vouchers missing documents',
-            ),
-          ],
-        ),
+        if (!backendEnabled)
+          const StatGrid(
+            children: [
+              StatCard(label: 'FY 2025-26 income', value: '₹38,42,600', icon: Icons.south_west, color: AppColors.green),
+              StatCard(
+                label: 'FY 2025-26 expenditure',
+                value: '₹31,18,450',
+                icon: Icons.north_east,
+                color: AppColors.red,
+              ),
+              StatCard(label: 'Vouchers', value: '1,284', icon: Icons.receipt_long),
+              StatCard(
+                label: 'Supporting documents',
+                value: '1,251',
+                icon: Icons.folder_open,
+                sub: '33 vouchers missing documents',
+              ),
+            ],
+          ),
         const SizedBox(height: 16),
         Card(
           child: ListTile(

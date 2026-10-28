@@ -3,7 +3,9 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -21,7 +23,9 @@ final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>
   final role = ref.watch(sessionProvider.select((s) => s?.activeRole));
   return VisitorRepo.load(hostOnly: role == Role.owner || role == Role.resident);
 });
-final visitorFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>((ref) => VisitorRepo.myFlats());
+final visitorFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>(
+  (ref) => VisitorRepo.myFlats(),
+);
 final vehicleSearchProvider = FutureProvider.autoDispose.family<List<VehicleContact>, String>(
   (ref, registration) => DirectoryRepo.searchVehicle(registration),
 );
@@ -83,15 +87,23 @@ class VisitorsScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         Text(
-            canHost ? l.visitorHostIntro : canVerify ? l.visitorGateIntro : l.visitorRoleIntro,
+          canHost
+              ? l.visitorHostIntro
+              : canVerify
+              ? l.visitorGateIntro
+              : l.visitorRoleIntro,
           style: Theme.of(context).textTheme.bodySmall,
         ),
         if (flats?.hasError == true)
-          Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${flats!.error}'))),
+          Card(
+            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${flats!.error}')),
+          ),
         const SizedBox(height: 12),
         if (requests.isLoading) const LinearProgressIndicator(),
         if (requests.hasError)
-          Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${requests.error}'))),
+          Card(
+            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${requests.error}')),
+          ),
         if (requests.hasValue && requests.value!.isEmpty)
           EmptyState(l.noVisitorRequests, icon: Icons.directions_walk_outlined),
         if (requests.hasValue)
@@ -116,13 +128,13 @@ class VisitorsScreen extends ConsumerWidget {
                 trailing: canVerify
                     ? switch (request.status) {
                         VisitorStatus.expected => FilledButton.tonal(
-                            onPressed: () => verify(request, VisitorStatus.checkedIn),
-                            child: Text(l.verifyEntry),
-                          ),
+                          onPressed: () => verify(request, VisitorStatus.checkedIn),
+                          child: Text(l.verifyEntry),
+                        ),
                         VisitorStatus.checkedIn => FilledButton.tonal(
-                            onPressed: () => verify(request, VisitorStatus.checkedOut),
-                            child: Text(l.checkOut),
-                          ),
+                          onPressed: () => verify(request, VisitorStatus.checkedOut),
+                          child: Text(l.checkOut),
+                        ),
                         _ => Pill(request.status.label, color: _statusColor(request.status)),
                       }
                     : Pill(request.status.label, color: _statusColor(request.status)),
@@ -170,15 +182,41 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
   Future<void> _export() async {
     setState(() => _exporting = true);
     final l = AppLocalizations.of(context);
+    final scope = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Export which vehicles?'),
+        children: [
+          for (final (value, label) in const [
+            ('all', 'All registered vehicles'),
+            ('owner', 'Owner-occupied flats only'),
+            ('rented', 'Rented flats only (tenants / residents)'),
+          ])
+            SimpleDialogOption(onPressed: () => Navigator.pop(ctx, value), child: Text(label)),
+        ],
+      ),
+    );
+    if (scope == null) {
+      if (mounted) setState(() => _exporting = false);
+      return;
+    }
     try {
-      final vehicles = await DirectoryRepo.vehicleRegister();
+      final vehicles = (await DirectoryRepo.vehicleRegister())
+          .where(
+            (v) => scope == 'all' || (scope == 'owner' ? v.occupancy == 'owner_occupied' : v.occupancy == 'rented'),
+          )
+          .toList();
       String csvCell(String value) => '"${value.replaceAll('"', '""')}"';
       final csv = [
-        'vehicle_number,vehicle_type,flat_number,parking_slot',
+        'vehicle_number,vehicle_type,flat_number,parking_slot,occupancy',
         for (final vehicle in vehicles)
-          [vehicle.registrationNumber, vehicle.vehicleType, vehicle.flatNumber, vehicle.parkingSlot ?? '']
-              .map(csvCell)
-              .join(','),
+          [
+            vehicle.registrationNumber,
+            vehicle.vehicleType,
+            vehicle.flatNumber,
+            vehicle.parkingSlot ?? '',
+            vehicle.occupancy,
+          ].map(csvCell).join(','),
       ].join('\r\n');
       final saved = await FilePicker.saveFile(
         dialogTitle: l.vehicleExportTitle,
@@ -227,8 +265,14 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
             ],
           ),
           const SizedBox(height: 8),
-          if (const {Role.ecMember, Role.secretary, Role.president, Role.jointSecretary, Role.vicePresident, Role.treasurer}
-              .contains(ref.watch(sessionProvider)!.activeRole))
+          if (const {
+            Role.ecMember,
+            Role.secretary,
+            Role.president,
+            Role.jointSecretary,
+            Role.vicePresident,
+            Role.treasurer,
+          }.contains(ref.watch(sessionProvider)!.activeRole))
             Align(
               alignment: Alignment.centerRight,
               child: OutlinedButton.icon(
@@ -243,8 +287,7 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
             const SizedBox(height: 8),
             if (results.isLoading) const LinearProgressIndicator(),
             if (results.hasError) Text(l.vehicleSearchFailed('${results.error}')),
-            if (results.hasValue && results.value!.isEmpty)
-              Text(l.noRegisteredVehicleMatch),
+            if (results.hasValue && results.value!.isEmpty) Text(l.noRegisteredVehicleMatch),
             if (results.hasValue)
               for (final contact in results.value!)
                 ListTile(
@@ -256,7 +299,11 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
                   }),
                   title: Text('${contact.registrationNumber} Â· Flat ${contact.flatNumber}'),
                   subtitle: Text(
-                    '${switch (contact.vehicleType) { 'car' => 'Car', 'visitor' => 'Visitor vehicle', _ => 'Bike' }} Â· ${contact.personName ?? l.noActiveOccupant}'
+                    '${switch (contact.vehicleType) {
+                      'car' => 'Car',
+                      'visitor' => 'Visitor vehicle',
+                      _ => 'Bike',
+                    }} Â· ${contact.personName ?? l.noActiveOccupant}'
                     '${contact.phone == null ? ' · ${l.noPhoneOnRecord}' : ' · ${contact.phone}'}',
                   ),
                   trailing: contact.phone == null
@@ -275,7 +322,14 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
 }
 
 class _VisitorDraft {
-  const _VisitorDraft({required this.flatId, required this.name, required this.arrival, required this.phone, required this.vehicle, required this.note});
+  const _VisitorDraft({
+    required this.flatId,
+    required this.name,
+    required this.arrival,
+    required this.phone,
+    required this.vehicle,
+    required this.note,
+  });
   final String flatId;
   final String name;
   final DateTime arrival;
@@ -311,7 +365,10 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
                   onChanged: (value) => setState(() => flatId = value ?? flatId),
                 ),
                 const SizedBox(height: 12),
-                TextField(controller: name, decoration: const InputDecoration(labelText: 'Visitor name *')),
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Visitor name *'),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: phone,
@@ -339,7 +396,10 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
                       lastDate: DateTime.now().add(const Duration(days: 365)),
                     );
                     if (date == null || !dialogContext.mounted) return;
-                    final time = await showTimePicker(context: dialogContext, initialTime: TimeOfDay.fromDateTime(arrival));
+                    final time = await showTimePicker(
+                      context: dialogContext,
+                      initialTime: TimeOfDay.fromDateTime(arrival),
+                    );
                     if (time != null && dialogContext.mounted) {
                       setState(() => arrival = DateTime(date.year, date.month, date.day, time.hour, time.minute));
                     }
@@ -348,7 +408,11 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
                   label: Text('Arrival ${dateTimeFmt.format(arrival)}'),
                 ),
                 const SizedBox(height: 8),
-                TextField(controller: note, maxLength: 240, decoration: const InputDecoration(labelText: 'Note for entry staff')),
+                TextField(
+                  controller: note,
+                  maxLength: 240,
+                  decoration: const InputDecoration(labelText: 'Note for entry staff'),
+                ),
                 if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
               ],
             ),

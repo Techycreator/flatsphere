@@ -173,8 +173,11 @@ class VehicleRegisterRow {
     required this.vehicleType,
     required this.flatNumber,
     this.parkingSlot,
+    this.occupancy = '',
   });
 
+  /// Flat occupancy: owner_occupied, rented or vacant.
+  final String occupancy;
   final String registrationNumber;
   final String vehicleType;
   final String flatNumber;

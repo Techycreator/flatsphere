@@ -83,6 +83,21 @@ class AmenitiesRepo {
     );
   }
 
+  static Future<void> addAmenity({
+    required String name,
+    required int fee,
+    required String rules,
+    required bool requiresApproval,
+  }) => db.from('amenities').insert({
+    'name': name.trim(),
+    'fee': fee,
+    'rules': rules.trim(),
+    'requires_approval': requiresApproval,
+  });
+
+  /// Hides the amenity from new bookings; past bookings stay on record.
+  static Future<void> removeAmenity(String id) => db.from('amenities').update({'active': false}).eq('id', id);
+
   static Future<void> recordPayment(String id, {String reference = '', bool waive = false}) =>
       db.rpc('record_amenity_payment', params: {'p_booking': id, 'p_reference': reference, 'p_waive': waive});
 

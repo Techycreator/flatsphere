@@ -3,7 +3,9 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -168,9 +170,18 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     final csv = [
       'flat,block,type,sqft,occupancy,owner,resident,car,bike,parking_slot',
       for (final f in flats)
-        [f.number, f.block, f.type, f.sqft?.toString(), _occLabel(f.occupancy), names(f.number, Role.owner), names(f.number, Role.resident), f.carNumber, f.bikeNumber, f.parkingSlot]
-            .map(cell)
-            .join(','),
+        [
+          f.number,
+          f.block,
+          f.type,
+          f.sqft?.toString(),
+          _occLabel(f.occupancy),
+          names(f.number, Role.owner),
+          names(f.number, Role.resident),
+          f.carNumber,
+          f.bikeNumber,
+          f.parkingSlot,
+        ].map(cell).join(','),
     ].join('\r\n');
     try {
       final saved = await FilePicker.saveFile(
@@ -187,61 +198,74 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
   }
 
   List<Widget> _flats(DirectoryState st) {
-    final shown = [for (final f in st.flats) if (occFilter == null || f.occupancy == occFilter) f];
+    final shown = [
+      for (final f in st.flats)
+        if (occFilter == null || f.occupancy == occFilter) f,
+    ];
     return [
-    Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        ChoiceChip(label: const Text('All'), selected: occFilter == null, onSelected: (_) => setState(() => occFilter = null)),
-        for (final o in Occupancy.values)
-          ChoiceChip(label: Text(_occLabel(o)), selected: occFilter == o, onSelected: (_) => setState(() => occFilter = o)),
-        OutlinedButton.icon(
-          onPressed: shown.isEmpty ? null : () => _exportFlats(st, shown),
-          icon: const Icon(Icons.download_outlined),
-          label: const Text('Export CSV'),
-        ),
-        FilledButton.icon(
-          onPressed: () => _editFlat(null),
-          icon: const Icon(Icons.add),
-          label: const Text('Add flat'),
-        ),
-      ],
-    ),
-    const SizedBox(height: 8),
-    if (shown.isEmpty)
-      const EmptyState('No flats match. Add a flat or change the filter.', icon: Icons.apartment_outlined)
-    else
-      SectionCard(
-        title: '${shown.length} flats',
-        padding: false,
-        child: Column(
-          children: [
-            for (final f in shown)
-              ListTile(
-                leading: CircleAvatar(child: Text(f.block.isEmpty ? '#' : f.block.substring(0, 1))),
-                title: Text(f.number),
-                subtitle: Text(
-                  [
-                    [
-                      if (f.block.isNotEmpty) 'Block ${f.block}',
-                      f.type,
-                      if (f.sqft != null) '${f.sqft} sq ft',
-                    ].join(' · '),
-                    _names('Owner', st.at(f.number, Role.owner)) ?? 'Owner: not added',
-                    _names('Resident', st.at(f.number, Role.resident)),
-                    if (f.carNumber != null) 'Car: ${f.carNumber}${f.parkingSlot == null ? '' : ' · slot ${f.parkingSlot}'}',
-                    if (f.bikeNumber != null) 'Bike: ${f.bikeNumber}${f.parkingSlot == null ? '' : ' · slot ${f.parkingSlot}'}',
-                  ].whereType<String>().join('\n'),
-                ),
-                isThreeLine: true,
-                trailing: Pill(_occLabel(f.occupancy), color: _occColor(f.occupancy)),
-                onTap: () => _editFlat(f),
-              ),
-          ],
-        ),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ChoiceChip(
+            label: const Text('All'),
+            selected: occFilter == null,
+            onSelected: (_) => setState(() => occFilter = null),
+          ),
+          for (final o in Occupancy.values)
+            ChoiceChip(
+              label: Text(_occLabel(o)),
+              selected: occFilter == o,
+              onSelected: (_) => setState(() => occFilter = o),
+            ),
+          OutlinedButton.icon(
+            onPressed: shown.isEmpty ? null : () => _exportFlats(st, shown),
+            icon: const Icon(Icons.download_outlined),
+            label: const Text('Export CSV'),
+          ),
+          FilledButton.icon(
+            onPressed: () => _editFlat(null),
+            icon: const Icon(Icons.add),
+            label: const Text('Add flat'),
+          ),
+        ],
       ),
+      const SizedBox(height: 8),
+      if (shown.isEmpty)
+        const EmptyState('No flats match. Add a flat or change the filter.', icon: Icons.apartment_outlined)
+      else
+        SectionCard(
+          title: '${shown.length} flats',
+          padding: false,
+          child: Column(
+            children: [
+              for (final f in shown)
+                ListTile(
+                  leading: CircleAvatar(child: Text(f.block.isEmpty ? '#' : f.block.substring(0, 1))),
+                  title: Text(f.number),
+                  subtitle: Text(
+                    [
+                      [
+                        if (f.block.isNotEmpty) 'Block ${f.block}',
+                        f.type,
+                        if (f.sqft != null) '${f.sqft} sq ft',
+                      ].join(' · '),
+                      _names('Owner', st.at(f.number, Role.owner)) ?? 'Owner: not added',
+                      _names('Resident', st.at(f.number, Role.resident)),
+                      if (f.carNumber != null)
+                        'Car: ${f.carNumber}${f.parkingSlot == null ? '' : ' · slot ${f.parkingSlot}'}',
+                      if (f.bikeNumber != null)
+                        'Bike: ${f.bikeNumber}${f.parkingSlot == null ? '' : ' · slot ${f.parkingSlot}'}',
+                    ].whereType<String>().join('\n'),
+                  ),
+                  isThreeLine: true,
+                  trailing: Pill(_occLabel(f.occupancy), color: _occColor(f.occupancy)),
+                  onTap: () => _editFlat(f),
+                ),
+            ],
+          ),
+        ),
     ];
   }
 
@@ -451,7 +475,8 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     final mobile = TextEditingController(text: existing?.mobile);
     DateTime? birthDate;
     final roles = canAssign ? Role.values : const [Role.owner, Role.resident];
-    var role = initialRole ??
+    var role =
+        initialRole ??
         (existing == null
             ? Role.owner
             : roles.firstWhere((r) => r != existing.role && r != Role.admin, orElse: () => Role.owner));
@@ -521,7 +546,11 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                         if (selected != null) set(() => birthDate = selected);
                       },
                       icon: const Icon(Icons.cake_outlined),
-                      label: Text(birthDate == null ? 'Date of birth (optional)' : 'Date of birth · ${dateFmt.format(birthDate!)}'),
+                      label: Text(
+                        birthDate == null
+                            ? 'Date of birth (optional)'
+                            : 'Date of birth · ${dateFmt.format(birthDate!)}',
+                      ),
                     ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Role>(
@@ -659,6 +688,16 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
         Navigator.pop(ctx);
         _addPerson(ref.read(directoryProvider), true, existing: p, initialRole: r);
       },
+      onRevokeRole: (r) {
+        final row = ref
+            .read(directoryProvider)
+            .people
+            .where((x) => x.email.toLowerCase() == p.email.toLowerCase() && x.role == r)
+            .firstOrNull;
+        if (row == null) return;
+        Navigator.pop(ctx);
+        _remove(row);
+      },
       onResendInvite: p.invited && canModify
           ? () {
               Navigator.pop(ctx);
@@ -714,7 +753,11 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                         if (selected != null) set(() => birthDate = selected);
                       },
                       icon: const Icon(Icons.cake_outlined),
-                      label: Text(birthDate == null ? 'Set date of birth (optional)' : 'DOB · ${dateFmt.format(birthDate!)} · ${_ageLabel(birthDate!, AppLocalizations.of(context))}'),
+                      label: Text(
+                        birthDate == null
+                            ? 'Set date of birth (optional)'
+                            : 'DOB · ${dateFmt.format(birthDate!)} · ${_ageLabel(birthDate!, AppLocalizations.of(context))}',
+                      ),
                     ),
                   if (p.role == Role.monitor)
                     _AreaPicker(
@@ -756,20 +799,17 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
       if (desk) DemoUser.membershipDesk,
     ];
     final isMonitor = p.role == Role.monitor;
-    await _run(
-      () async {
-        final notifier = ref.read(directoryProvider.notifier);
-        await notifier.setDetails(
-            p,
-            designations,
-            isMonitor ? areas : const [],
-            from: isMonitor ? from : null,
-            until: isMonitor ? until : null,
-          );
-        if (birthDate != null && birthDate != p.birthDate) await notifier.setBirthDate(p, birthDate!);
-      },
-      'Saved changes for ${p.name}',
-    );
+    await _run(() async {
+      final notifier = ref.read(directoryProvider.notifier);
+      await notifier.setDetails(
+        p,
+        designations,
+        isMonitor ? areas : const [],
+        from: isMonitor ? from : null,
+        until: isMonitor ? until : null,
+      );
+      if (birthDate != null && birthDate != p.birthDate) await notifier.setBirthDate(p, birthDate!);
+    }, 'Saved changes for ${p.name}');
   }
 
   Future<void> _remove(Person p) async {
@@ -1025,13 +1065,24 @@ class _AreaPicker extends StatelessWidget {
 
 /// Person details with private ID proofs (upload, view via a 60-second link; every view is logged).
 class _PersonDialog extends ConsumerStatefulWidget {
-  const _PersonDialog({required this.person, required this.canModify, required this.onEdit, required this.onRemove, this.assignableRoles = const [], this.heldRoles = const {}, this.onAssignRole, this.onResendInvite});
+  const _PersonDialog({
+    required this.person,
+    required this.canModify,
+    required this.onEdit,
+    required this.onRemove,
+    this.assignableRoles = const [],
+    this.heldRoles = const {},
+    this.onAssignRole,
+    this.onRevokeRole,
+    this.onResendInvite,
+  });
 
   final Person person;
   final bool canModify;
   final List<Role> assignableRoles;
   final Set<Role> heldRoles;
   final void Function(Role)? onAssignRole;
+  final void Function(Role)? onRevokeRole;
   final VoidCallback? onResendInvite;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
@@ -1221,25 +1272,25 @@ class _PersonDialogState extends ConsumerState<_PersonDialog> {
             onPressed: widget.onRemove,
             child: const Text('Revoke role'),
           ),
-        if (widget.onResendInvite != null) TextButton(onPressed: widget.onResendInvite, child: const Text('Resend invite email')),
+        if (widget.onResendInvite != null)
+          TextButton(onPressed: widget.onResendInvite, child: const Text('Resend invite email')),
         if (widget.onAssignRole != null && widget.assignableRoles.isNotEmpty)
           PopupMenuButton<Role>(
-            tooltip: 'Assign role',
+            tooltip: 'Tick to assign a role, untick to remove it',
             onSelected: (r) {
-              if (!widget.heldRoles.contains(r)) widget.onAssignRole!(r);
+              if (widget.heldRoles.contains(r)) {
+                widget.onRevokeRole?.call(r);
+              } else {
+                widget.onAssignRole!(r);
+              }
             },
             itemBuilder: (_) => [
               for (final r in widget.assignableRoles)
-                CheckedPopupMenuItem<Role>(
-                  value: r,
-                  checked: widget.heldRoles.contains(r),
-                  enabled: !widget.heldRoles.contains(r),
-                  child: Text(r.label),
-                ),
+                CheckedPopupMenuItem<Role>(value: r, checked: widget.heldRoles.contains(r), child: Text(r.label)),
             ],
             child: const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Assign role'), Icon(Icons.arrow_drop_down)]),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Roles'), Icon(Icons.arrow_drop_down)]),
             ),
           ),
         if (editable) TextButton(onPressed: widget.onEdit, child: const Text('Edit areas / designation')),

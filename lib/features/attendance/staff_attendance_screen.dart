@@ -1,6 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,8 +28,9 @@ class StaffAttendanceScreen extends ConsumerWidget {
     final canEditStaff = role == Role.president || role == Role.secretary;
     final canViewSalary = canManageStaff || role == Role.vicePresident || role == Role.jointSecretary;
     final canMark = role == Role.caretaker;
-    final canReview = canManageStaff ||
-      role == Role.president ||
+    final canReview =
+        canManageStaff ||
+        role == Role.president ||
         role == Role.vicePresident ||
         role == Role.secretary ||
         role == Role.jointSecretary ||
@@ -95,7 +98,8 @@ class StaffAttendanceScreen extends ConsumerWidget {
           monthlySalary: draft.monthlySalary,
           active: draft.active,
         );
-        if (context.mounted) toast(context, draft.active ? '${draft.name} updated' : '${draft.name} moved to staff archive');
+        if (context.mounted)
+          toast(context, draft.active ? '${draft.name} updated' : '${draft.name} moved to staff archive');
       } catch (error) {
         if (context.mounted) toast(context, '$error');
       }
@@ -104,7 +108,8 @@ class StaffAttendanceScreen extends ConsumerWidget {
     Future<void> mark(StaffMember staff, AttendanceStatus status) async {
       var note = '';
       if (status != AttendanceStatus.present) {
-        note = await promptText(
+        note =
+            await promptText(
               context,
               title: '${status.label}: ${staff.name}',
               hint: 'Optional note',
@@ -128,16 +133,24 @@ class StaffAttendanceScreen extends ConsumerWidget {
       return '${staff.area}\n${record.status.label} · marked by ${record.markedBy}'
           '${record.note.isEmpty ? '' : ' · ${record.note}'}';
     }
-    final approvedExpenses = ref.watch(expensesProvider).where((expense) => expense.status == ExpenseStatus.approved).toList();
+
+    final approvedExpenses = ref
+        .watch(expensesProvider)
+        .where((expense) => expense.status == ExpenseStatus.approved)
+        .toList();
     final now = DateTime.now();
     String salaryCheck(StaffMember staff) {
-      final matched = approvedExpenses.where((expense) {
-        if (expense.category.toLowerCase() != 'staff salary' || expense.date.year != now.year || expense.date.month != now.month) {
-          return false;
-        }
-        final text = '${expense.vendor} ${expense.description}'.toLowerCase();
-        return text.contains(staff.name.toLowerCase());
-      }).fold(0, (sum, expense) => sum + expense.amount);
+      final matched = approvedExpenses
+          .where((expense) {
+            if (expense.category.toLowerCase() != 'staff salary' ||
+                expense.date.year != now.year ||
+                expense.date.month != now.month) {
+              return false;
+            }
+            final text = '${expense.vendor} ${expense.description}'.toLowerCase();
+            return text.contains(staff.name.toLowerCase());
+          })
+          .fold(0, (sum, expense) => sum + expense.amount);
       if (matched == 0) return 'No matching approved salary expense this month';
       return matched == staff.monthlySalary
           ? 'Salary matches approved finance entry'
@@ -150,9 +163,17 @@ class StaffAttendanceScreen extends ConsumerWidget {
         final url = await AttendanceRepo.staffProofUrl(staff.idProofPath!);
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       } catch (error) {
-        if (context.mounted) toast(context, '$error');
+        if (context.mounted) {
+          toast(
+            context,
+            '$error'.contains('not_found') || '$error'.contains('Object not found') || '$error'.contains('404')
+                ? 'The ID proof file is missing. Use Edit to upload it again.'
+                : 'Could not open the ID proof. You need an office-bearer role to view it.',
+          );
+        }
       }
     }
+
     return PageBody(
       maxWidth: 1000,
       children: [
@@ -173,21 +194,38 @@ class StaffAttendanceScreen extends ConsumerWidget {
               else
                 Chip(avatar: const Icon(Icons.today_outlined, size: 18), label: Text(dateFmt.format(state.date))),
               if (canManageStaff)
-                FilledButton.icon(onPressed: addStaff, icon: const Icon(Icons.person_add_alt), label: const Text('Add staff')),
+                FilledButton.icon(
+                  onPressed: addStaff,
+                  icon: const Icon(Icons.person_add_alt),
+                  label: const Text('Add staff'),
+                ),
             ];
             if (constraints.maxWidth < 620) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Staff attendance', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-                  Align(alignment: Alignment.centerRight, child: Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, children: controls)),
+                  Text(
+                    'Staff attendance',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: controls,
+                    ),
+                  ),
                 ],
               );
             }
             return Row(
               children: [
                 Expanded(
-                  child: Text('Staff attendance', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+                  child: Text(
+                    'Staff attendance',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                 ),
                 ...controls,
               ],
@@ -227,21 +265,23 @@ class StaffAttendanceScreen extends ConsumerWidget {
                             '${canViewSalary ? '\n${salaryCheck(staff)}' : ''}',
                           ),
                           isThreeLine: canViewSalary,
-                          trailing: Wrap(children: [
-                            if (!staff.active) const Pill('Archived', color: AppColors.amber),
-                            if (staff.idProofPath != null)
-                              IconButton(
-                                tooltip: 'View staff ID proof',
-                                onPressed: () => viewProof(staff),
-                                icon: const Icon(Icons.badge_outlined),
-                              ),
-                            if (canEditStaff)
-                              IconButton(
-                                tooltip: 'Edit or archive staff member',
-                                onPressed: () => editStaff(staff),
-                                icon: const Icon(Icons.edit_outlined),
-                              ),
-                          ]),
+                          trailing: Wrap(
+                            children: [
+                              if (!staff.active) const Pill('Archived', color: AppColors.amber),
+                              if (staff.idProofPath != null)
+                                IconButton(
+                                  tooltip: 'View staff ID proof',
+                                  onPressed: () => viewProof(staff),
+                                  icon: const Icon(Icons.badge_outlined),
+                                ),
+                              if (canEditStaff)
+                                IconButton(
+                                  tooltip: 'Edit or archive staff member',
+                                  onPressed: () => editStaff(staff),
+                                  icon: const Icon(Icons.edit_outlined),
+                                ),
+                            ],
+                          ),
                         ),
                     ],
                   ),
@@ -265,30 +305,33 @@ class StaffAttendanceScreen extends ConsumerWidget {
                         title: Text(staff.name),
                         subtitle: Text(attendanceSubtitle(staff)),
                         isThreeLine: state.records[staff.id] != null,
-                        trailing: _withHistory(context, staff, canMark
-                            ? DropdownButton<AttendanceStatus>(
-                                value: state.records[staff.id]?.status,
-                                hint: const Text('Mark'),
-                                items: [
-                                  for (final status in AttendanceStatus.values)
-                                    DropdownMenuItem(value: status, child: Text(status.label)),
-                                ],
-                                onChanged: state.date == DateUtils.dateOnly(DateTime.now()) && !state.loading
-                                    ? (status) {
-                                        if (status != null) mark(staff, status);
-                                      }
-                                    : null,
-                              )
-                            : state.records[staff.id] == null
-                            ? const Pill('Not marked', color: Colors.blueGrey)
-                            : Pill(
-                                state.records[staff.id]!.status.label,
-                                color: switch (state.records[staff.id]!.status) {
-                                  AttendanceStatus.present => AppColors.green,
-                                  AttendanceStatus.absent => AppColors.red,
-                                  AttendanceStatus.leave => AppColors.amber,
-                                },
-                              ),
+                        trailing: _withHistory(
+                          context,
+                          staff,
+                          canMark
+                              ? DropdownButton<AttendanceStatus>(
+                                  value: state.records[staff.id]?.status,
+                                  hint: const Text('Mark'),
+                                  items: [
+                                    for (final status in AttendanceStatus.values)
+                                      DropdownMenuItem(value: status, child: Text(status.label)),
+                                  ],
+                                  onChanged: state.date == DateUtils.dateOnly(DateTime.now()) && !state.loading
+                                      ? (status) {
+                                          if (status != null) mark(staff, status);
+                                        }
+                                      : null,
+                                )
+                              : state.records[staff.id] == null
+                              ? const Pill('Not marked', color: Colors.blueGrey)
+                              : Pill(
+                                  state.records[staff.id]!.status.label,
+                                  color: switch (state.records[staff.id]!.status) {
+                                    AttendanceStatus.present => AppColors.green,
+                                    AttendanceStatus.absent => AppColors.red,
+                                    AttendanceStatus.leave => AppColors.amber,
+                                  },
+                                ),
                         ),
                       ),
                   ],
@@ -333,12 +376,16 @@ Future<void> _showHistory(BuildContext context, StaffMember staff) {
                 children: [
                   ActionChip(
                     label: const Text('This month'),
-                    onPressed: () => setState(() => range = DateTimeRange(start: DateTime(today.year, today.month), end: today)),
+                    onPressed: () =>
+                        setState(() => range = DateTimeRange(start: DateTime(today.year, today.month), end: today)),
                   ),
                   ActionChip(
                     label: const Text('Last month'),
                     onPressed: () => setState(
-                      () => range = DateTimeRange(start: DateTime(today.year, today.month - 1), end: DateTime(today.year, today.month, 0)),
+                      () => range = DateTimeRange(
+                        start: DateTime(today.year, today.month - 1),
+                        end: DateTime(today.year, today.month, 0),
+                      ),
                     ),
                   ),
                   ActionChip(
@@ -446,8 +493,10 @@ class _StaffEditDraft {
   final bool active;
 }
 
-Future<_StaffEditDraft?> _editStaffDialog(BuildContext context, StaffMember staff) =>
-    showDialog<_StaffEditDraft>(context: context, builder: (_) => _EditStaffDialog(staff: staff));
+Future<_StaffEditDraft?> _editStaffDialog(BuildContext context, StaffMember staff) => showDialog<_StaffEditDraft>(
+  context: context,
+  builder: (_) => _EditStaffDialog(staff: staff),
+);
 
 class _EditStaffDialog extends StatefulWidget {
   const _EditStaffDialog({required this.staff});
@@ -477,18 +526,26 @@ class _EditStaffDialogState extends State<_EditStaffDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-        title: Text('Edit ${widget.staff.name}'),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+    title: Text('Edit ${widget.staff.name}'),
+    content: SizedBox(
+      width: 420,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             if (_error != null) _validationMessage(_error!),
-            TextField(controller: _name, decoration: const InputDecoration(labelText: 'Full name *')),
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(labelText: 'Full name *'),
+            ),
             const SizedBox(height: 12),
             DropdownButtonFormField<StaffType>(
               initialValue: _type,
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Staff type'),
-              items: [for (final option in StaffType.values) DropdownMenuItem(value: option, child: Text(option.label))],
+              items: [
+                for (final option in StaffType.values) DropdownMenuItem(value: option, child: Text(option.label)),
+              ],
               onChanged: (value) => setState(() {
                 _type = value ?? _type;
                 _area = switch (_type) {
@@ -519,7 +576,10 @@ class _EditStaffDialogState extends State<_EditStaffDialog> {
             ),
             if (_employerType == StaffEmployerType.agency) ...[
               const SizedBox(height: 12),
-              TextField(controller: _agency, decoration: const InputDecoration(labelText: 'Agency name *')),
+              TextField(
+                controller: _agency,
+                decoration: const InputDecoration(labelText: 'Agency name *'),
+              ),
             ],
             const SizedBox(height: 12),
             TextField(
@@ -528,14 +588,21 @@ class _EditStaffDialogState extends State<_EditStaffDialog> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: const InputDecoration(labelText: 'Monthly salary *', prefixText: '₹ '),
             ),
-            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Active staff member'), value: _active, onChanged: (value) => setState(() => _active = value)),
-          ])),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Active staff member'),
+              value: _active,
+              onChanged: (value) => setState(() => _active = value),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: _save, child: const Text('Save changes')),
-        ],
-      );
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      FilledButton(onPressed: _save, child: const Text('Save changes')),
+    ],
+  );
 
   void _save() {
     final salary = int.tryParse(_salary.text.trim());
@@ -544,15 +611,18 @@ class _EditStaffDialogState extends State<_EditStaffDialog> {
       return setState(() => _error = 'Agency name is required');
     }
     if (salary == null || salary <= 0) return setState(() => _error = 'Enter monthly salary');
-    Navigator.pop(context, _StaffEditDraft(
-      name: _name.text.trim(),
-      type: _type,
-      area: _area,
-      employerType: _employerType,
-      agencyName: _agency.text.trim(),
-      monthlySalary: salary,
-      active: _active,
-    ));
+    Navigator.pop(
+      context,
+      _StaffEditDraft(
+        name: _name.text.trim(),
+        type: _type,
+        area: _area,
+        employerType: _employerType,
+        agencyName: _agency.text.trim(),
+        monthlySalary: salary,
+        active: _active,
+      ),
+    );
   }
 }
 
@@ -587,78 +657,89 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-        title: const Text('Add staff member'),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_error != null) _validationMessage(_error!),
-                TextField(controller: _name, decoration: const InputDecoration(labelText: 'Full name *')),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<StaffType>(
-                  initialValue: _type,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Staff type'),
-                  items: [for (final option in StaffType.values) DropdownMenuItem(value: option, child: Text(option.label))],
-                  onChanged: (value) => setState(() {
-                    _type = value ?? _type;
-                    _area = switch (_type) {
-                      StaffType.housekeeping => 'Cleaning',
-                      StaffType.stpOperator => 'STP',
-                      StaffType.security => 'Security',
-                    };
-                  }),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _area,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Monitor area'),
-                  items: [for (final option in monitorAreas) DropdownMenuItem(value: option, child: Text(option))],
-                  onChanged: (value) => setState(() => _area = value ?? _area),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<StaffEmployerType>(
-                  initialValue: _employerType,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Employer'),
-                  items: const [
-                    DropdownMenuItem(value: StaffEmployerType.association, child: Text('Association-employed')),
-                    DropdownMenuItem(value: StaffEmployerType.agency, child: Text('Agency-employed')),
-                  ],
-                  onChanged: (value) => setState(() => _employerType = value ?? _employerType),
-                ),
-                if (_employerType == StaffEmployerType.agency) ...[
-                  const SizedBox(height: 12),
-                  TextField(controller: _agency, decoration: const InputDecoration(labelText: 'Agency name *')),
-                ],
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _salary,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: 'Monthly salary *', prefixText: '₹ '),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _pickProof,
-                  icon: Icon(_proof == null ? Icons.upload_file_outlined : Icons.verified_outlined),
-                  label: Text(_proof?.name ?? 'Attach staff ID proof * (photos auto-compressed)'),
-                ),
-              ],
+    title: const Text('Add staff member'),
+    content: SizedBox(
+      width: 420,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_error != null) _validationMessage(_error!),
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(labelText: 'Full name *'),
             ),
-          ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<StaffType>(
+              initialValue: _type,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Staff type'),
+              items: [
+                for (final option in StaffType.values) DropdownMenuItem(value: option, child: Text(option.label)),
+              ],
+              onChanged: (value) => setState(() {
+                _type = value ?? _type;
+                _area = switch (_type) {
+                  StaffType.housekeeping => 'Cleaning',
+                  StaffType.stpOperator => 'STP',
+                  StaffType.security => 'Security',
+                };
+              }),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _area,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Monitor area'),
+              items: [for (final option in monitorAreas) DropdownMenuItem(value: option, child: Text(option))],
+              onChanged: (value) => setState(() => _area = value ?? _area),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<StaffEmployerType>(
+              initialValue: _employerType,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Employer'),
+              items: const [
+                DropdownMenuItem(value: StaffEmployerType.association, child: Text('Association-employed')),
+                DropdownMenuItem(value: StaffEmployerType.agency, child: Text('Agency-employed')),
+              ],
+              onChanged: (value) => setState(() => _employerType = value ?? _employerType),
+            ),
+            if (_employerType == StaffEmployerType.agency) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _agency,
+                decoration: const InputDecoration(labelText: 'Agency name *'),
+              ),
+            ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _salary,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: 'Monthly salary *', prefixText: '₹ '),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _pickProof,
+              icon: Icon(_proof == null ? Icons.upload_file_outlined : Icons.verified_outlined),
+              label: Text(_proof?.name ?? 'Attach staff ID proof * (photos auto-compressed)'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: _save, child: const Text('Add staff')),
-        ],
-      );
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      FilledButton(onPressed: _save, child: const Text('Add staff')),
+    ],
+  );
 
   Future<void> _pickProof() async {
-    final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf']);
+    final files = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+    );
     if (files.isEmpty || !mounted) return;
     final size = await files.first.length();
     if (!mounted) return;
@@ -666,7 +747,10 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
       setState(() => _error = 'File exceeds the supported source size');
       return;
     }
-    setState(() { _proof = files.first; _error = null; });
+    setState(() {
+      _proof = files.first;
+      _error = null;
+    });
   }
 
   void _save() {
@@ -677,19 +761,25 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
     }
     final parsedSalary = int.tryParse(_salary.text.trim());
     if (parsedSalary == null || parsedSalary <= 0) return setState(() => _error = 'Enter monthly salary');
-    Navigator.pop(context, _StaffDraft(
-      name: _name.text.trim(),
-      type: _type,
-      area: _area,
-      employerType: _employerType,
-      agencyName: _agency.text.trim(),
-      monthlySalary: parsedSalary,
-      proof: _proof!,
-    ));
+    Navigator.pop(
+      context,
+      _StaffDraft(
+        name: _name.text.trim(),
+        type: _type,
+        area: _area,
+        employerType: _employerType,
+        agencyName: _agency.text.trim(),
+        monthlySalary: parsedSalary,
+        proof: _proof!,
+      ),
+    );
   }
 }
 
 Widget _validationMessage(String message) => Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Align(alignment: Alignment.centerLeft, child: Text(message, style: const TextStyle(color: Colors.red))),
-    );
+  padding: const EdgeInsets.only(bottom: 12),
+  child: Align(
+    alignment: Alignment.centerLeft,
+    child: Text(message, style: const TextStyle(color: Colors.red)),
+  ),
+);

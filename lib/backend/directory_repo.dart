@@ -57,6 +57,7 @@ class DirectoryRepo {
           vehicleType: row['vehicle_type'] as String,
           flatNumber: row['flat_number'] as String,
           parkingSlot: row['parking_slot'] as String?,
+          occupancy: row['occupancy'] as String? ?? '',
         ),
     ];
   }
