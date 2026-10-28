@@ -6,12 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/nav.dart';
-import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/backend.dart' show backendEnabled, db;
+import '../../backend/directory_repo.dart' show friendlyError;
 import '../../security/device_lock.dart';
 import '../../security/web_push.dart';
 import '../../backend/notifications_repo.dart';
 import '../../l10n/app_localizations.dart';
-import '../../widgets/common.dart' show dateTimeFmt, EmptyState, toast;
+import '../../widgets/common.dart' show dateTimeFmt, EmptyState, promptText, toast;
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
@@ -85,6 +86,12 @@ class AppShell extends ConsumerWidget {
               tooltip: 'Help & terms',
               onPressed: () => showGlossary(context),
               icon: const Icon(Icons.help_outline),
+            ),
+          if (backendEnabled)
+            IconButton(
+              tooltip: 'SOS – alert security & committee',
+              onPressed: () => _sos(context),
+              icon: const Icon(Icons.sos, color: Colors.red),
             ),
           IconButton(
             tooltip: l.notices,
@@ -519,5 +526,22 @@ class LanguageToggle extends ConsumerWidget {
         onSelectionChanged: (s) => ref.read(localeProvider.notifier).set(Locale(s.first)),
       ),
     );
+  }
+}
+
+Future<void> _sos(BuildContext context) async {
+  final note = await promptText(
+    context,
+    title: 'Send SOS to security and committee?',
+    hint: 'What is happening? (optional)',
+    required: false,
+  );
+  if (note == null || !context.mounted) return;
+  try {
+    final n = await db.rpc('raise_sos', params: {'p_note': note}) as int;
+    if (context.mounted)
+      toast(context, n == 0 ? 'SOS sent, but no security or committee member is set up.' : 'SOS sent to $n people.');
+  } catch (e) {
+    if (context.mounted) toast(context, friendlyError(e));
   }
 }
