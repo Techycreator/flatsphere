@@ -47,6 +47,7 @@ bool canAccess(Role role, String location, {bool membershipDesk = false}) {
   final allowed = [
     ...navFor(role, membershipDesk: membershipDesk).map((i) => i.path),
     if (role == Role.owner) '/approvals',
+    '/notices',
     if (const {Role.admin, Role.president, Role.secretary}.contains(role)) ...['/audit', '/data-tools'],
   ];
   return allowed.any((p) => location == p || location.startsWith('$p/'));
