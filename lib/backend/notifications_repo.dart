@@ -19,3 +19,11 @@ class NotificationsRepo {
 
   static Future<void> markRead(String id) => db.rpc('mark_app_notification_read', params: {'p_notification': id});
 }
+
+class PushRepo {
+  static const vapidPublicKey =
+      'BDAptvvF7YsEC5sIBENkNXyAlu9odKkemBT0UW-Nb8YCsbwcnX07n1Y5WVAzArFFG2R8YGOnfhh1fD702b8krT8';
+
+  static Future<void> save(({String endpoint, String p256dh, String auth}) s) =>
+      db.rpc('save_push_subscription', params: {'p_endpoint': s.endpoint, 'p_p256dh': s.p256dh, 'p_auth': s.auth});
+}

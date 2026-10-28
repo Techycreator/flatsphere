@@ -45,3 +45,23 @@ self.addEventListener('fetch', (event) => {
     }),
   );
 });
+
+self.addEventListener('push', (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch (_) { d = { body: event.data && event.data.text() }; }
+  event.waitUntil(self.registration.showNotification(d.title || 'FlatSphere', {
+    body: d.body || '',
+    icon: 'icons/Icon-192.png',
+    badge: 'icons/Icon-192.png',
+    data: { path: d.path || '/home' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL('./#' + (event.notification.data?.path || '/home'), self.registration.scope).href;
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    for (const c of list) { if ('focus' in c) { c.navigate(target); return c.focus(); } }
+    return self.clients.openWindow(target);
+  }));
+});

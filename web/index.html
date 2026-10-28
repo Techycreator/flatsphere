@@ -58,6 +58,18 @@
         } catch (e) { return false; }
       },
     };
+    window.flatspherePush = {
+      async subscribe(key) {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return null;
+        if (await Notification.requestPermission() !== 'granted') return null;
+        const reg = await navigator.serviceWorker.ready;
+        const b64 = (key + '='.repeat((4 - key.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+        const appKey = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        const sub = (await reg.pushManager.getSubscription()) ||
+          (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey }));
+        return JSON.stringify(sub.toJSON());
+      },
+    };
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', async () => {
         const reg = await navigator.serviceWorker.register('sw.js');

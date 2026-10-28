@@ -8,9 +8,10 @@ import 'package:go_router/go_router.dart';
 import '../../app/nav.dart';
 import '../../backend/backend.dart' show backendEnabled;
 import '../../security/device_lock.dart';
+import '../../security/web_push.dart';
 import '../../backend/notifications_repo.dart';
 import '../../l10n/app_localizations.dart';
-import '../../widgets/common.dart' show dateTimeFmt, EmptyState;
+import '../../widgets/common.dart' show dateTimeFmt, EmptyState, toast;
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
@@ -366,6 +367,26 @@ class _ProfileMenu extends ConsumerWidget {
             context.go('/data-tools');
           case 'help':
             showGlossary(context);
+          case 'push':
+            () async {
+              try {
+                final sub = await subscribeWebPush(PushRepo.vapidPublicKey);
+                if (sub == null) {
+                  if (context.mounted) {
+                    toast(
+                      context,
+                      'Alerts not turned on. Allow notifications for this site in the browser settings. '
+                      'On iPhone, first add FlatSphere to the Home Screen.',
+                    );
+                  }
+                  return;
+                }
+                await PushRepo.save(sub);
+                if (context.mounted) toast(context, 'Alerts are on for this device.');
+              } catch (_) {
+                if (context.mounted) toast(context, 'Could not turn on alerts on this device. Please try again.');
+              }
+            }();
           case 'setpin':
             context.go('/set-pin');
           case 'removepin':
@@ -443,6 +464,14 @@ class _ProfileMenu extends ConsumerWidget {
           ),
         ),
         if (backendEnabled) ...[
+          const PopupMenuItem(
+            value: 'push',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.notifications_active_outlined),
+              title: Text('Turn on alerts on this device'),
+            ),
+          ),
           const PopupMenuItem(
             value: 'setpin',
             child: ListTile(
