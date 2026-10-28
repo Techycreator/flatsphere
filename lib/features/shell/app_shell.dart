@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -77,11 +79,12 @@ class AppShell extends ConsumerWidget {
         actions: [
           _RoleSwitcher(session: session),
           if (wide) const LanguageToggle(),
-          if (wide) IconButton(
-            tooltip: 'Help & terms',
-            onPressed: () => showGlossary(context),
-            icon: const Icon(Icons.help_outline),
-          ),
+          if (wide)
+            IconButton(
+              tooltip: 'Help & terms',
+              onPressed: () => showGlossary(context),
+              icon: const Icon(Icons.help_outline),
+            ),
           IconButton(
             tooltip: l.notices,
             onPressed: () => _showNotifications(context, ref),
@@ -367,7 +370,33 @@ class _ProfileMenu extends ConsumerWidget {
             context.go('/set-pin');
           case 'removepin':
             final uid = session.user.id;
-            DeviceLock.clear().then((_) => DeviceLock.skip(uid));
+            showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Turn off PIN on this device?'),
+                content: const Text(
+                  'FlatSphere will stop asking for your PIN or fingerprint/Face ID when it opens on this device. '
+                  'Anyone holding this unlocked phone or computer could open the app as you until you log out.\n\n'
+                  'Your account, roles and data are not changed, other devices are not affected, and you can set a '
+                  'PIN again anytime from this menu.',
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                  FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Turn off')),
+                ],
+              ),
+            ).then((ok) async {
+              if (ok != true) return;
+              await DeviceLock.clear();
+              await DeviceLock.skip(uid);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('PIN turned off on this device. You can set it again from the profile menu.'),
+                  ),
+                );
+              }
+            });
           case 'logout':
             ref.read(sessionProvider.notifier).logout();
         }
@@ -407,16 +436,28 @@ class _ProfileMenu extends ConsumerWidget {
         const PopupMenuDivider(),
         const PopupMenuItem(
           value: 'help',
-          child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.help_outline), title: Text('Help & terms')),
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.help_outline),
+            title: Text('Help & terms'),
+          ),
         ),
         if (backendEnabled) ...[
           const PopupMenuItem(
             value: 'setpin',
-            child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.pin_outlined), title: Text('Set or change PIN')),
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.pin_outlined),
+              title: Text('Set or change PIN'),
+            ),
           ),
           const PopupMenuItem(
             value: 'removepin',
-            child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.lock_open_outlined), title: Text('Turn off PIN')),
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.lock_open_outlined),
+              title: Text('Turn off PIN'),
+            ),
           ),
           const PopupMenuDivider(),
         ],
