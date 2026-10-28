@@ -4,9 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
 import '../../backend/backend.dart' show backendEnabled;
@@ -18,6 +16,7 @@ import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
 import 'daily_help.dart';
+import 'gate_widgets.dart';
 
 /// Full-screen gate desk for Security: pass codes, walk-ins waiting for the flat's approval, check in/out.
 class GateScreen extends ConsumerStatefulWidget {
@@ -135,44 +134,10 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     }
   }
 
-  Future<void> _callFlat(String flat) async {
-    final f = flat.trim().toUpperCase();
-    if (f.isEmpty) return;
-    List<({String name, String role, String mobile})> people;
-    try {
-      people = await GateRepo.flatContacts(f);
-    } catch (e) {
-      if (mounted) toast(context, friendlyError(e));
-      return;
-    }
+  Future<void> _callFlat([String? flat]) async {
+    final flats = await loadGateFlats();
     if (!mounted) return;
-    if (people.isEmpty) {
-      toast(context, 'No phone number saved for flat $f.');
-      return;
-    }
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text('Call flat $f', style: const TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            for (final p in people)
-              ListTile(
-                leading: const Icon(Icons.call),
-                title: Text(p.name),
-                subtitle: Text('${p.role} · ${p.mobile}'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  launchUrl(Uri(scheme: 'tel', path: p.mobile));
-                },
-              ),
-          ],
-        ),
-      ),
-    );
+    await openGatePage<void>(context, CallFlatPage(flats: flats, initial: flat?.trim().toUpperCase()));
   }
 
   Future<void> _startShift() async {
@@ -188,41 +153,20 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       toast(context, 'No guards added yet. The Secretary or Admin adds them under Guards.');
       return;
     }
-    String? id = guards.first.id;
-    final pin = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Start shift'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: id,
-              decoration: const InputDecoration(labelText: 'Guard'),
-              items: [for (final g in guards) DropdownMenuItem(value: g.id, child: Text(g.name))],
-              onChanged: (v) => id = v,
-            ),
-            TextField(
-              controller: pin,
-              obscureText: true,
-              maxLength: 4,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: 'Guard PIN'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Start')),
-        ],
-      ),
+    final g = await openGatePage<({String id, String name})>(context, GuardPickPage(guards: guards));
+    if (g == null || !mounted) return;
+    final pin = await showCodePad(
+      context,
+      title: 'Guard PIN',
+      subtitle: 'Hi ${g.name}, enter your 4-digit PIN',
+      length: 4,
+      obscure: true,
+      action: 'Start shift',
     );
-    final gid = id;
-    if (ok != true || gid == null) return;
+    if (pin == null) return;
+    final gid = g.id;
     try {
-      final result = await GateRepo.startShift(gid, pin.text);
+      final result = await GateRepo.startShift(gid, pin);
       final name = result.name;
       if (name == null) {
         if (mounted) toast(context, result.error ?? 'Wrong guard or PIN');
@@ -239,145 +183,52 @@ class _GateScreenState extends ConsumerState<GateScreen> {
   }
 
   Future<void> _pass() async {
-    final code = await promptText(context, title: 'Visitor pass code', hint: '6-digit code from the resident');
-    if (code == null) return;
+    final code = await showCodePad(
+      context,
+      title: 'Visitor pass code',
+      subtitle: 'Enter the 6-digit code the guest shows',
+      action: 'Check in',
+    );
+    if (code == null || !mounted) return;
     try {
       final who = await GateRepo.checkPass(code);
-      if (mounted)
-        toast(context, who == null ? 'Code not valid for today. Ask the resident or use Walk-in.' : 'Checked in: $who');
+      if (mounted) {
+        await showGateResult(
+          context,
+          ok: who != null,
+          message: who == null ? 'Code $code is not valid today.\nCall the flat or use Walk-in.' : 'Let in:\n$who',
+        );
+      }
       await _load();
     } catch (e) {
       if (!isOffline(e)) {
         if (mounted) toast(context, friendlyError(e));
         return;
       }
-      final match = _list.where((v) => v.passCode == code.trim() && v.status == 'expected').firstOrNull;
+      final match = _list.where((v) => v.passCode == code && v.status == 'expected').firstOrNull;
       if (match == null) {
-        if (mounted) toast(context, 'Offline and this code is not in the saved list. Call the flat or use Walk-in.');
+        if (mounted) {
+          await showGateResult(
+            context,
+            ok: false,
+            message: 'Offline and this code is not in the saved list.\nCall the flat or use Walk-in.',
+          );
+        }
         return;
       }
       await _verify(match, true);
+      if (mounted) await showGateResult(context, ok: true, message: 'Let in:\n${match.guest} → ${match.flat}');
     }
   }
 
   Future<void> _walkIn() async {
-    final flat = TextEditingController(), name = TextEditingController(), phone = TextEditingController();
-    final vehicle = TextEditingController();
-    var type = 'guest';
-    Uint8List? photo;
-    var flats = const <String>[];
-    try {
-      flats = await GateRepo.flatNumbers();
-      await GateOffline.cacheFlats(flats);
-    } catch (_) {
-      flats = await GateOffline.cachedFlats();
-    }
-    String norm(String v) => v.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    final flats = await loadGateFlats();
     if (!mounted) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, set) => AlertDialog(
-          title: const Text('Walk-in visitor'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'guest', label: Text('Guest')),
-                    ButtonSegment(value: 'delivery', label: Text('Delivery')),
-                    ButtonSegment(value: 'cab', label: Text('Cab')),
-                    ButtonSegment(value: 'service', label: Text('Service')),
-                  ],
-                  selected: {type},
-                  onSelectionChanged: (v) => set(() => type = v.first),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final f = await ImagePicker().pickImage(
-                      source: ImageSource.camera,
-                      maxWidth: 800,
-                      imageQuality: 60,
-                    );
-                    if (f == null) return;
-                    final b = await f.readAsBytes();
-                    set(() => photo = b);
-                  },
-                  icon: Icon(photo == null ? Icons.photo_camera_outlined : Icons.check_circle_outline),
-                  label: Text(photo == null ? 'Take visitor photo' : 'Photo added · retake'),
-                ),
-                const SizedBox(height: 8),
-                Autocomplete<String>(
-                  optionsBuilder: (v) {
-                    final q = norm(v.text);
-                    if (q.isEmpty) return const Iterable<String>.empty();
-                    final starts = flats.where((f) => norm(f).startsWith(q));
-                    final rest = flats.where((f) => !norm(f).startsWith(q) && norm(f).contains(q));
-                    return [...starts, ...rest].take(8);
-                  },
-                  onSelected: (v) => flat.text = v,
-                  fieldViewBuilder: (ctx, ctl, focus, _) => TextField(
-                    controller: ctl,
-                    focusNode: focus,
-                    textCapitalization: TextCapitalization.characters,
-                    style: const TextStyle(fontSize: 20),
-                    onChanged: (v) => flat.text = v,
-                    decoration: const InputDecoration(
-                      labelText: 'Flat number *',
-                      hintText: 'Type a few letters, then tap the flat',
-                      prefixIcon: Icon(Icons.home_outlined),
-                    ),
-                  ),
-                ),
-                TextField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: 'Visitor name / company *'),
-                ),
-                TextField(
-                  controller: phone,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]'))],
-                  decoration: const InputDecoration(labelText: 'Phone'),
-                ),
-                TextField(
-                  controller: vehicle,
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [VehicleNumberFormatter()],
-                  style: const TextStyle(fontSize: 20, letterSpacing: 1.5),
-                  decoration: const InputDecoration(
-                    labelText: 'Vehicle number',
-                    hintText: 'KL07AB1234 – spaces not needed',
-                    prefixIcon: Icon(Icons.directions_car_outlined),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, flat.text.trim().isNotEmpty && name.text.trim().isNotEmpty),
-              child: const Text('Ask flat to approve'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (ok != true) return;
-    var f = flat.text.trim();
-    final n = name.text.trim(), pic = photo;
-    if (flats.isNotEmpty) {
-      final match = flats.where((x) => norm(x) == norm(f)).firstOrNull;
-      if (match == null) {
-        if (mounted) toast(context, 'Flat "$f" not found. Type again and tap a flat from the list.');
-        return;
-      }
-      f = match;
-    }
+    final d = await openGatePage<WalkInData>(context, WalkInPage(flats: flats));
+    if (d == null) return;
+    final f = d.flat, pic = d.photo;
     try {
-      final id = await GateRepo.walkIn(flat: f, name: n, phone: phone.text, type: type, vehicle: vehicle.text);
+      final id = await GateRepo.walkIn(flat: f, name: d.name, phone: d.phone, type: d.type, vehicle: d.vehicle);
       if (pic != null) {
         try {
           await GateRepo.attachPhoto(id, pic);
@@ -385,7 +236,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
           if (mounted) toast(context, 'Visitor sent, but the photo could not be uploaded.');
         }
       }
-      if (mounted) toast(context, 'Sent to flat ${f.toUpperCase()}. Wait for Approved before letting them in.');
+      if (mounted) toast(context, 'Sent to flat $f. Wait for Approved before letting them in.');
       await _load();
     } catch (e) {
       if (!isOffline(e)) {
@@ -395,19 +246,16 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       await GateOffline.add({
         'kind': 'walkin',
         'flat': f,
-        'name': n,
-        'phone': phone.text,
-        'type': type,
-        'vehicle': vehicle.text,
+        'name': d.name,
+        'phone': d.phone,
+        'type': d.type,
+        'vehicle': d.vehicle,
         'photo': pic == null ? null : base64Encode(pic),
-        'label': '$n → ${f.toUpperCase()}',
+        'label': '${d.name} → $f',
       });
       if (mounted) {
         setState(() => _pending++);
-        toast(
-          context,
-          'Offline: saved. It goes to flat ${f.toUpperCase()} when the network is back. Call the flat meanwhile.',
-        );
+        toast(context, 'Offline: saved. It goes to flat $f when the network is back. Call the flat meanwhile.');
       }
     }
   }
@@ -420,154 +268,226 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       return const PageBody(children: [EmptyState('Gate mode is for security staff.')]);
     }
     final narrow = MediaQuery.sizeOf(context).width < 600;
-    Widget big(IconData icon, String label, VoidCallback onTap) => SizedBox(
-      height: narrow ? 72 : 96,
-      child: FilledButton.icon(
+    final canManage = const {Role.admin, Role.president, Role.secretary}.contains(role);
+    final primary = Theme.of(context).colorScheme.primary;
+    Widget tile(IconData icon, String label, Color color, VoidCallback onTap) => SizedBox(
+      height: narrow ? 116 : 136,
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.all(8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        ),
         onPressed: onTap,
-        icon: Icon(icon, size: 32),
-        label: Text(label, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
-      ),
-    );
-    final active = _list.where((v) => v.status == 'expected' || v.status == 'checked_in').toList();
-    return PageBody(
-      maxWidth: 900,
-      children: [
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 4,
-          runSpacing: 4,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Gate', style: Theme.of(context).textTheme.headlineSmall),
-            if (const {Role.admin, Role.president, Role.secretary}.contains(role))
-              TextButton.icon(
-                onPressed: () => showDialog<void>(context: context, builder: (_) => const _GuardsDialog()),
-                icon: const Icon(Icons.badge_outlined),
-                label: const Text('Guards'),
-              ),
-            IconButton(
-              tooltip: 'History (30 days)',
-              icon: const Icon(Icons.history),
-              onPressed: () => showDialog<void>(context: context, builder: (_) => const _GateHistoryDialog()),
-            ),
-            IconButton(
-              tooltip: 'Call a flat',
-              icon: const Icon(Icons.call_outlined),
-              onPressed: () async {
-                final flat = await promptText(context, title: 'Call a flat', hint: 'Flat number, e.g. A-101');
-                if (flat != null) await _callFlat(flat);
-              },
-            ),
-            TextButton.icon(
-              onPressed: _startShift,
-              icon: const Icon(Icons.how_to_reg_outlined),
-              label: Text(_onDuty == null ? 'Start shift' : 'On duty: $_onDuty'),
+            Icon(icon, size: 44),
+            const SizedBox(height: 8),
+            FittedBox(
+              child: Text(label, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
             ),
           ],
+        ),
+      ),
+    );
+    final tiles = [
+      tile(Icons.pin, 'Pass code', primary, _pass),
+      tile(Icons.person_add_alt_1, 'Walk-in', primary, _walkIn),
+      tile(
+        Icons.cleaning_services,
+        'Daily help',
+        const Color(0xFF00796B),
+        () => openGatePage<void>(context, DailyHelpGateDialog(onQueued: () => _load())),
+      ),
+      tile(Icons.call, 'Call a flat', AppColors.green, () => _callFlat()),
+    ];
+    int rank(GateVisitor v) => switch ((v.approval, v.status)) {
+      ('approved', 'expected') => 0,
+      ('awaiting', _) => 1,
+      (_, 'expected') => 2,
+      _ => 3,
+    };
+    final active = _list.where((v) => v.status == 'expected' || v.status == 'checked_in').toList()
+      ..sort((a, b) => rank(a).compareTo(rank(b)));
+    Widget grid(List<Widget> items, int cols, {double gap = 12}) => LayoutBuilder(
+      builder: (_, c) {
+        final w = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [for (final i in items) SizedBox(width: w, child: i)],
+        );
+      },
+    );
+    return PageBody(
+      maxWidth: 1100,
+      children: [
+        Card(
+          margin: EdgeInsets.zero,
+          color: (_onDuty == null ? AppColors.amber : AppColors.green).withValues(alpha: .15),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _onDuty == null ? Icons.warning_amber_rounded : Icons.verified_user,
+                      size: 32,
+                      color: _onDuty == null ? AppColors.amber : AppColors.green,
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        _onDuty == null ? 'No guard on duty' : 'On duty: $_onDuty',
+                        style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(
+                  height: 58,
+                  child: FilledButton.icon(
+                    onPressed: _startShift,
+                    icon: const Icon(Icons.how_to_reg, size: 30),
+                    label: Text(
+                      _onDuty == null ? 'Start shift' : 'Change guard',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         if (_offline)
           Card(
             color: AppColors.amber.withValues(alpha: .15),
             child: ListTile(
-              leading: const Icon(Icons.cloud_off_outlined),
-              title: const Text('Offline – entries are saved on this phone'),
+              leading: const Icon(Icons.cloud_off_outlined, size: 32),
+              title: const Text('Offline – entries are saved on this phone', style: TextStyle(fontSize: 18)),
               subtitle: Text('$_pending waiting to send. Pass codes are checked against the last saved list.'),
             ),
           )
         else if (_pending > 0)
-          Text('$_pending saved entries waiting to send…'),
+          Padding(padding: const EdgeInsets.only(top: 8), child: Text('$_pending saved entries waiting to send…')),
         const SizedBox(height: 12),
-        Flex(
-          direction: narrow ? Axis.vertical : Axis.horizontal,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        grid(tiles, narrow ? 2 : 4),
+        const SizedBox(height: 20),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
           children: [
-            for (final (i, b) in [
-              big(Icons.pin_outlined, 'Pass code', _pass),
-              big(Icons.person_add_alt_1_outlined, 'Walk-in', _walkIn),
-              big(
-                Icons.cleaning_services_outlined,
-                'Daily help',
-                () => showDialog<void>(
-                  context: context,
-                  builder: (_) => DailyHelpGateDialog(onQueued: () => _load()),
+            Text(
+              'At the gate now (${active.length})',
+              style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton.icon(
+                  onPressed: () => showDialog<void>(context: context, builder: (_) => const _GateHistoryDialog()),
+                  icon: const Icon(Icons.history, size: 26),
+                  label: const Text('History', style: TextStyle(fontSize: 17)),
                 ),
-              ),
-            ].indexed) ...[if (i > 0) const SizedBox(width: 12, height: 12), narrow ? b : Expanded(child: b)],
+                if (canManage)
+                  TextButton.icon(
+                    onPressed: () => showDialog<void>(context: context, builder: (_) => const _GuardsDialog()),
+                    icon: const Icon(Icons.badge_outlined, size: 26),
+                    label: const Text('Guards', style: TextStyle(fontSize: 17)),
+                  ),
+              ],
+            ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         if (_error != null) Text(_error!),
         if (active.isEmpty) const EmptyState('No visitors expected right now.'),
-        for (final v in active)
-          Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      if (v.photoPath != null) ...[VisitorPhoto(path: v.photoPath!), const SizedBox(width: 12)],
-                      Expanded(
-                        child: Text(
-                          '${v.guest} → ${v.flat}',
-                          style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    [
-                      v.type,
-                      if (v.vehicle != null) v.vehicle!,
-                      if (v.phone != null) v.phone!,
-                      dateTimeFmt.format(v.arrival),
-                      if (v.guardName != null) 'by ${v.guardName}',
-                    ].join(' · '),
-                    style: const TextStyle(fontSize: 15),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
-                          onPressed: () => _callFlat(v.flat),
-                          icon: const Icon(Icons.call_outlined),
-                          label: const Text('Call flat', style: TextStyle(fontSize: 17)),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: switch ((v.approval, v.status)) {
-                          ('awaiting', _) => const Center(child: Pill('Waiting for flat', color: AppColors.amber)),
-                          ('denied', _) => const Center(child: Pill('Denied', color: AppColors.red)),
-                          (_, 'checked_in') => OutlinedButton(
-                            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
-                            onPressed: () => _verify(v, false),
-                            child: const Text('Check out', style: TextStyle(fontSize: 17)),
-                          ),
-                          _ => FilledButton(
-                            style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
-                            onPressed: () => _verify(v, true),
-                            child: Text(
-                              v.approval == 'approved' ? 'Approved · Let in' : 'Check in',
-                              style: const TextStyle(fontSize: 17),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+        grid([for (final v in active) _visitorCard(v)], MediaQuery.sizeOf(context).width >= 1000 ? 2 : 1),
       ],
     );
   }
+
+  Widget _visitorCard(GateVisitor v) => Card(
+    margin: EdgeInsets.zero,
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              if (v.photoPath != null) ...[VisitorPhoto(path: v.photoPath!), const SizedBox(width: 12)],
+              Expanded(
+                child: Text(
+                  '${v.guest} → ${v.flat}',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            [
+              v.type,
+              if (v.vehicle != null) v.vehicle!,
+              if (v.phone != null) v.phone!,
+              dateTimeFmt.format(v.arrival),
+              if (v.guardName != null) 'by ${v.guardName}',
+            ].join(' · '),
+            style: const TextStyle(fontSize: 16),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 56),
+                    foregroundColor: AppColors.green,
+                    side: const BorderSide(color: AppColors.green, width: 1.5),
+                  ),
+                  onPressed: () => _callFlat(v.flat),
+                  icon: const Icon(Icons.call, size: 26),
+                  label: const Text('Call flat', style: TextStyle(fontSize: 18)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: switch ((v.approval, v.status)) {
+                  ('awaiting', _) => const Center(child: Pill('Waiting for flat', color: AppColors.amber)),
+                  ('denied', _) => const Center(child: Pill('Denied', color: AppColors.red)),
+                  (_, 'checked_in') => OutlinedButton(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 56)),
+                    onPressed: () => _verify(v, false),
+                    child: const Text('Check out', style: TextStyle(fontSize: 18)),
+                  ),
+                  _ => FilledButton(
+                    style: FilledButton.styleFrom(minimumSize: const Size(0, 56)),
+                    onPressed: () => _verify(v, true),
+                    child: Text(
+                      v.approval == 'approved' ? 'Approved · Let in' : 'Check in',
+                      style: const TextStyle(fontSize: 18),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Shown to residents: walk-ins waiting at the gate, plus pass codes to share with expected guests.

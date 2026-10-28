@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/flatsphere-requirements-completion
+      - feature/mobile-gate-ux
   workflow_dispatch:
 
 permissions:
