@@ -43,21 +43,21 @@ class AppShell extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        titleSpacing: 16,
+        titleSpacing: wide ? 16 : 8,
         title: _AssociationSwitcher(
           session: session,
           child: Row(
             children: [
               Icon(Icons.apartment, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       session.user.association?.name ?? associationName,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                      maxLines: 1,
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: wide ? null : 15, height: 1.15),
+                      maxLines: wide ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (wide)
@@ -92,7 +92,7 @@ class AppShell extends ConsumerWidget {
             ),
           ),
           _ProfileMenu(session: session, showLanguage: !wide),
-          const SizedBox(width: 8),
+          SizedBox(width: wide ? 8 : 2),
         ],
       ),
       body: Column(
@@ -299,7 +299,7 @@ class _AssociationSwitcher extends ConsumerWidget {
           CheckedPopupMenuItem(
             value: a.id,
             checked: a.id == session.user.associationId,
-            child: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            child: Text(a.name, maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
       ],
       child: child,
@@ -313,7 +313,13 @@ class _RoleSwitcher extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chip = Chip(avatar: const Icon(Icons.badge_outlined, size: 18), label: Text(session.activeRole.label));
+    final chip = Chip(
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      labelPadding: const EdgeInsets.only(right: 2),
+      avatar: const Icon(Icons.badge_outlined, size: 16),
+      label: Text(session.activeRole.label, style: const TextStyle(fontSize: 12)),
+    );
     if (session.user.roles.length < 2) return chip;
     return PopupMenuButton<Role>(
       tooltip: AppLocalizations.of(context).switchRole,
@@ -325,7 +331,13 @@ class _RoleSwitcher extends ConsumerWidget {
         for (final r in session.user.roles)
           CheckedPopupMenuItem(value: r, checked: r == session.activeRole, child: Text(r.label)),
       ],
-      child: Chip(avatar: const Icon(Icons.swap_horiz, size: 18), label: Text(session.activeRole.label)),
+      child: Chip(
+        visualDensity: VisualDensity.compact,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        labelPadding: const EdgeInsets.only(right: 2),
+        avatar: const Icon(Icons.swap_horiz, size: 16),
+        label: Text(session.activeRole.label, style: const TextStyle(fontSize: 12)),
+      ),
     );
   }
 }
