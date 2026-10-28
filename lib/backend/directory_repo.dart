@@ -295,10 +295,15 @@ class DirectoryRepo {
   );
 
   /// Returns 'removed', or 'pending_approval' for committee/staff roles that need President approval.
-  static Future<String> remove(Person p, String reason) async =>
+  static Future<String> remove(Person p, String reason, {String? momRef}) async =>
       await db.rpc(
         'revoke_member_role',
-        params: {'p_kind': p.invited ? 'invited' : 'member', 'p_id': p.id, 'p_reason': reason.trim()},
+        params: {
+          'p_kind': p.invited ? 'invited' : 'member',
+          'p_id': p.id,
+          'p_reason': reason.trim(),
+          'p_mom_ref': momRef,
+        },
       ) as String? ??
       'removed';
 

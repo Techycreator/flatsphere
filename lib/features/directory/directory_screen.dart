@@ -20,6 +20,7 @@ import '../../state/app_state.dart';
 import '../../state/directory_state.dart';
 import '../../widgets/common.dart';
 import '../../validation/input_validation.dart';
+import '../../widgets/mom.dart';
 
 enum _Tab { flats, people, monitors }
 
@@ -815,6 +816,18 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
   Future<void> _remove(Person p) async {
     final reason = TextEditingController();
     String? err;
+    String? mom;
+    final needsAgm =
+        !p.invited &&
+        const {
+          Role.president,
+          Role.secretary,
+          Role.vicePresident,
+          Role.jointSecretary,
+          Role.treasurer,
+          Role.jointTreasurer,
+        }.contains(p.role);
+    final agmOptions = needsAgm ? approvedAgmOptions(context) : const <String>[];
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -836,6 +849,25 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                 maxLength: 300,
                 decoration: const InputDecoration(labelText: 'Reason * (kept in the audit log)'),
               ),
+              if (needsAgm)
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'AGM / General Body minutes (MOM) *',
+                    helperText: agmOptions.isEmpty
+                        ? 'No approved General Body minutes yet. Approve the AGM minutes in Meetings first.'
+                        : 'Office-bearer changes need the AGM decision and President approval.',
+                    helperMaxLines: 2,
+                  ),
+                  items: [
+                    for (final o in agmOptions)
+                      DropdownMenuItem(
+                        value: o,
+                        child: Text(o, overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                  onChanged: (v) => set(() => mom = v),
+                ),
               if (err != null) _ErrorText(err!),
             ],
           ),
@@ -845,6 +877,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
               style: FilledButton.styleFrom(backgroundColor: AppColors.red),
               onPressed: () {
                 if (reason.text.trim().length < 3) return set(() => err = 'Enter a reason');
+                if (needsAgm && mom == null) return set(() => err = 'Select the approved AGM minutes');
                 Navigator.pop(ctx, true);
               },
               child: const Text('Revoke role'),
@@ -857,7 +890,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     reason.dispose();
     if (ok != true) return;
     try {
-      final result = await ref.read(directoryProvider.notifier).removePerson(p, reason: why);
+      final result = await ref.read(directoryProvider.notifier).removePerson(p, reason: why, momRef: mom);
       _toast(
         result == 'pending_approval'
             ? 'Removal of ${p.name}\'s ${p.role.label} role sent to the President for approval. It stays active until approved.'
