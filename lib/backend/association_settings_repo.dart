@@ -51,6 +51,9 @@ class AssociationSettingsRepo {
     },
   ) as String;
 
+  static Future<void> offboard({required String confirmName, required String reason}) =>
+      db.rpc('offboard_association', params: {'p_confirm_name': confirmName.trim(), 'p_reason': reason.trim()});
+
   static Future<void> update({
     required String name,
     required String state,

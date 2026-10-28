@@ -1,7 +1,10 @@
 // FlatSphere PWA service worker: network-first for navigations, cache-first for static assets.
 const CACHE = 'flatsphere-v2';
 
-self.addEventListener('install', () => self.skipWaiting());
+// A new version stays in the "waiting" state until the user taps Update (page sends SKIP_WAITING).
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -14,6 +17,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  if (new URL(req.url).pathname.endsWith('/build-id.txt')) return;
 
   if (req.mode === 'navigate') {
     event.respondWith(

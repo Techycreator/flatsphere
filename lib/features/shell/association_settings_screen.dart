@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../backend/association_settings_repo.dart';
 import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/directory_repo.dart' show friendlyError;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
@@ -235,6 +237,50 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
     }
   }
 
+  Future<void> _offboardAssociation() async {
+    final confirm = TextEditingController();
+    final reason = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Offboard association'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'This ends access for every member and invite. Data is retained for audit. Export records first.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: confirm,
+              decoration: const InputDecoration(labelText: 'Type the association name to confirm'),
+            ),
+            TextField(
+              controller: reason,
+              maxLength: 300,
+              decoration: const InputDecoration(labelText: 'Reason *'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Offboard')),
+        ],
+      ),
+    );
+    final c = confirm.text;
+    final r = reason.text;
+    confirm.dispose();
+    reason.dispose();
+    if (ok != true || !mounted) return;
+    try {
+      await AssociationSettingsRepo.offboard(confirmName: c, reason: r);
+      ref.read(sessionProvider.notifier).logout();
+    } catch (error) {
+      if (mounted) toast(context, friendlyError(error));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -263,6 +309,16 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
             onPressed: _createAssociation,
             icon: const Icon(Icons.add_business_outlined),
             label: const Text('Create association'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: _offboardAssociation,
+            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+            icon: const Icon(Icons.domain_disabled_outlined),
+            label: const Text('Offboard association'),
           ),
         ),
         const SizedBox(height: 12),

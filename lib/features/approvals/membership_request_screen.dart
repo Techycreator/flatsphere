@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -209,7 +210,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
       case MembershipRequestType.committee:
         final steps = _position == 'President'
             ? const [ApproverStep(role: Role.vicePresident, name: 'Vice President', onBehalfOf: 'President')]
-            : const [ApproverStep(role: Role.president, name: 'Rajesh Menon')];
+            : const [ApproverStep(role: Role.president, name: 'President')];
         req = ApprovalRequest(
           id: id,
           code: 'W22',
@@ -364,7 +365,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
     };
 
     return Scaffold(
-      appBar: AppBar(title: Text('${t.code} · ${t.label}')),
+      appBar: AppBar(title: Text(t.label)),
       body: PageBody(
         maxWidth: 720,
         children: [

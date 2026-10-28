@@ -9,19 +9,23 @@ class VisitorRepo {
         .eq('user_id', db.auth.currentUser!.id)
         .isFilter('ended_at', null)
         .inFilter('role', ['owner', 'resident']);
-    return [
-      for (final row in rows)
-        if (row['flat_id'] case final String id) (id, ((row['flats'] as Map?)?['number'] as String?) ?? ''),
-    ];
+    final unique = <String, String>{};
+    for (final row in rows) {
+      if (row['flat_id'] case final String id) {
+        unique[id] = ((row['flats'] as Map?)?['number'] as String?) ?? '';
+      }
+    }
+    return [for (final e in unique.entries) (e.key, e.value)];
   }
 
-  static Future<List<VisitorRequest>> load() async {
-    final rows = await db
+  static Future<List<VisitorRequest>> load({bool hostOnly = false}) async {
+    final query = db
         .from('visitor_requests')
         .select(
           'id, guest_name, guest_phone, expected_arrival, vehicle_number, note, status, host_name, '
           'flats(number, flat_vehicles(vehicle_type, registration_number, parking_slot))',
-        )
+        );
+    final rows = await (hostOnly ? query.eq('host_id', db.auth.currentUser!.id) : query)
         .order('expected_arrival', ascending: false);
     return [
       for (final row in rows)

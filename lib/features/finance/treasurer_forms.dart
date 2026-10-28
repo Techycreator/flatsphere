@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -64,7 +65,7 @@ Future<bool?> _form(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ...fields(set),
+                for (final w in fields(set)) Padding(padding: const EdgeInsets.only(bottom: 12), child: w),
                 if (error != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),

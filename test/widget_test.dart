@@ -66,6 +66,14 @@ class _ResidentSessionNotifier extends SessionNotifier {
   );
 }
 
+class _SecuritySessionNotifier extends SessionNotifier {
+  @override
+  Session? build() => const Session(
+    user: DemoUser(id: 'security-test', name: 'Security Test', mobile: '', roles: [Role.security]),
+    activeRole: Role.security,
+  );
+}
+
 void main() {
   group('SLA colours (medium: blue day 0, amber 1-5, red 6+)', () {
     final now = DateTime(2026, 10, 16, 12);
@@ -283,6 +291,12 @@ void main() {
       expect(canAccess(Role.owner, '/approvals/APR-034'), isTrue);
       expect(canAccess(Role.auditor, '/complaints'), isFalse);
       expect(canAccess(Role.auditor, '/finance'), isTrue);
+      expect(canAccess(Role.auditor, '/community'), isFalse);
+      expect(canAccess(Role.auditor, '/association-documents'), isFalse);
+      expect(canAccess(Role.resident, '/association-documents'), isFalse);
+      expect(canAccess(Role.security, '/association-documents'), isFalse);
+      expect(canAccess(Role.treasurer, '/attendance'), isTrue);
+      expect(canAccess(Role.jointTreasurer, '/attendance'), isTrue);
       expect(canAccess(Role.ecMember, '/approvals/new/owner'), isFalse);
       expect(canAccess(Role.secretary, '/finance/analysis'), isTrue);
       expect(canAccess(Role.jointSecretary, '/finance'), isTrue);
@@ -298,6 +312,23 @@ void main() {
       for (final role in Role.values.where((role) => role != Role.owner && role != Role.resident)) {
         expect(canAccess(role, '/family-accounts'), isFalse, reason: '${role.name} must not access family DOBs');
       }
+    });
+
+    testWidgets('Security community view contains emergency contacts only', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sessionProvider.overrideWith(_SecuritySessionNotifier.new),
+            emergencyContactsProvider.overrideWith((ref) async => const <EmergencyContact>[]),
+          ],
+          child: const MaterialApp(home: Scaffold(body: CommunityScreen())),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Emergency'), findsOneWidget);
+      expect(find.text('Marketplace'), findsNothing);
+      expect(find.text('Events'), findsNothing);
+      expect(find.text('MOM actions'), findsNothing);
     });
   });
 

@@ -1,7 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../backend/approvals_repo.dart';
+import '../../backend/bank_repo.dart';
 import '../../backend/backend.dart' show backendEnabled;
 import '../../backend/membership_transition_repo.dart';
 import '../../l10n/app_localizations.dart';
@@ -62,10 +65,24 @@ class ApprovalDetailScreen extends ConsumerWidget {
       }
       if (d == Decision.approved && a.highRisk) {
         if (!context.mounted) return;
-        final ok = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => _OtpDialog(approveLabel: l.approve),
-        );
+        final ok = backendEnabled
+            ? await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Confirm high-risk approval'),
+                  content: const Text(
+                    'This change affects association-wide settings or money. Please confirm that you want to approve it.',
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l.approve)),
+                  ],
+                ),
+              )
+            : await showDialog<bool>(
+                context: context,
+                builder: (ctx) => _OtpDialog(approveLabel: l.approve),
+              );
         if (ok != true) return;
       }
       try {
@@ -89,7 +106,7 @@ class ApprovalDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${a.code} · ${a.id}'),
+        title: Text('Request ${a.id}'),
         actions: [
           if (paymentGate != null)
             IconButton(
@@ -234,6 +251,10 @@ class ApprovalDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
+            if (backendEnabled && a.steps.any((x) => x.isEcVote)) ...[
+            _EcVotePanel(request: a),
+            const SizedBox(height: 16),
+          ],
             if (a.code == 'W21' &&
               (backendEnabled ? paymentGate?.value?.status == 'applied' : a.overall == Decision.approved)) ...[
             const Card(
@@ -242,7 +263,7 @@ class ApprovalDetailScreen extends ConsumerWidget {
                 leading: Icon(Icons.verified_user, color: AppColors.green),
                 title: Text('Applied to records'),
                 subtitle: Text(
-                  'Resident updated. Outgoing tenant and family logins disabled and archived. Caretaker informed.',
+                  'Resident updated. Outgoing tenant and family logins disabled and archived.',
                 ),
               ),
             ),
@@ -278,7 +299,7 @@ class ApprovalDetailScreen extends ConsumerWidget {
             TextButton.icon(
               onPressed: () {
                 notifier.flag(a.id);
-                toast(context, a.flagged ? 'Flag removed' : 'Flagged – added to next EC meeting agenda');
+                toast(context, a.flagged ? 'Flag removed' : 'Flagged for discussion');
               },
               icon: Icon(a.flagged ? Icons.flag : Icons.outlined_flag),
               label: Text(a.flagged ? 'Remove flag' : 'Flag for discussion'),
@@ -392,6 +413,104 @@ class _OtpDialogState extends State<_OtpDialog> {
         TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
         FilledButton(onPressed: _valid ? () => Navigator.pop(context, true) : null, child: Text(widget.approveLabel)),
       ],
+    );
+  }
+}
+
+final ecVoteSummaryProvider = FutureProvider.autoDispose.family<EcVoteSummary, String>((ref, requestRef) {
+  final id = ApprovalsRepo.uuidFor(requestRef);
+  if (id == null) throw StateError('Request not loaded');
+  return BankRepo.ecSummary(id);
+});
+
+class _EcVotePanel extends ConsumerWidget {
+  const _EcVotePanel({required this.request});
+  final ApprovalRequest request;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref.watch(ecVoteSummaryProvider(request.id));
+    final step = request.steps.firstWhere((s) => s.isEcVote);
+
+    Future<void> vote(String v) async {
+      String? comment;
+      if (v == 'no') {
+        comment = await promptText(context, title: 'Reason for voting No', hint: 'Comment (optional)', required: false);
+        if (comment == null) return;
+      }
+      try {
+        await BankRepo.castVote(ApprovalsRepo.uuidFor(request.id)!, v, comment);
+        ref.invalidate(ecVoteSummaryProvider(request.id));
+        await ref.read(approvalsProvider.notifier).refresh();
+        if (context.mounted) toast(context, 'Your vote has been recorded.');
+      } catch (e) {
+        if (context.mounted) toast(context, '$e');
+      }
+    }
+
+    return SectionCard(
+      title: 'EC vote',
+      child: summary.when(
+        loading: () => const LinearProgressIndicator(),
+        error: (e, _) => Text(userMessage('$e')),
+        data: (s) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('MOM: ${request.momRef ?? 'Not linked'}'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text('EC: ${s.yes} Yes \u00b7 ${s.no} No of ${s.total}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                if (step.decision == Decision.approved)
+                  const Pill('EC approved', color: AppColors.green)
+                else if (step.decision == Decision.rejected)
+                  const Pill('EC rejected', color: AppColors.red)
+                else
+                  Pill('Needs ${s.needed} Yes to approve', color: AppColors.amber),
+              ],
+            ),
+            if (step.decision == Decision.pending && !s.open)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Voting opens after the earlier approval steps are complete.'),
+              ),
+            if (s.canVote) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(onPressed: () => vote('yes'), icon: const Icon(Icons.thumb_up_outlined), label: const Text('Vote Yes')),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+                    onPressed: () => vote('no'),
+                    icon: const Icon(Icons.thumb_down_outlined),
+                    label: const Text('Vote No'),
+                  ),
+                ],
+              ),
+            ] else if (s.myVote != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text('You voted ${s.myVote == 'yes' ? 'Yes' : 'No'}.'),
+              ),
+            if (s.votes.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              for (final v in s.votes)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(v.vote == 'yes' ? Icons.check_circle : Icons.cancel, color: v.vote == 'yes' ? AppColors.green : AppColors.red),
+                  title: Text(v.name),
+                  subtitle: v.comment == null ? null : Text(v.comment!),
+                ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

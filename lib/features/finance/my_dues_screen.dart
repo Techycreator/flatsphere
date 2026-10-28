@@ -1,10 +1,13 @@
-import 'package:flutter/material.dart';
+import 'bank_account_card.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../backend/backend.dart';
 import '../../app/theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../state/app_state.dart';
+import '../../models/models.dart' show Role;
 import '../../widgets/common.dart';
 import 'charts.dart';
 import 'receipt_pdf.dart';
@@ -17,7 +20,8 @@ class MyDuesScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final s = ref.watch(sessionProvider)!;
     final flat = s.user.flatNumber ?? '';
-    final lines = ref.watch(duesProvider).lines.where((x) => x.flatNumber == flat).toList();
+    final myFlats = {...s.user.flatsFor(Role.owner), ?s.user.flatNumber};
+    final lines = ref.watch(duesProvider).lines.where((x) => myFlats.contains(x.flatNumber)).toList();
     final pending = lines.fold(0, (a, x) => a + x.pending);
 
     Future<void> pay() async {
@@ -41,10 +45,10 @@ class MyDuesScreen extends ConsumerWidget {
                 onPressed: () => Navigator.pop(ctx, m),
                 child: ListTile(leading: Icon(icon), title: Text(m)),
               ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(24, 8, 24, 0),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
               child: Text(
-                'Demo: no real payment. Money settles directly to the association bank account.',
+                backendEnabled ? 'Payments are recorded by the Treasurer, who issues your receipt.' : 'Demo: no real payment. Money settles directly to the association bank account.',
                 style: TextStyle(fontSize: 12),
               ),
             ),
@@ -59,6 +63,8 @@ class MyDuesScreen extends ConsumerWidget {
     return PageBody(
       maxWidth: 900,
       children: [
+        const BankAccountCard(),
+        const SizedBox(height: 16),
         Card(
           color: pending > 0 ? const Color(0xFFFFF7ED) : const Color(0xFFF0FDF4),
           child: Padding(
@@ -69,7 +75,7 @@ class MyDuesScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Flat $flat · total pending', style: Theme.of(context).textTheme.bodyMedium),
+                      Text('${myFlats.length > 1 ? 'Flats ${myFlats.join(', ')}' : 'Flat $flat'} · total pending', style: Theme.of(context).textTheme.bodyMedium),
                       Text(
                         inr.format(pending),
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
@@ -96,7 +102,7 @@ class MyDuesScreen extends ConsumerWidget {
               for (final x in lines)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(x.head),
+                  title: Text(myFlats.length > 1 ? '${x.flatNumber} · ${x.head}' : x.head),
                   subtitle: Text(x.isPaid ? 'Paid · receipt ${x.receiptNo}' : 'Due ${dateFmt.format(x.dueDate)}'),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -112,21 +118,31 @@ class MyDuesScreen extends ConsumerWidget {
             ],
           ),
         ),
-        if (ref.watch(duesProvider).payments.where((p) => p.flatNumber == flat).isNotEmpty) ...[
+        if (ref.watch(duesProvider).payments.where((p) => myFlats.contains(p.flatNumber)).isNotEmpty) ...[
           const SizedBox(height: 16),
           SectionCard(
             title: 'Receipts',
             child: Column(
               children: [
-                for (final p in ref.watch(duesProvider).payments.reversed.where((p) => p.flatNumber == flat))
+                for (final p in ref.watch(duesProvider).payments.reversed.where((p) => myFlats.contains(p.flatNumber)))
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text('${p.receiptNo} · ${inr.format(p.amount)}'),
                     subtitle: Text('${dateFmt.format(p.paidOn)} · ${p.head ?? 'Advance / other'}'),
-                    trailing: IconButton(
-                      tooltip: 'Download receipt (PDF)',
-                      icon: const Icon(Icons.download_outlined),
-                      onPressed: () => downloadReceipt(p, s.user.association?.name ?? 'Association'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'View receipt',
+                          icon: const Icon(Icons.visibility_outlined),
+                          onPressed: () => viewReceipt(context, p, s.user.association?.name ?? 'Association'),
+                        ),
+                        IconButton(
+                          tooltip: 'Download receipt (PDF)',
+                          icon: const Icon(Icons.download_outlined),
+                          onPressed: () => downloadReceipt(p, s.user.association?.name ?? 'Association'),
+                        ),
+                      ],
                     ),
                   ),
               ],
@@ -134,7 +150,7 @@ class MyDuesScreen extends ConsumerWidget {
           ),
         ],
         const SizedBox(height: 16),
-        const SectionCard(title: 'September 2026 statement (published)', child: ExpensePie()),
+        if (!backendEnabled) const SectionCard(title: 'September 2026 statement (published)', child: ExpensePie()),
         const SizedBox(height: 8),
         Text(
           'Approved by Treasurer, Secretary and President. Visible to owners only.',

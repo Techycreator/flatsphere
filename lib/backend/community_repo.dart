@@ -149,15 +149,21 @@ class CommunityRepo {
       db.rpc('update_meeting_action_status', params: {'p_action': id, 'p_status': status});
 
   static Future<List<MarketplacePost>> marketplace() async {
+    try {
+      await db.rpc('archive_marketplace_posts');
+    } catch (_) {
+      // Archive function may not be deployed yet; listing must still work.
+    }
     final rows = await db
         .from('marketplace_posts')
-        .select('id,post_type,title,description,contact,price,created_by_name,expires_at')
+        .select('id,post_type,title,description,contact,price,created_by,created_by_name,expires_at')
         .eq('status', 'active')
         .order('created_at', ascending: false);
     return [
       for (final row in rows)
         MarketplacePost(
           id: row['id'] as String,
+          createdBy: row['created_by'] as String?,
           type: row['post_type'] as String,
           title: row['title'] as String,
           description: row['description'] as String,
@@ -168,6 +174,8 @@ class CommunityRepo {
         ),
     ];
   }
+
+  static Future<void> removeMarketplacePost(String id) => db.rpc('remove_marketplace_post', params: {'p_id': id});
 
   static Future<void> addMarketplacePost({
     required String type,

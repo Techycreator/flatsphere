@@ -1,10 +1,8 @@
-import 'package:flutter/services.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../backend/pin_vault.dart';
-import '../../backend/devices_repo.dart';
 import '../../backend/backend.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
@@ -23,16 +21,16 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _mobile = TextEditingController();
   final _otp = TextEditingController();
-  final _pin = TextEditingController();
-  bool _useEmail = false;
   bool _otpSent = false;
   bool _busy = false;
   String? _error;
+  String? _info;
 
   Future<void> _run(Future<void> Function() action) async {
     setState(() {
       _busy = true;
       _error = null;
+      _info = null;
     });
     try {
       await action();
@@ -43,82 +41,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ? 'This email is not registered with any association. Ask your Secretary for an invite.'
             : msg.contains('expired') || msg.contains('invalid')
             ? 'Code is wrong or expired. Request a new one.'
+            : msg.contains('security purposes') || msg.contains('rate limit')
+            ? 'Please wait a minute before requesting another code.'
             : 'Could not complete login. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
-
-  Future<void> _unlock() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final json = await PinVault.unlock(_pin.text.trim());
-      if (db.auth.currentSession == null) await db.auth.recoverSession(json);
-      final id = PinVault.deviceId;
-      if (id != null && !await DevicesRepo.touch(id)) {
-        await AuthService.signOut();
-        throw const PinVaultException('This device was removed. Log in with an email code.');
-      }
-      final user = await AuthService.loadUser();
-      if (user == null) throw const PinVaultException('No active membership. Log in with an email code.');
-      ref.read(sessionProvider.notifier).login(user);
-    } on PinVaultException catch (e) {
-      setState(() => _error = e.message);
-    } catch (_) {
-      setState(() => _error = 'Could not unlock. Use "Log in with email code" instead.');
-    } finally {
-      _pin.clear();
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Widget _pinUnlockView(BuildContext context) => Scaffold(
-    body: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: Card(
-          margin: const EdgeInsets.all(24),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Enter your PIN', style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _pin,
-                  autofocus: true,
-                  obscureText: true,
-                  maxLength: 6,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  onSubmitted: (_) => _unlock(),
-                ),
-                if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                const SizedBox(height: 8),
-                FilledButton(onPressed: _busy ? null : _unlock, child: const Text('Unlock')),
-                TextButton(
-                  onPressed: () async {
-                    await PinVault.clearPin();
-                    setState(() {
-                      _useEmail = true;
-                      _error = null;
-                    });
-                  },
-                  child: const Text('Log in with email code'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
 
   void _sendCode() {
     if (!InputValidation.isEmail(_mobile.text)) {
@@ -130,6 +60,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => _otpSent = true);
     });
   }
+
+  void _resend() => _run(() async {
+    await AuthService.sendCode(_mobile.text);
+    setState(() {
+      _otp.clear();
+      _info = 'New code sent. Any earlier code no longer works.';
+    });
+  });
 
   void _verifyEmail() {
     if (!RegExp(r'^\d{6}$').hasMatch(_otp.text.trim())) {
@@ -166,7 +104,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (backendEnabled && PinVault.locked && !_useEmail) return _pinUnlockView(context);
     final l = AppLocalizations.of(context);
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final theme = Theme.of(context);
@@ -210,6 +147,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const SizedBox(height: 8),
               Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
             ],
+            if (_otpSent && backendEnabled && _error == null) ...[
+              const SizedBox(height: 8),
+              Text(_info ?? 'The code is valid for 10 minutes.', style: theme.textTheme.bodySmall),
+            ],
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _busy
@@ -219,6 +160,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   : () => _otpSent ? _verify() : setState(() => _otpSent = true),
               child: Padding(padding: const EdgeInsets.all(12), child: Text(_otpSent ? l.verify : l.sendOtp)),
             ),
+            if (backendEnabled && _otpSent)
+              TextButton(
+                onPressed: _busy ? null : _resend,
+                child: const Text('Resend code'),
+              ),
             if (backendEnabled && _otpSent)
               TextButton(
                 onPressed: _busy

@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -24,7 +25,7 @@ class VendorAmcScreen extends ConsumerWidget {
     final vendors = ref.watch(vendorsProvider);
 
     Future<void> editVendor([AssociationVendor? vendor]) async {
-      final saved = await _vendorDialog(context, vendor);
+      final saved = await _vendorDialog(context, vendor, vendors.value?.map((v) => v.serviceCategory) ?? const []);
       if (saved == null) return;
       try {
         await VendorsRepo.save(
@@ -298,8 +299,13 @@ class _VendorDraft {
   final List<String> escalations;
 }
 
-Future<_VendorDraft?> _vendorDialog(BuildContext context, AssociationVendor? vendor) async {
-  const categories = ['Lift', 'STP', 'Generator', 'Fire Safety', 'CCTV', 'Other'];
+Future<_VendorDraft?> _vendorDialog(BuildContext context, AssociationVendor? vendor, [Iterable<String> used = const []]) async {
+  const defaults = ['Lift', 'STP', 'Generator', 'Fire Safety', 'CCTV', 'Other'];
+  // Categories already used by this association's vendors stay selectable.
+  final categories = <String>[...defaults];
+  for (final c in [...used, if (vendor != null) vendor.serviceCategory]) {
+    if (c.trim().isNotEmpty && !categories.any((x) => x.toLowerCase() == c.trim().toLowerCase())) categories.add(c.trim());
+  }
   return showDialog<_VendorDraft>(context: context, builder: (_) => _VendorDialog(vendor: vendor, categories: categories));
 }
 
@@ -321,10 +327,13 @@ class _VendorDialogState extends State<_VendorDialog> {
   late final _deposit = TextEditingController(text: widget.vendor?.securityDeposit.toString());
   late final _escalations = TextEditingController(text: widget.vendor?.escalationContacts.join('\n'));
   late String _category = widget.vendor?.serviceCategory ?? widget.categories.first;
+  static const _newCategory = '__new__';
+  final _customCategory = TextEditingController();
   String? _error;
 
   @override
   void dispose() {
+    _customCategory.dispose();
     _name.dispose();
     _contact.dispose();
     _phone.dispose();
@@ -347,9 +356,18 @@ class _VendorDialogState extends State<_VendorDialog> {
             DropdownButtonFormField<String>(
               initialValue: _category,
               decoration: const InputDecoration(labelText: 'Service category'),
-              items: [for (final item in widget.categories) DropdownMenuItem(value: item, child: Text(item))],
+              items: [
+                for (final item in widget.categories) DropdownMenuItem(value: item, child: Text(item)),
+                const DropdownMenuItem(value: _newCategory, child: Text('+ Add new category…')),
+              ],
               onChanged: (value) => setState(() => _category = value ?? _category),
             ),
+            if (_category == _newCategory)
+              TextField(
+                controller: _customCategory,
+                maxLength: 80,
+                decoration: const InputDecoration(labelText: 'New service category *'),
+              ),
             TextField(controller: _contact, decoration: const InputDecoration(labelText: 'Primary contact')),
             TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone')),
             TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email')),
@@ -370,9 +388,14 @@ class _VendorDialogState extends State<_VendorDialog> {
       setState(() => _error = 'Enter a vendor name and a valid non-negative deposit');
       return;
     }
+    final category = _category == _newCategory ? _customCategory.text.trim() : _category;
+    if (category.isEmpty) {
+      setState(() => _error = 'Enter the new service category');
+      return;
+    }
     Navigator.pop(context, _VendorDraft(
       _name.text.trim(),
-      _category,
+      category,
       _contact.text.trim(),
       _phone.text.trim(),
       _email.text.trim(),

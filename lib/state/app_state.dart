@@ -1,4 +1,3 @@
-import '../backend/pin_vault.dart';
 import '../backend/compliance_repo.dart';
 
 import 'package:flutter/gestures.dart';
@@ -81,17 +80,6 @@ class SessionNotifier extends Notifier<Session?> {
   }
 
   void switchRole(Role r) => state = state?.copyWith(activeRole: r);
-
-  /// Idle timeout: with PIN unlock on, lock instead of signing out.
-  void lockOrLogout() {
-    if (backendEnabled && PinVault.pinEnabled) {
-      PinVault.lockNow();
-      state = null;
-    } else {
-      logout();
-    }
-  }
-
   void logout() {
     if (backendEnabled) AuthService.signOut();
     state = null;
@@ -116,9 +104,23 @@ class ComplaintsNotifier extends Notifier<List<Complaint>> {
     return 'CMP-2026-${(maxN + 1).toString().padLeft(4, '0')}';
   }
 
-  void add(Complaint c) {
-    state = [c, ...state];
-    if (backendEnabled) ComplaintsRepo.insert(c).catchError((_) => refresh());
+  Future<void> add(
+    Complaint c, {
+    List<Uint8List> photos = const [],
+    Uint8List? voiceNote,
+    VoiceFormat voiceFormat = wavVoiceFormat,
+  }) async {
+    if (!backendEnabled) {
+      state = [c, ...state];
+      return;
+    }
+    try {
+      await ComplaintsRepo.insert(c, photos: photos, voiceNote: voiceNote, voiceFormat: voiceFormat);
+    } catch (_) {
+      await refresh();
+      rethrow;
+    }
+    await refresh();
   }
 
   void update(String id, Complaint Function(Complaint) f) {
@@ -144,6 +146,27 @@ class ComplaintsNotifier extends Notifier<List<Complaint>> {
             by: ref.read(sessionProvider)?.user.name ?? 'Demo user',
             at: DateTime.now(),
             text: '[${status.label}] $note',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> closeOrReopen(String id, {required bool close, String note = ''}) async {
+    if (backendEnabled) {
+      await ComplaintsRepo.closeOrReopen(id, close: close, note: note);
+      return refresh();
+    }
+    update(
+      id,
+      (complaint) => complaint.copyWith(
+        status: close ? TicketStatus.closed : TicketStatus.inProgress,
+        remarks: [
+          ...complaint.remarks,
+          TicketRemark(
+            by: ref.read(sessionProvider)?.user.name ?? 'Demo user',
+            at: DateTime.now(),
+            text: '[${close ? 'closed' : 'in_progress'}] ${note.isEmpty ? (close ? 'Confirmed resolved' : 'Reopened') : note}',
           ),
         ],
       ),
@@ -219,8 +242,18 @@ class ChecklistNotifier extends Notifier<ChecklistState> {
     if (!backendEnabled) return;
     try {
       final proofs = await ChecklistRepo.proofs(date);
+      final notes = await ChecklistRepo.notes(date);
       state = state.copyWith(
-        items: [for (final item in state.items) item.copyWith(photoProofPaths: proofs[item.id] ?? const [])],
+        items: [
+          for (final item in state.items)
+            item.copyWith(
+              photoProofPaths: proofs[item.id] ?? const [],
+              note: notes[item.id]?.note ?? item.note,
+              voicePath: notes[item.id]?.voicePath,
+              clearVoicePath: notes[item.id]?.voicePath == null,
+              hasVoiceNote: notes[item.id]?.voicePath != null || (!backendEnabled && item.hasVoiceNote),
+            ),
+        ],
         clearError: true,
       );
     } catch (e) {
@@ -259,8 +292,30 @@ class ChecklistNotifier extends Notifier<ChecklistState> {
     _items([for (final i in state.items) i.id == id ? i.copyWith(done: done, clearRejection: true) : i]);
   }
 
-  void setNote(String id, String note, bool voice) =>
-      _items([for (final i in state.items) i.id == id ? i.copyWith(note: note, hasVoiceNote: voice) : i]);
+  Future<void> setNote(
+    String id,
+    String note, {
+    bool voice = false,
+    Uint8List? newVoice,
+    String voiceExtension = 'wav',
+    String voiceContentType = 'audio/wav',
+  }) async {
+    if (backendEnabled) {
+      await ChecklistRepo.saveNote(
+        itemId: id,
+        date: DateUtils.dateOnly(DateTime.now()),
+        note: note,
+        voice: newVoice,
+        voiceExtension: voiceExtension,
+        voiceContentType: voiceContentType,
+        removeVoice: !voice,
+      );
+      return refreshProofs(DateUtils.dateOnly(DateTime.now()));
+    }
+    _items([for (final i in state.items) i.id == id ? i.copyWith(note: note, hasVoiceNote: voice) : i]);
+  }
+
+  Future<String?> voiceUrl(String path) async => backendEnabled ? ChecklistRepo.voiceUrl(path) : null;
 
   void submit() => state = ChecklistState(items: state.items, submitted: true);
 
@@ -760,7 +815,7 @@ class ExpensesNotifier extends Notifier<List<Expense>> {
     ];
   }
 
-  /// Actions: verify, approve, send_back, resubmit, flag. The server enforces who may do what.
+  /// Actions: verify, approve, send_back, resubmit, flag, resolve_flag. The server enforces who may do what.
   Future<void> decide(Expense e, String action, [String? comment]) async {
     if (backendEnabled) {
       await FinanceRepo.decide(e.dbId!, action, comment);
@@ -770,10 +825,11 @@ class ExpensesNotifier extends Notifier<List<Expense>> {
       e.id,
       (x) => switch (action) {
         'verify' => x.copyWith(status: ExpenseStatus.awaitingPresident),
-        'approve' => x.copyWith(status: ExpenseStatus.approved),
+        'approve' => x.flagged ? x : x.copyWith(status: ExpenseStatus.approved),
         'send_back' => x.copyWith(status: ExpenseStatus.sentBack, comment: comment),
         'resubmit' => x.copyWith(status: ExpenseStatus.awaitingTreasurer),
-        'flag' => x.copyWith(flagged: !x.flagged),
+        'flag' => x.copyWith(flagged: true, flagReason: comment),
+        'resolve_flag' => x.copyWith(flagged: false, flagResolution: comment),
         _ => x,
       },
     );
@@ -870,7 +926,9 @@ class MeetingsNotifier extends Notifier<List<Meeting>> {
   }
 }
 
-final noticesProvider = Provider<List<Notice>>((ref) => buildDemoNotices(ref.read(clockProvider)));
+final noticesProvider = Provider<List<Notice>>(
+  (ref) => backendEnabled ? const [] : buildDemoNotices(ref.read(clockProvider)),
+);
 
 final privacyAcceptedProvider = FutureProvider.autoDispose<bool>((ref) async {
   final userId = ref.watch(sessionProvider.select((s) => s?.user.id));
@@ -885,7 +943,7 @@ final idleLogoutProvider = Provider.autoDispose<void>((ref) {
   Timer? timer;
   void reset([PointerEvent? _]) {
     timer?.cancel();
-    timer = Timer(const Duration(minutes: 30), () => ref.read(sessionProvider.notifier).lockOrLogout());
+    timer = Timer(const Duration(minutes: 30), () => ref.read(sessionProvider.notifier).logout());
   }
 
   reset();

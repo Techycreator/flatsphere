@@ -67,6 +67,7 @@ class DirectoryRepo {
         .select(
           'id, number, block, flat_type, sqft, occupancy, flat_vehicles(vehicle_type, registration_number, parking_slot)',
         )
+        .isFilter('retired_at', null)
         .order('number');
     return [
       for (final r in rows)
@@ -147,6 +148,15 @@ class DirectoryRepo {
     );
   }
 
+  static Future<void> requestFamilyMemberAddition({
+    required String flatId,
+    required String name,
+    required DateTime dateOfBirth,
+  }) => db.rpc(
+    'request_family_member_addition',
+    params: {'p_flat': flatId, 'p_full_name': name.trim(), 'p_date_of_birth': _date(dateOfBirth)},
+  );
+
   static Future<List<FamilyMemberRecord>> familyMembers() async {
     final rows = await db
         .from('family_members')
@@ -192,6 +202,9 @@ class DirectoryRepo {
       'storage_path': path,
     });
   }
+
+  static Future<void> retireFlat(String id, String reason) =>
+      db.rpc('retire_flat', params: {'p_flat': id, 'p_reason': reason.trim()});
 
   static Future<void> saveFlat(FlatInfo f) async {
     final row = {
@@ -280,8 +293,13 @@ class DirectoryRepo {
     params: {'p_kind': person.invited ? 'invited' : 'member', 'p_id': person.id, 'p_birth_date': _date(birthDate)},
   );
 
-  static Future<void> remove(Person p) =>
-      db.rpc('remove_member', params: {'p_kind': p.invited ? 'invited' : 'member', 'p_id': p.id});
+  static Future<void> remove(Person p, String reason) => db.rpc(
+    'revoke_member_role',
+    params: {'p_kind': p.invited ? 'invited' : 'member', 'p_id': p.id, 'p_reason': reason.trim()},
+  );
+
+  static Future<void> sendInviteEmail(String email) =>
+      db.functions.invoke('send-invite-email', body: {'email': email.trim().toLowerCase()});
 
   static Future<List<IdDocument>> docs(String email) async {
     final rows = await db

@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -580,7 +581,7 @@ class _Budget extends StatelessWidget {
           }(),
         const SizedBox(height: 4),
         const Text(
-          'Budget = AGM-approved annual budget (demo: last year + 6%). Red = spending ahead of pace.',
+          'Budget = AGM-approved annual budget. Red = spending ahead of pace.',
           style: TextStyle(fontSize: 11),
         ),
       ],

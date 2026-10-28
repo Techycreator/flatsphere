@@ -51,7 +51,10 @@ jobs:
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
       - name: Stamp service worker version
-        run: sed -i "s/const CACHE = 'flatsphere-v2'/const CACHE = 'flatsphere-${GITHUB_SHA::8}'/" build/web/sw.js
+        run: |
+          sed -i "s/const CACHE = 'flatsphere-v2'/const CACHE = 'flatsphere-${GITHUB_SHA::8}'/" build/web/sw.js
+          sed -i "s/__BUILD_ID__/${GITHUB_SHA::8}/" build/web/index.html
+          echo "${GITHUB_SHA::8}" > build/web/build-id.txt
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v4
         with:

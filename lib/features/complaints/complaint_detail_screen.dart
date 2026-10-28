@@ -1,10 +1,15 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
+import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/complaints_repo.dart';
 import '../../models/models.dart';
 import '../../models/sla.dart';
 import '../../state/app_state.dart';
+import '../../state/directory_state.dart';
 import '../../widgets/common.dart';
 
 class ComplaintDetailScreen extends ConsumerWidget {
@@ -22,8 +27,14 @@ class ComplaintDetailScreen extends ConsumerWidget {
     final canUpdateStatus = role == Role.caretaker || role == Role.secretary || role == Role.jointSecretary ||
       (role == Role.monitor && session.user.monitorCategories.contains(c.category));
     final reviewer = role == Role.secretary || role == Role.jointSecretary;
-    final isRaiser = c.raisedBy == session.user.name || c.flatNumber == session.user.flatNumber;
+    final isRaiser = c.raisedById == session.user.id ||
+        (!backendEnabled && (c.raisedBy == session.user.name || c.flatNumber == session.user.flatNumber));
+    final canCloseOrReopen = isRaiser ||
+        const {Role.president, Role.vicePresident, Role.secretary, Role.jointSecretary}.contains(role) ||
+        (role == Role.monitor && session.user.monitorCategories.contains(c.category));
     final notifier = ref.read(complaintsProvider.notifier);
+    final caretakerName =
+        ref.read(directoryProvider).people.where((p) => p.role == Role.caretaker).firstOrNull?.name ?? 'Caretaker';
     final theme = Theme.of(context);
 
     void addRemark(String text, {TicketStatus? status, Criticality? crit}) {
@@ -52,6 +63,24 @@ class ComplaintDetailScreen extends ConsumerWidget {
       if (text == null) return;
       try {
         await notifier.setStatus(id, s, text.isEmpty ? 'Status changed to ${s.label}' : text);
+      } catch (error) {
+        if (context.mounted) toast(context, '$error');
+      }
+    }
+
+    Future<void> changeClosure({required bool close}) async {
+      final note = close
+          ? ''
+          : await promptText(
+              context,
+              title: 'Reopen request',
+              hint: 'Reason for reopening *',
+              required: true,
+            );
+      if (note == null || !context.mounted) return;
+      try {
+        await notifier.closeOrReopen(id, close: close, note: note);
+        if (context.mounted) toast(context, close ? 'Request closed' : 'Request reopened');
       } catch (error) {
         if (context.mounted) toast(context, '$error');
       }
@@ -99,27 +128,13 @@ class ComplaintDetailScreen extends ConsumerWidget {
                     _kv('Accepted', dateTimeFmt.format(c.acceptedAt!)),
                   if (c.aiSuggested)
                     _kv('AI note', 'Criticality suggested by AI from the description. Staff can override.'),
-                  if (c.photoCount > 0 || c.hasVoiceNote) ...[
+                  if (c.media.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        for (var i = 0; i < c.photoCount; i++)
-                          Container(
-                            width: 96,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.image_outlined),
-                          ),
-                        if (c.hasVoiceNote)
-                          Chip(
-                            avatar: const Icon(Icons.play_arrow),
-                            label: const Text('Voice note · 0:24 · transcribed'),
-                          ),
+                        for (final media in c.media) _ComplaintMediaTile(media: media),
                       ],
                     ),
                   ],
@@ -277,7 +292,7 @@ class ComplaintDetailScreen extends ConsumerWidget {
                     FilledButton.tonalIcon(
                       onPressed: () => notifier.update(
                         id,
-                        (x) => x.copyWith(assignee: 'Suresh Kumar', status: TicketStatus.assigned),
+                        (x) => x.copyWith(assignee: caretakerName, status: TicketStatus.assigned),
                       ),
                       icon: const Icon(Icons.person_add_alt),
                       label: const Text('Assign to caretaker'),
@@ -293,7 +308,6 @@ class ComplaintDetailScreen extends ConsumerWidget {
                           TicketStatus.inProgress,
                           TicketStatus.onHold,
                           TicketStatus.resolved,
-                          TicketStatus.closed,
                         ])
                           DropdownMenuItem(value: status, child: Text(status.label)),
                       ],
@@ -326,23 +340,32 @@ class ComplaintDetailScreen extends ConsumerWidget {
                 ],
               ),
             ),
-          if (isRaiser && c.status == TicketStatus.resolved)
+          if (canCloseOrReopen && c.status == TicketStatus.resolved)
             SectionCard(
               title: 'Was this resolved to your satisfaction?',
               child: Wrap(
                 spacing: 8,
                 children: [
                   FilledButton.icon(
-                    onPressed: () => addRemark('Resident confirmed resolution to their satisfaction.'),
+                    onPressed: () => changeClosure(close: true),
                     icon: const Icon(Icons.thumb_up_alt_outlined),
                     label: const Text('Yes, close it'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: () => addRemark('Resident reports that the issue is not resolved.'),
+                    onPressed: () => changeClosure(close: false),
                     icon: const Icon(Icons.replay),
                     label: const Text('No, reopen'),
                   ),
                 ],
+              ),
+            ),
+          if (canCloseOrReopen && c.status == TicketStatus.closed)
+            SectionCard(
+              title: 'Request closed',
+              child: OutlinedButton.icon(
+                onPressed: () => changeClosure(close: false),
+                icon: const Icon(Icons.replay),
+                label: const Text('Reopen request'),
               ),
             ),
           const SizedBox(height: 16),
@@ -441,5 +464,62 @@ class ComplaintDetailScreen extends ConsumerWidget {
     leading: const Icon(Icons.circle, size: 10),
     title: Text(text),
     subtitle: Text(dateTimeFmt.format(at)),
+  );
+}
+
+class _ComplaintMediaTile extends StatefulWidget {
+  const _ComplaintMediaTile({required this.media});
+
+  final ComplaintMedia media;
+
+  @override
+  State<_ComplaintMediaTile> createState() => _ComplaintMediaTileState();
+}
+
+class _ComplaintMediaTileState extends State<_ComplaintMediaTile> {
+  late final Future<String> _url = ComplaintsRepo.mediaUrl(widget.media.storagePath);
+
+  Future<void> _open() async {
+    try {
+      final url = await _url;
+      if (!await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
+        throw StateError('Could not open this attachment');
+      }
+    } catch (error) {
+      if (mounted) toast(context, '$error');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<String>(
+    future: _url,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) return const Icon(Icons.error_outline);
+      if (!snapshot.hasData) return const SizedBox(width: 72, height: 64, child: Center(child: CircularProgressIndicator()));
+      if (widget.media.kind == 'voice') {
+        return ActionChip(
+          avatar: const Icon(Icons.play_arrow),
+          label: const Text('Play voice note'),
+          onPressed: _open,
+        );
+      }
+      return InkWell(
+        onTap: _open,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.network(
+            snapshot.data!,
+            width: 96,
+            height: 72,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => const SizedBox(
+              width: 96,
+              height: 72,
+              child: Icon(Icons.broken_image_outlined),
+            ),
+          ),
+        ),
+      );
+    },
   );
 }

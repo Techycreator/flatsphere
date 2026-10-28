@@ -28,11 +28,15 @@ import '../features/notices/notices_screen.dart';
 import '../features/visitors/visitors_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/shell/association_settings_screen.dart';
+import '../features/shell/workflow_admin_screen.dart';
 import '../features/shell/audit_export_screen.dart';
-import '../features/shell/security_screen.dart';
+import '../features/shell/data_tools_screen.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
 import 'nav.dart';
+import '../backend/backend.dart' show backendEnabled;
+import '../features/auth/device_lock_screen.dart';
+import '../security/device_lock.dart';
 
 Page<void> _page(Widget child) => NoTransitionPage(child: child);
 
@@ -42,6 +46,7 @@ bool canAccess(Role role, String location, {bool membershipDesk = false}) {
   final allowed = [
     ...navFor(role, membershipDesk: membershipDesk).map((i) => i.path),
     if (role == Role.owner) '/approvals',
+    if (const {Role.admin, Role.president, Role.secretary}.contains(role)) ...['/audit', '/data-tools'],
   ];
   return allowed.any((p) => location == p || location.startsWith('$p/'));
 }
@@ -50,6 +55,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier(0);
   ref.listen(sessionProvider, (_, _) => refresh.value++);
   ref.listen(firstAssociationSignupProvider, (_, _) => refresh.value++);
+  ref.listen(lockProvider, (_, _) => refresh.value++);
   ref.onDispose(refresh.dispose);
 
   return GoRouter(
@@ -64,6 +70,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (signupEmail != null) return atAssociationSetup ? null : '/setup-association';
         return atLogin ? null : '/login';
       }
+      if (backendEnabled) {
+        final lock = ref.read(lockProvider);
+        if (lock == LockStatus.locked) return state.matchedLocation == '/unlock' ? null : '/unlock';
+        if (lock == LockStatus.needsSetup) return state.matchedLocation == '/set-pin' ? null : '/set-pin';
+      }
+      if (state.matchedLocation == '/unlock') return '/home';
+      if (state.matchedLocation == '/set-pin') return null;
       if (atAssociationSetup) return '/home';
       if (atLogin) return '/home';
       return canAccess(
@@ -76,6 +89,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      GoRoute(path: '/unlock', builder: (_, _) => const DeviceLockScreen(setup: false)),
+      GoRoute(path: '/set-pin', builder: (_, _) => const DeviceLockScreen(setup: true)),
       GoRoute(path: '/setup-association', builder: (_, _) => const FirstAssociationSetupScreen()),
       ShellRoute(
         builder: (context, state, child) => AppShell(location: state.matchedLocation, child: child),
@@ -83,7 +98,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/home', pageBuilder: (_, _) => _page(const DashboardScreen())),
           GoRoute(
             path: '/complaints',
-            pageBuilder: (_, _) => _page(const ComplaintsScreen()),
+            pageBuilder: (_, s) => _page(ComplaintsScreen(initialFilter: s.uri.queryParameters['filter'])),
             routes: [
               GoRoute(path: 'new', builder: (_, _) => const RaiseComplaintScreen()),
               GoRoute(
@@ -99,15 +114,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/registers', pageBuilder: (_, _) => _page(const AssociationRegisterScreen())),
           GoRoute(path: '/association-documents', pageBuilder: (_, _) => _page(const AssociationDocumentsScreen())),
           GoRoute(path: '/association-settings', pageBuilder: (_, _) => _page(const AssociationSettingsScreen())),
+          GoRoute(path: '/workflows', pageBuilder: (_, _) => _page(const WorkflowAdminScreen())),
           GoRoute(path: '/audit', pageBuilder: (_, _) => _page(const AuditExportScreen())),
-          GoRoute(path: '/security', pageBuilder: (_, _) => _page(const SecurityScreen())),
+          GoRoute(path: '/data-tools', pageBuilder: (_, _) => _page(const DataToolsScreen())),
           GoRoute(path: '/amenities', pageBuilder: (_, _) => _page(const AmenitiesScreen())),
           GoRoute(
             path: '/community',
             pageBuilder: (_, state) {
               final initialTab = switch (state.uri.queryParameters['tab']) {
-                'events' => 1,
-                'marketplace' => 3,
+                'events' => 2,
+                'marketplace' => 1,
                 _ => 0,
               };
               return _page(CommunityScreen(initialTab: initialTab));
@@ -138,6 +154,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/family-accounts', pageBuilder: (_, _) => _page(const FamilyAccountsScreen())),
           GoRoute(path: '/notices', pageBuilder: (_, _) => _page(const NoticesScreen())),
           GoRoute(path: '/visitors', pageBuilder: (_, _) => _page(const VisitorsScreen())),
+          GoRoute(path: '/vehicles', pageBuilder: (_, _) => _page(const VehicleLookupScreen())),
         ],
       ),
     ],

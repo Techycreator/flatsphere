@@ -1,7 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/models.dart';
-import 'pin_vault.dart';
 
 /// Supplied at build time: flutter build web --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
 /// When absent the app runs in demo mode on in-memory data.
@@ -10,14 +9,7 @@ const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 const backendEnabled = supabaseUrl != '' && supabaseAnonKey != '';
 
 Future<void> initBackend() async {
-  if (!backendEnabled) return;
-  await Supabase.initialize(
-    url: supabaseUrl,
-    publishableKey: supabaseAnonKey,
-    authOptions: FlutterAuthClientOptions(
-      localStorage: PinVault('sb-${Uri.parse(supabaseUrl).host.split('.').first}-auth-token'),
-    ),
-  );
+  if (backendEnabled) await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
 }
 
 SupabaseClient get db => Supabase.instance.client;
@@ -81,6 +73,7 @@ class AuthService {
     final roles = <Role>{};
     final designations = <String>{};
     final categories = <String>{};
+    final flatsByRole = <Role, List<String>>{};
     String? flat;
     DateTime? monitorUntil;
     String? assignedBy;
@@ -92,7 +85,12 @@ class AuthService {
       }
       final role = _roleByDb[r['role']];
       if (role != null) roles.add(role);
-      flat ??= (r['flats'] as Map?)?['number'] as String?;
+      final flatNo = (r['flats'] as Map?)?['number'] as String?;
+      if (role != null && flatNo != null) {
+        final list = flatsByRole.putIfAbsent(role, () => <String>[]);
+        if (!list.contains(flatNo)) list.add(flatNo);
+      }
+      flat ??= flatNo;
       designations.addAll(List<String>.from(r['designations'] as List? ?? const []));
       categories.addAll(List<String>.from(r['monitor_categories'] as List? ?? const []));
     }
@@ -103,6 +101,7 @@ class AuthService {
       mobile: '',
       roles: roles.toList()..sort((a, b) => a.index.compareTo(b.index)),
       flatNumber: flat,
+      flatsByRole: flatsByRole,
       designations: designations.toList(),
       monitorCategories: categories.toList(),
       monitorUntil: monitorUntil,

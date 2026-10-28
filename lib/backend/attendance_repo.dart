@@ -18,9 +18,32 @@ class AttendanceRepo {
         .eq('user_id', userId)
         .isFilter('ended_at', null)
         .inFilter('role', ['owner', 'resident']);
+    final unique = <String, String>{};
+    for (final row in rows) {
+      if (row['flat_id'] case final String id) {
+        unique[id] = ((row['flats'] as Map?)?['number'] as String?) ?? '';
+      }
+    }
+    return [for (final e in unique.entries) (e.key, e.value)];
+  }
+
+  static Future<List<StaffAttendance>> history(String staffId, DateTime from, DateTime to) async {
+    final rows = await db
+        .from('staff_attendance')
+        .select('staff_id, attendance_date, status, note, marked_by_name')
+        .eq('staff_id', staffId)
+        .gte('attendance_date', _date(from))
+        .lte('attendance_date', _date(to))
+        .order('attendance_date');
     return [
       for (final row in rows)
-        if (row['flat_id'] case final String id) (id, ((row['flats'] as Map?)?['number'] as String?) ?? ''),
+        StaffAttendance(
+          staffId: row['staff_id'] as String,
+          date: DateTime.parse(row['attendance_date'] as String),
+          status: _attendanceStatus(row['status']),
+          markedBy: row['marked_by_name'] as String? ?? '',
+          note: row['note'] as String? ?? '',
+        ),
     ];
   }
 
@@ -151,6 +174,23 @@ class AttendanceRepo {
           usualOut: row['usual_out'] as String,
           residesInFlat: row['resides_in_flat'] as bool? ?? false,
           active: row['active'] as bool? ?? true,
+        ),
+    ];
+  }
+
+  static Future<List<FlatHousekeepingWorker>> householdStaffOverview() async {
+    final rows = await db.rpc('household_staff_overview') as List;
+    return [
+      for (final row in rows)
+        FlatHousekeepingWorker(
+          id: row['id'] as String,
+          flatNumber: row['flat_number'] as String? ?? '',
+          name: row['full_name'] as String,
+          idProofPath: '',
+          usualIn: row['usual_in'] as String,
+          usualOut: row['usual_out'] as String,
+          residesInFlat: row['resides_in_flat'] as bool? ?? false,
+          active: true,
         ),
     ];
   }

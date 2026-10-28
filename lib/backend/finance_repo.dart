@@ -317,7 +317,7 @@ class FinanceRepo {
     final rows = await db
         .from('expenses')
         .select(
-          'id, ref_no, spent_on, category, vendor, description, amount, status, bill_paths, entered_by_name, flagged, comment, event_id',
+          'id, ref_no, spent_on, category, vendor, description, amount, status, bill_paths, entered_by_name, flagged, flag_reason, flag_resolution, comment, event_id',
         )
         .order('created_at', ascending: false);
     return [
@@ -335,7 +335,8 @@ class FinanceRepo {
           billPaths: List<String>.from(r['bill_paths'] as List? ?? const []),
           documents: (r['bill_paths'] as List? ?? const []).length,
           flagged: r['flagged'] as bool? ?? false,
-          comment: r['comment'] as String?,
+          flagReason: r['flag_reason'] as String?,
+          flagResolution: r['flag_resolution'] as String?,
           eventId: r['event_id'] as String?,
         ),
     ];
@@ -381,11 +382,29 @@ class FinanceRepo {
   static Future<void> decide(String id, String action, String? comment) =>
       db.rpc('decide_expense', params: {'p_id': id, 'p_action': action, 'p_comment': comment});
 
+  /// Agenda lines for open flagged expenses (Admin, President, Secretary only).
+  static Future<List<String>> flaggedAgenda() async =>
+      List<String>.from(await db.rpc('flagged_expense_agenda') as List? ?? const []);
+
   static Future<String> billUrl(String path) => db.storage.from(_bucket).createSignedUrl(path, 60);
 
   /// Returns how many flats were reminded (flats already reminded today or with nothing pending are skipped).
   static Future<int> sendDuesReminders(List<String> flatIds) async =>
       ((await db.rpc('send_dues_reminders', params: {'p_flats': flatIds})) as num).toInt();
+
+  /// Active reminders for the signed-in owner's flats; they stay until the dues are paid.
+  static Future<List<({String flat, int pending, int count, DateTime lastSent})>> myDueReminders() async {
+    final rows = await db.rpc('my_due_reminders') as List;
+    return [
+      for (final r in rows)
+        (
+          flat: r['flat_number'] as String,
+          pending: (r['pending'] as num).toInt(),
+          count: (r['reminder_count'] as num).toInt(),
+          lastSent: DateTime.parse(r['last_sent_on'] as String),
+        ),
+    ];
+  }
 
   /// Emails the receipt to the flat's owners from noreply.flatsphere@gmail.com (Edge Function).
   static Future<void> emailReceipt(String receiptNo) =>

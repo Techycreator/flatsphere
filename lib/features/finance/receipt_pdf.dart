@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart' as m;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -6,8 +9,8 @@ import 'package:printing/printing.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 
-/// Builds a one-page receipt from the stored payment record and downloads/shares it.
-Future<void> downloadReceipt(PaymentRecord p, String association) async {
+/// Builds a one-page receipt from the stored payment record.
+Future<Uint8List> _buildReceipt(PaymentRecord p, String association) async {
   final doc = pw.Document();
   // The built-in PDF font has no ₹ glyph.
   final amount = 'Rs. ${NumberFormat.decimalPattern('en_IN').format(p.amount)}';
@@ -51,5 +54,54 @@ Future<void> downloadReceipt(PaymentRecord p, String association) async {
       ),
     ),
   );
-  await Printing.sharePdf(bytes: await doc.save(), filename: '${p.receiptNo}.pdf');
+  return doc.save();
+}
+
+/// Downloads/shares the receipt as a PDF.
+Future<void> downloadReceipt(PaymentRecord p, String association) async =>
+    Printing.sharePdf(bytes: await _buildReceipt(p, association), filename: '${p.receiptNo}.pdf');
+
+/// Shows the receipt on screen without downloading; the dialog still offers Download and Print.
+Future<void> viewReceipt(m.BuildContext context, PaymentRecord p, String association) async {
+  final bytes = await _buildReceipt(p, association);
+  if (!context.mounted) return;
+  await m.showDialog<void>(
+    context: context,
+    builder: (ctx) => m.Dialog(
+      insetPadding: const m.EdgeInsets.all(12),
+      child: m.ConstrainedBox(
+        constraints: const m.BoxConstraints(maxWidth: 560, maxHeight: 760),
+        child: m.Column(
+          children: [
+            m.Padding(
+              padding: const m.EdgeInsets.fromLTRB(16, 8, 4, 0),
+              child: m.Row(
+                children: [
+                  m.Expanded(child: m.Text(p.receiptNo, style: const m.TextStyle(fontWeight: m.FontWeight.w600))),
+                  m.IconButton(
+                    tooltip: 'Download PDF',
+                    icon: const m.Icon(m.Icons.download_outlined),
+                    onPressed: () => Printing.sharePdf(bytes: bytes, filename: '${p.receiptNo}.pdf'),
+                  ),
+                  m.IconButton(tooltip: 'Close', icon: const m.Icon(m.Icons.close), onPressed: () => m.Navigator.pop(ctx)),
+                ],
+              ),
+            ),
+            m.Expanded(
+              child: PdfPreview(
+                build: (_) async => bytes,
+                useActions: false,
+                canChangePageFormat: false,
+                canChangeOrientation: false,
+                canDebug: false,
+                allowSharing: false,
+                allowPrinting: false,
+                pdfFileName: '${p.receiptNo}.pdf',
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

@@ -14,7 +14,7 @@ class InputValidation {
 
   static bool isVehicleRegistration(String value) {
     final registration = value.trim().toUpperCase();
-    final compact = registration.replaceAll(RegExp(r'[ -]'), '');
+    final compact = registration.replaceAll(RegExp(r'[ \-/.]'), '');
     return compact.length >= 5 &&
         compact.length <= 15 &&
         RegExp(r'^[A-Z0-9]+$').hasMatch(compact) &&

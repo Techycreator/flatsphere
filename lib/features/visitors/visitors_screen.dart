@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,7 +17,10 @@ import '../../state/app_state.dart';
 import '../../widgets/common.dart';
 import '../../validation/input_validation.dart';
 
-final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>((ref) => VisitorRepo.load());
+final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>((ref) {
+  final role = ref.watch(sessionProvider.select((s) => s?.activeRole));
+  return VisitorRepo.load(hostOnly: role == Role.owner || role == Role.resident);
+});
 final visitorFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>((ref) => VisitorRepo.myFlats());
 final vehicleSearchProvider = FutureProvider.autoDispose.family<List<VehicleContact>, String>(
   (ref, registration) => DirectoryRepo.searchVehicle(registration),
@@ -31,7 +35,6 @@ class VisitorsScreen extends ConsumerWidget {
     final role = ref.watch(sessionProvider)!.activeRole;
     final canHost = role == Role.owner || role == Role.resident;
     final canVerify = role == Role.security || role == Role.caretaker;
-    final canSearchVehicles = role.isOfficeBearer || role == Role.ecMember || canVerify;
     final requests = ref.watch(visitorRequestsProvider);
     final flats = canHost ? ref.watch(visitorFlatsProvider) : null;
 
@@ -83,10 +86,6 @@ class VisitorsScreen extends ConsumerWidget {
             canHost ? l.visitorHostIntro : canVerify ? l.visitorGateIntro : l.visitorRoleIntro,
           style: Theme.of(context).textTheme.bodySmall,
         ),
-        if (canSearchVehicles) ...[
-          const SizedBox(height: 12),
-          const _VehicleLookupPanel(),
-        ],
         if (flats?.hasError == true)
           Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${flats!.error}'))),
         const SizedBox(height: 12),
@@ -134,6 +133,13 @@ class VisitorsScreen extends ConsumerWidget {
   }
 }
 
+class VehicleLookupScreen extends StatelessWidget {
+  const VehicleLookupScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const PageBody(maxWidth: 1000, children: [_VehicleLookupPanel()]);
+}
+
 class _VehicleLookupPanel extends ConsumerStatefulWidget {
   const _VehicleLookupPanel();
 
@@ -154,7 +160,7 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
 
   void _search() {
     final value = _registration.text.trim().toUpperCase();
-    if (value.length < 3) {
+    if (value.replaceAll(RegExp(r'[^A-Z0-9]'), '').length < 3) {
       toast(context, AppLocalizations.of(context).enterThreeVehicleChars);
       return;
     }
@@ -221,16 +227,18 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
             ],
           ),
           const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: OutlinedButton.icon(
-              onPressed: _exporting ? null : _export,
-              icon: _exporting
-                  ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.download_outlined),
-              label: Text(l.exportBoomBarrierCsv),
+          if (const {Role.ecMember, Role.secretary, Role.president, Role.jointSecretary, Role.vicePresident, Role.treasurer}
+              .contains(ref.watch(sessionProvider)!.activeRole))
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: _exporting ? null : _export,
+                icon: _exporting
+                    ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.download_outlined),
+                label: Text(l.exportBoomBarrierCsv),
+              ),
             ),
-          ),
           if (results != null) ...[
             const SizedBox(height: 8),
             if (results.isLoading) const LinearProgressIndicator(),
@@ -241,10 +249,14 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
               for (final contact in results.value!)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(contact.vehicleType == 'car' ? Icons.directions_car_outlined : Icons.two_wheeler_outlined),
-                  title: Text('${contact.registrationNumber} · Flat ${contact.flatNumber}'),
+                  leading: Icon(switch (contact.vehicleType) {
+                    'car' => Icons.directions_car_outlined,
+                    'visitor' => Icons.badge_outlined,
+                    _ => Icons.two_wheeler_outlined,
+                  }),
+                  title: Text('${contact.registrationNumber} Â· Flat ${contact.flatNumber}'),
                   subtitle: Text(
-                    '${contact.vehicleType == 'car' ? 'Car' : 'Bike'} · ${contact.personName ?? l.noActiveOccupant}'
+                    '${switch (contact.vehicleType) { 'car' => 'Car', 'visitor' => 'Visitor vehicle', _ => 'Bike' }} Â· ${contact.personName ?? l.noActiveOccupant}'
                     '${contact.phone == null ? ' · ${l.noPhoneOnRecord}' : ' · ${contact.phone}'}',
                   ),
                   trailing: contact.phone == null

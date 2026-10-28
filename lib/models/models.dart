@@ -47,6 +47,7 @@ class DemoUser {
     this.monitorAssignedBy,
     this.associationId,
     this.associations = const [],
+    this.flatsByRole = const {},
   });
 
   final String id;
@@ -54,6 +55,10 @@ class DemoUser {
   final String mobile;
   final List<Role> roles;
   final String? flatNumber;
+  final Map<Role, List<String>> flatsByRole;
+
+  /// Flats held under [role]; falls back to the primary flat for demo users.
+  List<String> flatsFor(Role role) => flatsByRole[role] ?? (flatNumber != null ? [flatNumber!] : const []);
   final List<String> monitorCategories;
   final List<String> designations;
   final DateTime? monitorUntil;
@@ -379,6 +384,13 @@ class TicketRemark {
   final String text;
 }
 
+class ComplaintMedia {
+  const ComplaintMedia({required this.kind, required this.storagePath});
+
+  final String kind;
+  final String storagePath;
+}
+
 class Complaint {
   const Complaint({
     required this.id,
@@ -391,9 +403,11 @@ class Complaint {
     required this.status,
     required this.createdAt,
     required this.raisedBy,
+    this.raisedById,
     this.aiSuggested = false,
     this.assignee,
     this.remarks = const [],
+    this.media = const [],
     this.photoCount = 0,
     this.hasVoiceNote = false,
     this.isPrivate = false,
@@ -415,9 +429,11 @@ class Complaint {
   final TicketStatus status;
   final DateTime createdAt;
   final String raisedBy;
+  final String? raisedById;
   final bool aiSuggested;
   final String? assignee;
   final List<TicketRemark> remarks;
+  final List<ComplaintMedia> media;
   final int photoCount;
   final bool hasVoiceNote;
   final bool isPrivate;
@@ -460,9 +476,11 @@ class Complaint {
     status: status ?? this.status,
     createdAt: createdAt,
     raisedBy: raisedBy,
+    raisedById: raisedById,
     aiSuggested: aiSuggested ?? this.aiSuggested,
     assignee: assignee ?? this.assignee,
     remarks: remarks ?? this.remarks,
+    media: media,
     photoCount: photoCount,
     hasVoiceNote: hasVoiceNote,
     isPrivate: isPrivate,
@@ -484,6 +502,7 @@ class ChecklistItem {
     this.done = false,
     this.note = '',
     this.hasVoiceNote = false,
+    this.voicePath,
     this.proofRequired = false,
     this.photoProofPaths = const [],
     this.rejectedReason,
@@ -496,6 +515,7 @@ class ChecklistItem {
   final bool done;
   final String note;
   final bool hasVoiceNote;
+  final String? voicePath;
   final bool proofRequired;
   final List<String> photoProofPaths;
   final String? rejectedReason;
@@ -504,6 +524,8 @@ class ChecklistItem {
     bool? done,
     String? note,
     bool? hasVoiceNote,
+    String? voicePath,
+    bool clearVoicePath = false,
     List<String>? photoProofPaths,
     String? rejectedReason,
     bool clearRejection = false,
@@ -515,6 +537,7 @@ class ChecklistItem {
     done: done ?? this.done,
     note: note ?? this.note,
     hasVoiceNote: hasVoiceNote ?? this.hasVoiceNote,
+    voicePath: clearVoicePath ? null : (voicePath ?? this.voicePath),
     proofRequired: proofRequired,
     photoProofPaths: photoProofPaths ?? this.photoProofPaths,
     rejectedReason: clearRejection ? null : (rejectedReason ?? this.rejectedReason),
@@ -532,6 +555,7 @@ class ApproverStep {
     this.onBehalfOf,
     this.alternateRole,
     this.decidedBy,
+    this.isEcVote = false,
   });
 
   final Role role;
@@ -543,6 +567,7 @@ class ApproverStep {
   /// "Either/or" step, e.g. Secretary OR President.
   final Role? alternateRole;
   final String? decidedBy;
+  final bool isEcVote;
 
   String get label => alternateRole == null ? role.label : '${role.label} or ${alternateRole!.label}';
 
@@ -560,6 +585,7 @@ class ApproverStep {
     onBehalfOf: onBehalfOf,
     alternateRole: alternateRole,
     decidedBy: decidedBy ?? this.decidedBy,
+    isEcVote: isEcVote,
   );
 }
 
@@ -595,7 +621,17 @@ class ApprovalRequest {
   final String category;
 
   bool awaits(Role active, String userName) =>
-      currentStep?.matches(active, userName) == true && !initiatorName.contains(userName);
+      currentStep?.isEcVote != true && currentStep?.matches(active, userName) == true && !initiatorName.contains(userName);
+
+  static const _ecRoles = {
+    Role.ecMember, Role.president, Role.vicePresident, Role.secretary, Role.jointSecretary, Role.treasurer, Role.jointTreasurer,
+  };
+
+  /// The EC vote is open and this role is on the EC (the requester votes too).
+  bool awaitsVote(Role active) => currentStep?.isEcVote == true && _ecRoles.contains(active);
+
+  /// Anything this role needs to act on: an approval step or an EC vote.
+  bool needsAction(Role active, String userName) => awaits(active, userName) || awaitsVote(active);
 
   Decision get overall {
     if (steps.any((s) => s.decision == Decision.rejected)) return Decision.rejected;
@@ -701,6 +737,8 @@ class Expense {
     required this.enteredBy,
     this.documents = 1,
     this.flagged = false,
+    this.flagReason,
+    this.flagResolution,
     this.comment,
     this.dbId,
     this.billPaths = const [],
@@ -718,12 +756,14 @@ class Expense {
   final String enteredBy;
   final int documents;
   final bool flagged;
+  final String? flagReason;
+  final String? flagResolution;
   final String? comment;
   final String? dbId;
   final List<String> billPaths;
   final String? eventId;
 
-  Expense copyWith({ExpenseStatus? status, bool? flagged, String? comment, int? documents}) => Expense(
+  Expense copyWith({ExpenseStatus? status, bool? flagged, String? flagReason, String? flagResolution, String? comment, int? documents}) => Expense(
     id: id,
     date: date,
     category: category,
@@ -734,6 +774,8 @@ class Expense {
     enteredBy: enteredBy,
     documents: documents ?? this.documents,
     flagged: flagged ?? this.flagged,
+    flagReason: flagReason ?? this.flagReason,
+    flagResolution: flagResolution ?? this.flagResolution,
     comment: comment ?? this.comment,
     dbId: dbId,
     billPaths: billPaths,
@@ -1317,6 +1359,7 @@ class MarketplacePost {
     required this.expiresAt,
     required this.author,
     this.price,
+    this.createdBy,
   });
   final String id;
   final String type;
@@ -1326,4 +1369,5 @@ class MarketplacePost {
   final DateTime expiresAt;
   final String author;
   final int? price;
+  final String? createdBy;
 }

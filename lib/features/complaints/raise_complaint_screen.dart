@@ -1,13 +1,21 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../backend/upload_preparation.dart' show maxOriginalImageBytes;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../models/sla.dart';
 import '../../models/vendor.dart';
 import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/voice_recorder.dart';
+import '../../backend/complaints_repo.dart' show VoiceFormat, wavVoiceFormat;
 import '../../backend/vendors_repo.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
@@ -46,9 +54,14 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
   String? _category;
   bool? _commonAreaChoice;
   bool _private = false;
-  int _photos = 0;
-  bool _voice = false;
+  final List<Uint8List> _photos = [];
+  Uint8List? _voiceNote;
+  VoiceFormat _voiceFormat = wavVoiceFormat;
   bool _recording = false;
+  bool _recordingBusy = false;
+  bool _submitting = false;
+  final _imagePicker = ImagePicker();
+  final _recorder = VoiceRecorder();
   Criticality? _override;
   String? _vendorId;
 
@@ -62,7 +75,103 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
 
   bool get _commonArea => _commonAreaChoice ?? _staff;
 
-  void _submit() {
+  @override
+  void dispose() {
+    unawaited(_recorder.dispose());
+    _title.dispose();
+    _desc.dispose();
+    _cost.dispose();
+    super.dispose();
+  }
+
+  Future<void> _addPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from photos'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    try {
+      final file = await _imagePicker.pickImage(source: source);
+      if (file == null || !mounted) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      if (bytes.length > maxOriginalImageBytes) {
+        toast(context, 'Photo must be 30 MB or smaller');
+        return;
+      }
+      setState(() => _photos.add(bytes));
+    } catch (error) {
+      if (mounted) toast(context, '$error');
+    }
+  }
+
+  Future<void> _toggleVoiceRecording() async {
+    if (_recording) {
+      await _stopVoiceRecording();
+      return;
+    }
+    try {
+      if (!await _recorder.hasPermission()) {
+        if (mounted) toast(context, 'Microphone permission is required to record a voice note');
+        return;
+      }
+      await _recorder.start(
+        onAutoStop: () => unawaited(_stopVoiceRecording()),
+        onError: (Object error) {
+          if (mounted) {
+            toast(context, 'Recording failed: $error');
+            unawaited(_stopVoiceRecording());
+          }
+        },
+      );
+      if (mounted) setState(() => _recording = true);
+    } catch (error) {
+      if (mounted) toast(context, 'Could not start recording: $error');
+    }
+  }
+
+  Future<void> _stopVoiceRecording() async {
+    if (!_recording || _recordingBusy) return;
+    setState(() => _recordingBusy = true);
+    try {
+      final result = await _recorder.stop();
+      if (mounted) {
+        setState(() {
+          _recording = false;
+          _voiceNote = result.bytes;
+          _voiceFormat = result.format;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _recording = false);
+        toast(context, '$error');
+      }
+    } finally {
+      if (mounted) setState(() => _recordingBusy = false);
+    }
+  }
+  Future<void> _submit() async {
+    if (_recording || _recordingBusy) {
+      toast(context, 'Stop the voice recording before submitting');
+      return;
+    }
     final s = ref.read(sessionProvider)!;
     if (_title.text.trim().isEmpty) {
       toast(context, 'Please add a short title');
@@ -87,8 +196,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
     final needsReview = _staff && _commonArea && role != Role.secretary;
     final bypass = needsReview && _kind == ReportKind.complaint && crit == Criticality.critical;
     final status = !needsReview || bypass ? TicketStatus.newTicket : TicketStatus.pendingReview;
-    notifier.add(
-      Complaint(
+    final complaint = Complaint(
         id: id,
         flatNumber: _commonArea ? 'Common' : (s.user.flatNumber ?? 'Common'),
         type: _type,
@@ -112,14 +220,23 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
               ]
             : const [],
         raisedBy: s.user.name,
-        photoCount: _photos,
-        hasVoiceNote: _voice,
+        photoCount: _photos.length,
+        hasVoiceNote: _voiceNote != null,
         isPrivate: _private,
         location: _commonArea ? 'Common area' : 'Inside flat',
         vendorId: _vendorId,
         vendorName: selectedVendor?.name,
-      ),
-    );
+      );
+    setState(() => _submitting = true);
+    try {
+      await notifier.add(complaint, photos: _photos, voiceNote: _voiceNote, voiceFormat: _voiceFormat);
+    } catch (error) {
+      if (mounted) toast(context, '$error');
+      return;
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+    if (!mounted) return;
     toast(
       context,
       status == TicketStatus.pendingReview
@@ -268,27 +385,50 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
                     runSpacing: 8,
                     children: [
                       OutlinedButton.icon(
-                        onPressed: _photos >= 5 ? null : () => setState(() => _photos++),
+                        onPressed: _photos.length >= 5 ? null : _addPhoto,
                         icon: const Icon(Icons.photo_camera_outlined),
-                        label: Text(_photos == 0 ? 'Add photo' : 'Photos: $_photos / 5'),
+                        label: Text(_photos.isEmpty ? 'Add photo' : 'Photos: ${_photos.length} / 5'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: () => setState(() {
-                          if (_recording) {
-                            _recording = false;
-                            _voice = true;
-                          } else {
-                            _recording = true;
-                          }
-                        }),
+                        onPressed: _recordingBusy ? null : _toggleVoiceRecording,
                         icon: Icon(
                           _recording ? Icons.stop_circle : Icons.mic_none,
                           color: _recording ? Colors.red : null,
                         ),
-                        label: Text(_recording ? 'Stop recording' : (_voice ? 'Voice note added ✓' : l.recordVoice)),
+                        label: Text(_recording ? 'Stop recording' : (_voiceNote != null ? 'Voice note recorded ✓' : l.recordVoice)),
                       ),
+                      if (_voiceNote != null)
+                        TextButton.icon(
+                          onPressed: () => setState(() => _voiceNote = null),
+                          icon: const Icon(Icons.delete_outline),
+                          label: Text('${(_voiceNote!.length / 1024).ceil()} KB · Remove voice note'),
+                        ),
                     ],
                   ),
+                  if (_photos.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (var i = 0; i < _photos.length; i++)
+                          Stack(
+                            alignment: Alignment.topRight,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.memory(_photos[i], width: 76, height: 64, fit: BoxFit.cover),
+                              ),
+                              IconButton.filledTonal(
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => setState(() => _photos.removeAt(i)),
+                                icon: const Icon(Icons.close, size: 16),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   if (ai != null && !_kind.isEnhancement)
                     Container(
@@ -331,7 +471,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
                     ),
                   const SizedBox(height: 16),
                   FilledButton(
-                    onPressed: _submit,
+                    onPressed: _submitting ? null : _submit,
                     child: Padding(padding: const EdgeInsets.all(12), child: Text(l.submit)),
                   ),
                 ],

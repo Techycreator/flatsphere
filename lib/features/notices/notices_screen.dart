@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../backend/backend.dart' show backendEnabled;
 import '../../l10n/app_localizations.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
@@ -33,7 +35,7 @@ class NoticesScreen extends ConsumerWidget {
             ),
           ),
         const SizedBox(height: 8),
-        const SectionCard(
+        if (!backendEnabled) const SectionCard(
           title: 'Emergency contacts',
           child: Column(
             children: [

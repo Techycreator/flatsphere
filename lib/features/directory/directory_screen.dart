@@ -1,11 +1,16 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
-import '../../backend/directory_repo.dart' show friendlyError;
+import '../../backend/directory_repo.dart' show DirectoryRepo, friendlyError;
+import '../../backend/backend.dart' show backendEnabled;
 import '../../backend/upload_preparation.dart' show maxSourceUploadBytes;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
@@ -68,6 +73,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
   _Tab tab = _Tab.flats;
   String query = '';
   String filter = 'All';
+  Occupancy? occFilter;
 
   static const _filters = ['All', 'Committee', 'Owners', 'Residents', 'Invited'];
 
@@ -156,25 +162,63 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
   String? _names(String label, List<Person> list) =>
       list.isEmpty ? null : '$label: ${list.map((p) => p.invited ? '${p.name} (invited)' : p.name).join(', ')}';
 
-  List<Widget> _flats(DirectoryState st) => [
-    Align(
-      alignment: Alignment.centerRight,
-      child: FilledButton.icon(
-        onPressed: () => _editFlat(null),
-        icon: const Icon(Icons.add),
-        label: const Text('Add flat'),
-      ),
+  Future<void> _exportFlats(DirectoryState st, List<FlatInfo> flats) async {
+    String cell(String? v) => '"${(v ?? '').replaceAll('"', '""')}"';
+    String names(String number, Role r) => st.at(number, r).map((p) => p.name).join('; ');
+    final csv = [
+      'flat,block,type,sqft,occupancy,owner,resident,car,bike,parking_slot',
+      for (final f in flats)
+        [f.number, f.block, f.type, f.sqft?.toString(), _occLabel(f.occupancy), names(f.number, Role.owner), names(f.number, Role.resident), f.carNumber, f.bikeNumber, f.parkingSlot]
+            .map(cell)
+            .join(','),
+    ].join('\r\n');
+    try {
+      final saved = await FilePicker.saveFile(
+        dialogTitle: 'Export flats',
+        fileName: 'flatsphere-flats.csv',
+        type: FileType.custom,
+        allowedExtensions: const ['csv'],
+        bytes: Uint8List.fromList(utf8.encode(csv)),
+      );
+      if (saved != null) _toast('Exported ${flats.length} flats');
+    } catch (e) {
+      _toast(friendlyError(e));
+    }
+  }
+
+  List<Widget> _flats(DirectoryState st) {
+    final shown = [for (final f in st.flats) if (occFilter == null || f.occupancy == occFilter) f];
+    return [
+    Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        ChoiceChip(label: const Text('All'), selected: occFilter == null, onSelected: (_) => setState(() => occFilter = null)),
+        for (final o in Occupancy.values)
+          ChoiceChip(label: Text(_occLabel(o)), selected: occFilter == o, onSelected: (_) => setState(() => occFilter = o)),
+        OutlinedButton.icon(
+          onPressed: shown.isEmpty ? null : () => _exportFlats(st, shown),
+          icon: const Icon(Icons.download_outlined),
+          label: const Text('Export CSV'),
+        ),
+        FilledButton.icon(
+          onPressed: () => _editFlat(null),
+          icon: const Icon(Icons.add),
+          label: const Text('Add flat'),
+        ),
+      ],
     ),
     const SizedBox(height: 8),
-    if (st.flats.isEmpty)
-      const EmptyState('No flats yet. Add your first flat.', icon: Icons.apartment_outlined)
+    if (shown.isEmpty)
+      const EmptyState('No flats match. Add a flat or change the filter.', icon: Icons.apartment_outlined)
     else
       SectionCard(
-        title: '${st.flats.length} flats',
+        title: '${shown.length} flats',
         padding: false,
         child: Column(
           children: [
-            for (final f in st.flats)
+            for (final f in shown)
               ListTile(
                 leading: CircleAvatar(child: Text(f.block.isEmpty ? '#' : f.block.substring(0, 1))),
                 title: Text(f.number),
@@ -198,7 +242,17 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
           ],
         ),
       ),
-  ];
+    ];
+  }
+
+  Future<void> _retireFlat(FlatInfo f) async {
+    final reason = await promptText(context, title: 'Retire ${f.number}', hint: 'Reason (3–300 characters)');
+    if (reason == null) return;
+    await _run(() async {
+      await DirectoryRepo.retireFlat(f.id!, reason);
+      await ref.read(directoryProvider.notifier).refresh();
+    }, 'Flat retired');
+  }
 
   Future<void> _editFlat(FlatInfo? f) async {
     final number = TextEditingController(text: f?.number);
@@ -209,6 +263,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     final bikeNumber = TextEditingController(text: f?.bikeNumber);
     final parkingSlot = TextEditingController(text: f?.parkingSlot);
     var occ = f?.occupancy ?? Occupancy.ownerOccupied;
+    var retire = false;
     String? err;
     final ok = await showDialog<bool>(
       context: context,
@@ -272,6 +327,14 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
             ),
           ),
           actions: [
+            if (f != null && backendEnabled)
+              TextButton(
+                onPressed: () {
+                  retire = true;
+                  Navigator.pop(ctx, false);
+                },
+                child: const Text('Retire flat'),
+              ),
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
             FilledButton(
               onPressed: () {
@@ -284,6 +347,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
         ),
       ),
     );
+    if (retire && f != null) return _retireFlat(f);
     if (ok != true) return;
     await _run(
       () => ref
@@ -381,14 +445,17 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     ];
   }
 
-  Future<void> _addPerson(DirectoryState st, bool canAssign) async {
-    final name = TextEditingController();
-    final email = TextEditingController();
-    final mobile = TextEditingController();
+  Future<void> _addPerson(DirectoryState st, bool canAssign, {Person? existing, Role? initialRole}) async {
+    final name = TextEditingController(text: existing?.name);
+    final email = TextEditingController(text: existing?.email);
+    final mobile = TextEditingController(text: existing?.mobile);
     DateTime? birthDate;
     final roles = canAssign ? Role.values : const [Role.owner, Role.resident];
-    var role = Role.owner;
-    String? flat = st.flats.firstOrNull?.number;
+    var role = initialRole ??
+        (existing == null
+            ? Role.owner
+            : roles.firstWhere((r) => r != existing.role && r != Role.admin, orElse: () => Role.owner));
+    String? flat = existing?.flatNumber ?? st.flats.firstOrNull?.number;
     var areas = <String>[];
     DateTime? from = DateUtils.dateOnly(DateTime.now());
     DateTime? until;
@@ -413,7 +480,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, set) => AlertDialog(
-          title: const Text('Add person'),
+          title: Text(existing == null ? 'Add person' : 'Assign another role · ${existing.name}'),
           content: SizedBox(
             width: 440,
             child: SingleChildScrollView(
@@ -423,17 +490,20 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                 children: [
                   TextField(
                     controller: name,
+                    enabled: existing == null,
                     decoration: const InputDecoration(labelText: 'Full name *'),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: email,
+                    enabled: existing == null,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(labelText: 'Email * (login codes are sent here)'),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: mobile,
+                    enabled: existing == null,
                     keyboardType: TextInputType.phone,
                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
                     decoration: InputDecoration(labelText: needsFlat() ? 'Mobile *' : 'Mobile'),
@@ -470,7 +540,8 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                       if (role != Role.owner && role != Role.resident) supportFlags.clear();
                     }),
                   ),
-                  if (needsFlat())
+                  if (needsFlat()) ...[
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: flat,
                       isExpanded: true,
@@ -478,6 +549,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                       items: [for (final f in st.flats) DropdownMenuItem(value: f.number, child: Text(f.number))],
                       onChanged: (v) => set(() => flat = v),
                     ),
+                  ],
                   if (role == Role.owner || role == Role.resident) ...[
                     const SizedBox(height: 8),
                     const Align(alignment: Alignment.centerLeft, child: Text('Member support details (optional)')),
@@ -535,7 +607,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                 if (e != null) return set(() => err = e);
                 Navigator.pop(ctx, true);
               },
-              child: const Text('Add'),
+              child: Text(existing == null ? 'Add' : 'Assign role'),
             ),
           ],
         ),
@@ -559,11 +631,15 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     );
     try {
       final r = await ref.read(directoryProvider.notifier).addPerson(p);
-      _toast(
-        r == 'invited'
-            ? 'Invited ${p.name}. They can now log in with a code sent to ${p.email}.'
-            : '${p.role.label} role added to ${p.name}\'s existing account.',
-      );
+      if (r == 'invited' && backendEnabled) {
+        await _emailInvite(p.email);
+      } else {
+        _toast(
+          r == 'invited'
+              ? 'Invited ${p.name}. They can now sign in with this email.'
+              : '${p.role.label} role added to ${p.name}\'s existing account.',
+        );
+      }
     } catch (e) {
       _toast(friendlyError(e));
     }
@@ -574,6 +650,21 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     builder: (ctx) => _PersonDialog(
       person: p,
       canModify: canModify,
+      assignableRoles: _assignerRoles.contains(ref.read(sessionProvider)!.activeRole) ? Role.values : const [],
+      heldRoles: {
+        for (final x in ref.read(directoryProvider).people)
+          if (x.email.toLowerCase() == p.email.toLowerCase()) x.role,
+      },
+      onAssignRole: (r) {
+        Navigator.pop(ctx);
+        _addPerson(ref.read(directoryProvider), true, existing: p, initialRole: r);
+      },
+      onResendInvite: p.invited && canModify
+          ? () {
+              Navigator.pop(ctx);
+              _emailInvite(p.email);
+            }
+          : null,
       onEdit: () {
         Navigator.pop(ctx);
         _editDetails(p);
@@ -682,28 +773,62 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
   }
 
   Future<void> _remove(Person p) async {
+    final reason = TextEditingController();
+    String? err;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Remove ${p.name}?'),
-        content: Text(
-          p.invited
-              ? 'The invitation as ${p.role.label} will be cancelled.'
-              : 'Their ${p.role.label} access${p.flatNumber != null ? ' for ${p.flatNumber}' : ''} ends now. '
-                    'Their ID proofs for this flat move to the archive. Other roles they hold are not affected.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remove'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: Text('Revoke ${p.role.label} role for ${p.name}?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                p.invited
+                    ? 'The invitation as ${p.role.label} will be cancelled.'
+                    : 'Only the ${p.role.label} access${p.flatNumber != null ? ' for ${p.flatNumber}' : ''} ends now. '
+                          'Their ID proofs for this flat move to the archive. Other roles they hold are not affected.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reason,
+                maxLength: 300,
+                decoration: const InputDecoration(labelText: 'Reason * (kept in the audit log)'),
+              ),
+              if (err != null) _ErrorText(err!),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+              onPressed: () {
+                if (reason.text.trim().length < 3) return set(() => err = 'Enter a reason');
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('Revoke role'),
+            ),
+          ],
+        ),
       ),
     );
+    final why = reason.text.trim();
+    reason.dispose();
     if (ok != true) return;
-    await _run(() => ref.read(directoryProvider.notifier).removePerson(p), '${p.name} removed as ${p.role.label}');
+    await _run(
+      () => ref.read(directoryProvider.notifier).removePerson(p, reason: why),
+      '${p.role.label} role revoked for ${p.name}',
+    );
+  }
+
+  Future<void> _emailInvite(String email) async {
+    try {
+      await DirectoryRepo.sendInviteEmail(email);
+      _toast('Invitation email sent to $email.');
+    } catch (_) {
+      _toast('Could not send the invitation email. Ask them to open the app and sign in with $email.');
+    }
   }
 
   // ---------------------------------------------------------------- Monitors
@@ -900,10 +1025,14 @@ class _AreaPicker extends StatelessWidget {
 
 /// Person details with private ID proofs (upload, view via a 60-second link; every view is logged).
 class _PersonDialog extends ConsumerStatefulWidget {
-  const _PersonDialog({required this.person, required this.canModify, required this.onEdit, required this.onRemove});
+  const _PersonDialog({required this.person, required this.canModify, required this.onEdit, required this.onRemove, this.assignableRoles = const [], this.heldRoles = const {}, this.onAssignRole, this.onResendInvite});
 
   final Person person;
   final bool canModify;
+  final List<Role> assignableRoles;
+  final Set<Role> heldRoles;
+  final void Function(Role)? onAssignRole;
+  final VoidCallback? onResendInvite;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
 
@@ -1090,7 +1219,28 @@ class _PersonDialogState extends ConsumerState<_PersonDialog> {
           TextButton(
             style: TextButton.styleFrom(foregroundColor: AppColors.red),
             onPressed: widget.onRemove,
-            child: const Text('Remove'),
+            child: const Text('Revoke role'),
+          ),
+        if (widget.onResendInvite != null) TextButton(onPressed: widget.onResendInvite, child: const Text('Resend invite email')),
+        if (widget.onAssignRole != null && widget.assignableRoles.isNotEmpty)
+          PopupMenuButton<Role>(
+            tooltip: 'Assign role',
+            onSelected: (r) {
+              if (!widget.heldRoles.contains(r)) widget.onAssignRole!(r);
+            },
+            itemBuilder: (_) => [
+              for (final r in widget.assignableRoles)
+                CheckedPopupMenuItem<Role>(
+                  value: r,
+                  checked: widget.heldRoles.contains(r),
+                  enabled: !widget.heldRoles.contains(r),
+                  child: Text(r.label),
+                ),
+            ],
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Assign role'), Icon(Icons.arrow_drop_down)]),
+            ),
           ),
         if (editable) TextButton(onPressed: widget.onEdit, child: const Text('Edit areas / designation')),
         OutlinedButton.icon(

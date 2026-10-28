@@ -12,6 +12,8 @@ class ApprovalsRepo {
   /// App ids are the human-readable refs (APR-...); the server keys rows by uuid.
   static final _uuidByRef = <String, String>{};
 
+  static String? uuidFor(String ref) => _uuidByRef[ref];
+
   static Future<List<ApprovalRequest>> fetchAll(DemoUser me) async {
     final rows = await db
         .from('approval_requests')
@@ -95,6 +97,7 @@ class ApprovalsRepo {
       comment: s['comment'] as String?,
       onBehalfOf: s['on_behalf_of'] as String?,
       decidedBy: by == null ? null : '$by (${alt == null ? role.label : '${role.label} / ${alt.label}'})',
+      isEcVote: s['step_type'] == 'ec_vote',
     );
   }
 }

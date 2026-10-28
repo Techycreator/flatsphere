@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../backend/meetings_repo.dart';
+import '../../backend/finance_repo.dart' show FinanceRepo;
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../app/theme.dart';
 import '../../backend/backend.dart' show backendEnabled;
@@ -63,6 +65,12 @@ class MeetingsScreen extends ConsumerWidget {
     var at = DateTime.now().add(const Duration(days: 7));
     final title = TextEditingController(text: 'EC meeting – special');
     final agenda = TextEditingController();
+    if (backendEnabled) {
+      try {
+        agenda.text = (await FinanceRepo.flaggedAgenda()).join('\n');
+      } catch (_) {}
+    }
+    if (!context.mounted) return;
     final link = TextEditingController();
     final saved = await showDialog<bool>(
       context: context,
@@ -228,10 +236,12 @@ class _MeetingCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 4,
               children: [
                 Pill(meeting.type, color: Theme.of(context).colorScheme.primary),
-                const Spacer(),
                 Text(dateTimeFmt.format(meeting.at), style: const TextStyle(fontWeight: FontWeight.w600)),
               ],
             ),

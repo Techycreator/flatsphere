@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -119,8 +120,12 @@ Future<_DocumentDraft?> _documentDialog(BuildContext context) async {
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: type,
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Document type'),
-                  items: [for (final entry in associationDocumentTypes.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
+                  items: [
+                    for (final entry in associationDocumentTypes.entries)
+                      DropdownMenuItem(value: entry.key, child: Text(entry.value, overflow: TextOverflow.ellipsis)),
+                  ],
                   onChanged: (value) => setState(() => type = value ?? type),
                 ),
                 const SizedBox(height: 12),

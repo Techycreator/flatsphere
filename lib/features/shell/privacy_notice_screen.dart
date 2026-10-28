@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../backend/compliance_repo.dart';
@@ -26,8 +27,7 @@ class PrivacyNoticeScreen extends ConsumerWidget {
             '• Why: to run the association: membership, dues and receipts, complaints, meetings, security and records.\n'
             '• Who can see it: only the people your role allows. ID proofs are private, opened only by the Secretary, '
             'President or flat owner, and every view is logged.\n'
-            '• Where: encrypted cloud storage in Mumbai, India. PIN or fingerprint unlock stays on your device; '
-            'only the device name and last-used time are stored.\n'
+            '• Where: encrypted cloud storage in Mumbai, India.\n'
             '• How long: finance records for at least 5 years; other data while you are a member, then archived as '
             'required by the bylaws.\n'
             '• Your rights: ask the Secretary to see, correct or delete your data (except records the law requires us to '

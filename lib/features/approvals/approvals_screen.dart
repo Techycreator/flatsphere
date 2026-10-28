@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -17,7 +18,7 @@ class ApprovalsScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final s = ref.watch(sessionProvider)!;
     final all = ref.watch(approvalsProvider);
-    final mine = all.where((a) => a.awaits(s.activeRole, s.user.name)).toList();
+    final mine = all.where((a) => a.needsAction(s.activeRole, s.user.name)).toList();
     final canStart = s.user.canInitiateMembership(s.activeRole);
     final raised = all.where((a) => a.initiatorName.contains(s.user.name)).toList();
     final done = all.where((a) => a.overall != Decision.pending).toList();
@@ -66,7 +67,7 @@ class ApprovalsScreen extends ConsumerWidget {
                                   value: t,
                                   child: ListTile(
                                     contentPadding: EdgeInsets.zero,
-                                    title: Text('${t.code} · ${t.label}'),
+                                    title: Text(t.label),
                                     subtitle: Text(t.hint),
                                   ),
                                 ),

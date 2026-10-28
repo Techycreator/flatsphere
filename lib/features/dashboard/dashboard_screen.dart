@@ -1,8 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
+import '../../backend/finance_repo.dart';
+import '../../backend/backend.dart' show backendEnabled;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../models/sla.dart';
@@ -39,9 +42,14 @@ class DashboardScreen extends ConsumerWidget {
           '${l.welcome}, ${s.user.name.split(' ').first}',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
-        Text(
-          '${s.activeRole.label} view${s.user.flatNumber != null ? ' · Flat ${s.user.flatNumber}' : ''}',
-          style: Theme.of(context).textTheme.bodyMedium,
+        Builder(
+          builder: (context) {
+            final flats = s.user.flatsFor(s.activeRole);
+            return Text(
+              '${s.activeRole.label} view${flats.isNotEmpty ? ' · Flat ${flats.join(', ')}' : ''}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            );
+          },
         ),
         const SizedBox(height: 16),
         body,
@@ -112,7 +120,7 @@ class _ApprovalsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(sessionProvider)!;
-    final mine = ref.watch(approvalsProvider).where((a) => a.awaits(s.activeRole, s.user.name)).toList();
+    final mine = ref.watch(approvalsProvider).where((a) => a.needsAction(s.activeRole, s.user.name)).toList();
     return SectionCard(
       title: 'Awaiting your approval (${mine.length})',
       action: TextButton(onPressed: () => context.go('/approvals'), child: Text(AppLocalizations.of(context).viewAll)),
@@ -227,7 +235,7 @@ class _PresidentDash extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider);
     final s = ref.watch(sessionProvider)!;
-    final pending = ref.watch(approvalsProvider).where((a) => a.awaits(s.activeRole, s.user.name)).length;
+    final pending = ref.watch(approvalsProvider).where((a) => a.needsAction(s.activeRole, s.user.name)).length;
     final red = ref.watch(complaintsProvider).where((c) => c.slaApplies && slaFor(c, now).color == SlaColor.red).length;
     final dues = ref.watch(duesProvider).lines;
     final total = dues.fold(0, (a, x) => a + x.amount);
@@ -310,7 +318,7 @@ class _SecretaryDash extends ConsumerWidget {
     final review = all.where((c) => c.inReview).toList();
     int n(SlaColor c) => open.where((x) => slaFor(x, now).color == c).length;
     final cl = ref.watch(checklistProvider);
-    final pending = ref.watch(approvalsProvider).where((a) => a.awaits(role, session.user.name)).length;
+    final pending = ref.watch(approvalsProvider).where((a) => a.needsAction(role, session.user.name)).length;
     final byCat = <String, (int, int)>{};
     for (final i in cl.items) {
       final v = byCat[i.category] ?? (0, 0);
@@ -349,7 +357,7 @@ class _SecretaryDash extends ConsumerWidget {
               icon: Icons.rate_review_outlined,
               color: Colors.purple,
               sub: 'From EC members and caretaker',
-              onTap: () => context.go('/complaints'),
+              onTap: () => context.go('/complaints?filter=review'),
             ),
           ],
         ),
@@ -487,24 +495,72 @@ class _TreasurerDash extends ConsumerWidget {
   }
 }
 
+final dueRemindersProvider = FutureProvider.autoDispose<List<({String flat, int pending, int count, DateTime lastSent})>>(
+  (ref) async => backendEnabled ? FinanceRepo.myDueReminders() : const [],
+);
+
+class _DueReminderBanners extends ConsumerWidget {
+  const _DueReminderBanners();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen(duesProvider, (_, _) => ref.invalidate(dueRemindersProvider));
+    final dues = ref.watch(duesProvider);
+    final reminders = (ref.watch(dueRemindersProvider).value ?? const []).where((r) => dues.pendingFor(r.flat) > 0).toList();
+    if (reminders.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final r in reminders)
+          Card(
+            color: r.count > 1 ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7),
+            child: ListTile(
+              leading: Icon(
+                r.count > 1 ? Icons.notification_important : Icons.notifications_active_outlined,
+                color: r.count > 1 ? AppColors.red : AppColors.amber,
+              ),
+              title: Text(
+                r.count > 1
+                    ? 'Reminder ${r.count}: the association has sent another dues reminder'
+                    : 'The association has sent a dues reminder',
+              ),
+              subtitle: Text(
+                'Flat ${r.flat} · ${inr.format(r.pending)} pending · last sent ${dateFmt.format(r.lastSent)}. '
+                'This stays until the dues are paid.',
+              ),
+              trailing: FilledButton.tonal(onPressed: () => context.go('/dues'), child: const Text('View dues')),
+            ),
+          ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+}
+
 class _OwnerDash extends ConsumerWidget {
   const _OwnerDash();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(sessionProvider)!;
-    final pending = ref.watch(duesProvider).pendingFor(s.user.flatNumber ?? '');
+    final myFlats = {...s.user.flatsFor(Role.owner), ?s.user.flatNumber};
+    final dues = ref.watch(duesProvider);
+    final pending = myFlats.fold(0, (sum, f) => sum + dues.pendingFor(f));
+    final myReminder = (ref.watch(dueRemindersProvider).value ?? const [])
+        .where((x) => myFlats.contains(x.flat) && dues.pendingFor(x.flat) > 0)
+        .firstOrNull;
     final mine = visibleComplaints(ref);
     final notices = ref.watch(noticesProvider);
     final approvals = ref.watch(approvalsProvider);
     final consents = approvals.where((a) => a.awaits(Role.owner, s.user.name)).toList();
     final myRequests = approvals.where((a) => a.initiatorName == s.user.name).toList();
     final rented = demoFlats
-        .where((f) => f.ownerName == s.user.name && f.occupancy != Occupancy.ownerOccupied)
+        .where((f) => !backendEnabled && f.ownerName == s.user.name && f.occupancy != Occupancy.ownerOccupied)
         .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const _DueReminderBanners(),
         for (final f in rented) ...[
           Card(
             child: ListTile(
@@ -540,7 +596,11 @@ class _OwnerDash extends ConsumerWidget {
               value: inr.format(pending),
               icon: Icons.payments_outlined,
               color: pending > 0 ? AppColors.red : AppColors.green,
-              sub: pending > 0 ? 'Tap to pay now' : 'All paid',
+              sub: pending > 0
+                  ? (myReminder == null
+                        ? 'Tap to pay now'
+                        : 'Reminder ${myReminder.count} sent ${dateFmt.format(myReminder.lastSent)} · tap to pay')
+                  : 'All paid',
               onTap: () => context.go('/dues'),
             ),
             StatCard(
@@ -549,7 +609,7 @@ class _OwnerDash extends ConsumerWidget {
               icon: Icons.report_problem_outlined,
               onTap: () => context.go('/complaints'),
             ),
-            const StatCard(
+            if (!backendEnabled) const StatCard(
               label: 'Next General Body',
               value: 'AGM 2026',
               icon: Icons.groups_outlined,
@@ -565,7 +625,9 @@ class _OwnerDash extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         TwoCol(
-          left: const SectionCard(title: 'September 2026 statement (published)', child: ExpensePie()),
+          left: backendEnabled
+              ? const SizedBox.shrink()
+              : const SectionCard(title: 'September 2026 statement (published)', child: ExpensePie()),
           right: SectionCard(
             title: 'My complaints',
             action: TextButton.icon(
@@ -762,7 +824,7 @@ class _AuditorDash extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const StatGrid(
+        if (!backendEnabled) const StatGrid(
           children: [
             StatCard(label: 'FY 2025-26 income', value: '₹38,42,600', icon: Icons.south_west, color: AppColors.green),
             StatCard(
@@ -784,7 +846,7 @@ class _AuditorDash extends StatelessWidget {
         Card(
           child: ListTile(
             leading: const Icon(Icons.lock_clock),
-            title: const Text('Read-only access · expires 31 Dec 2026'),
+            title: const Text('Read-only auditor access'),
             subtitle: const Text(
               'Receipts & payments, income & expenditure, balance sheet, ledgers. Export to Excel / PDF / Tally XML.',
             ),

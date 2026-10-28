@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/nav.dart';
 import '../../backend/backend.dart' show backendEnabled;
+import '../../security/device_lock.dart';
 import '../../backend/notifications_repo.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/common.dart' show dateTimeFmt, EmptyState;
@@ -11,6 +13,7 @@ import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
 import 'privacy_notice_screen.dart';
+import 'glossary.dart';
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.location, required this.child});
@@ -34,43 +37,51 @@ class AppShell extends ConsumerWidget {
     final selected = primaryIndex >= 0 ? primaryIndex : (moreItems.isNotEmpty ? barItems.length : 0);
     final pendingForMe = ref
         .watch(approvalsProvider)
-        .where((a) => a.awaits(session.activeRole, session.user.name))
+        .where((a) => a.needsAction(session.activeRole, session.user.name))
         .length;
     final unreadCount = ref.watch(appNotificationsProvider).value?.where((n) => n.readAt == null).length ?? 0;
 
     return Scaffold(
       appBar: AppBar(
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            Icon(Icons.apartment, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    session.user.association?.name ?? associationName,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (wide)
+        titleSpacing: wide ? 16 : 8,
+        title: _AssociationSwitcher(
+          session: session,
+          child: Row(
+            children: [
+              Icon(Icons.apartment, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      session.user.association?.location ?? associationCity,
-                      style: Theme.of(context).textTheme.bodySmall,
-                      maxLines: 1,
+                      session.user.association?.name ?? associationName,
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: wide ? null : 15, height: 1.15),
+                      maxLines: wide ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                ],
+                    if (wide)
+                      Text(
+                        session.user.association?.location ?? associationCity,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (session.user.associations.length > 1) const Icon(Icons.arrow_drop_down),
+            ],
+          ),
         ),
         actions: [
-          _AssociationSwitcher(session: session),
           _RoleSwitcher(session: session),
           if (wide) const LanguageToggle(),
+          if (wide) IconButton(
+            tooltip: 'Help & terms',
+            onPressed: () => showGlossary(context),
+            icon: const Icon(Icons.help_outline),
+          ),
           IconButton(
             tooltip: l.notices,
             onPressed: () => _showNotifications(context, ref),
@@ -81,7 +92,7 @@ class AppShell extends ConsumerWidget {
             ),
           ),
           _ProfileMenu(session: session, showLanguage: !wide),
-          const SizedBox(width: 8),
+          SizedBox(width: wide ? 8 : 2),
         ],
       ),
       body: Column(
@@ -149,15 +160,25 @@ class AppShell extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Text(l.more, style: Theme.of(ctx).textTheme.titleMedium),
             ),
-            for (final item in more)
-              ListTile(
-                leading: Icon(item.icon),
-                title: Text(item.label(l)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.go(item.path);
-                },
-              ),
+            for (final group in navGroups)
+              if (more.any((i) => navGroupOf(i.path) == group)) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(
+                    group,
+                    style: Theme.of(ctx).textTheme.labelLarge?.copyWith(color: Theme.of(ctx).colorScheme.primary),
+                  ),
+                ),
+                for (final item in more.where((i) => navGroupOf(i.path) == group))
+                  ListTile(
+                    leading: Icon(item.icon),
+                    title: Text(item.label(l)),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.go(item.path);
+                    },
+                  ),
+              ],
           ],
         ),
       ),
@@ -194,7 +215,7 @@ class AppShell extends ConsumerWidget {
 
   void _showNotifications(BuildContext context, WidgetRef ref) {
     final s = ref.read(sessionProvider)!;
-    final pending = ref.read(approvalsProvider).where((a) => a.awaits(s.activeRole, s.user.name)).toList();
+    final pending = ref.read(approvalsProvider).where((a) => a.needsAction(s.activeRole, s.user.name)).toList();
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -211,7 +232,7 @@ class AppShell extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.verified_outlined),
                   title: Text(approval.title),
-                  subtitle: Text('${approval.code} · waiting for your approval'),
+                  subtitle: Text('${approval.title} · waiting for your approval'),
                   onTap: () {
                     Navigator.pop(ctx);
                     context.go('/approvals/${approval.id}');
@@ -253,13 +274,14 @@ class AppShell extends ConsumerWidget {
 }
 
 class _AssociationSwitcher extends ConsumerWidget {
-  const _AssociationSwitcher({required this.session});
+  const _AssociationSwitcher({required this.session, required this.child});
   final Session session;
+  final Widget child;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final associations = session.user.associations;
-    if (associations.length < 2) return const SizedBox.shrink();
+    if (associations.length < 2) return child;
     return PopupMenuButton<String>(
       tooltip: 'Switch association',
       onSelected: (id) async {
@@ -277,10 +299,10 @@ class _AssociationSwitcher extends ConsumerWidget {
           CheckedPopupMenuItem(
             value: a.id,
             checked: a.id == session.user.associationId,
-            child: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            child: Text(a.name, maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
       ],
-      child: const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.apartment_outlined)),
+      child: child,
     );
   }
 }
@@ -291,7 +313,13 @@ class _RoleSwitcher extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chip = Chip(avatar: const Icon(Icons.badge_outlined, size: 18), label: Text(session.activeRole.label));
+    final chip = Chip(
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      labelPadding: const EdgeInsets.only(right: 2),
+      avatar: const Icon(Icons.badge_outlined, size: 16),
+      label: Text(session.activeRole.label, style: const TextStyle(fontSize: 12)),
+    );
     if (session.user.roles.length < 2) return chip;
     return PopupMenuButton<Role>(
       tooltip: AppLocalizations.of(context).switchRole,
@@ -303,7 +331,13 @@ class _RoleSwitcher extends ConsumerWidget {
         for (final r in session.user.roles)
           CheckedPopupMenuItem(value: r, checked: r == session.activeRole, child: Text(r.label)),
       ],
-      child: Chip(avatar: const Icon(Icons.swap_horiz, size: 18), label: Text(session.activeRole.label)),
+      child: Chip(
+        visualDensity: VisualDensity.compact,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        labelPadding: const EdgeInsets.only(right: 2),
+        avatar: const Icon(Icons.swap_horiz, size: 16),
+        label: Text(session.activeRole.label, style: const TextStyle(fontSize: 12)),
+      ),
     );
   }
 }
@@ -323,10 +357,17 @@ class _ProfileMenu extends ConsumerWidget {
         switch (v) {
           case 'en' || 'ml':
             ref.read(localeProvider.notifier).set(Locale(v));
-          case 'security':
-            context.go('/security');
           case 'audit':
             context.go('/audit');
+          case 'datatools':
+            context.go('/data-tools');
+          case 'help':
+            showGlossary(context);
+          case 'setpin':
+            context.go('/set-pin');
+          case 'removepin':
+            final uid = session.user.id;
+            DeviceLock.clear().then((_) => DeviceLock.skip(uid));
           case 'logout':
             ref.read(sessionProvider.notifier).logout();
         }
@@ -345,13 +386,13 @@ class _ProfileMenu extends ConsumerWidget {
           const PopupMenuItem(value: 'en', child: Text('English')),
           const PopupMenuItem(value: 'ml', child: Text('മലയാളം')),
         ],
-        if (backendEnabled)
+        if (const {Role.admin, Role.president, Role.secretary}.contains(session.activeRole))
           const PopupMenuItem(
-            value: 'security',
+            value: 'datatools',
             child: ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.lock_outline),
-              title: Text('Security & PIN'),
+              leading: Icon(Icons.import_export),
+              title: Text('Data import & export'),
             ),
           ),
         if (const {Role.admin, Role.president, Role.secretary}.contains(session.activeRole))
@@ -364,6 +405,21 @@ class _ProfileMenu extends ConsumerWidget {
             ),
           ),
         const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'help',
+          child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.help_outline), title: Text('Help & terms')),
+        ),
+        if (backendEnabled) ...[
+          const PopupMenuItem(
+            value: 'setpin',
+            child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.pin_outlined), title: Text('Set or change PIN')),
+          ),
+          const PopupMenuItem(
+            value: 'removepin',
+            child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.lock_open_outlined), title: Text('Turn off PIN')),
+          ),
+          const PopupMenuDivider(),
+        ],
         PopupMenuItem(
           value: 'logout',
           child: ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.logout), title: Text(l.logout)),

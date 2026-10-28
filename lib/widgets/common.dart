@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import 'tr_text.dart';
 import 'package:intl/intl.dart';
 
 import '../app/theme.dart';
@@ -262,7 +263,22 @@ class EmptyState extends StatelessWidget {
   );
 }
 
-void toast(BuildContext context, String msg) =>
+void toast(BuildContext context, String msg) => _showToast(context, userMessage(msg));
+
+/// Turns technical errors into short, readable messages.
+String userMessage(String msg) {
+  final lower = msg.toLowerCase();
+  if (lower.contains('socketexception') || lower.contains('failed host lookup') || lower.contains('xmlhttprequest')) {
+    return 'No internet connection. Please check and try again.';
+  }
+  var text = RegExp(r'message:\s*(.*?),\s*code:').firstMatch(msg)?.group(1) ?? msg;
+  text = text.replaceFirst(RegExp(r'^(Exception|Bad state):\s*'), '');
+  text = text.replaceFirst(RegExp(r'^(not_allowed|invalid|not_found|limit):\s*'), '');
+  if (text.contains('Exception(') || text.length > 200) return 'Something went wrong. Please try again.';
+  return text;
+}
+
+void _showToast(BuildContext context, String msg) =>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating));
 
 Future<String?> promptText(BuildContext context, {required String title, required String hint, bool required = true}) {

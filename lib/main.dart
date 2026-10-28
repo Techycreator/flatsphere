@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/router.dart';
 import 'backend/backend.dart';
-import 'backend/pin_vault.dart';
 import 'app/theme.dart';
 import 'l10n/app_localizations.dart';
 import 'state/app_state.dart';
@@ -12,10 +11,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initBackend();
   final container = ProviderContainer();
-  if (backendEnabled && !PinVault.locked) {
+  if (backendEnabled) {
     final user = await AuthService.loadUser();
-    if (user != null)
-      container.read(sessionProvider.notifier).login(user);
+    if (user != null) container.read(sessionProvider.notifier).login(user);
     else if (AuthService.currentUserEmail case final String email) {
       container.read(firstAssociationSignupProvider.notifier).setEmail(email);
     }
