@@ -311,6 +311,11 @@ class _DuesTab extends ConsumerWidget {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
+                columnSpacing: 14,
+                horizontalMargin: 10,
+                dataRowMinHeight: 40,
+                dataRowMaxHeight: 44,
+                headingRowHeight: 40,
                 columns: [
                   const DataColumn(label: Text('Flat')),
                   const DataColumn(label: Text('Type')),
@@ -350,13 +355,21 @@ class _DuesTab extends ConsumerWidget {
                               children: [
                                 if (canRecord)
                                   TextButton.icon(
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
                                     onPressed: () => showPaymentForm(context, ref, flat: number),
-                                    icon: const Icon(Icons.receipt_long, size: 18),
+                                    icon: const Icon(Icons.receipt_long, size: 16),
                                     label: const Text('Record'),
                                   ),
                                 if (pending > 0 && canRemind)
                                   n.canRemind(number)
                                       ? TextButton.icon(
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                                            visualDensity: VisualDensity.compact,
+                                          ),
                                           onPressed: () async {
                                             try {
                                               await n.remind(number);
@@ -366,7 +379,7 @@ class _DuesTab extends ConsumerWidget {
                                               if (context.mounted) toast(context, friendlyError(error));
                                             }
                                           },
-                                          icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                                          icon: const Icon(Icons.notifications_active_outlined, size: 16),
                                           label: const Text('Remind'),
                                         )
                                       : const Text('Sent today', style: TextStyle(color: Colors.black45)),

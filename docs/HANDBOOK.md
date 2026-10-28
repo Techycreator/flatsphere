@@ -215,6 +215,7 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 | Date | Change | Sections |
 |---|---|---|
 | 2026-10-28 | Handbook created. Bulk CSV import, ZIP export, flat retirement, association offboarding, last-holder guard, checklist notes and voice notes, invite limit raised to 400/day, fixed the Audit log menu link being redirected | All |
+| 2026-10-28 | Dues & follow-ups table is more compact (tighter column spacing and row height) so more flats and columns fit on screen without sideways scrolling | 3.x Dues & follow-ups |
 | 2026-10-28 | Dropdowns across the app (for example Document type in Upload association document) now fit inside their card on phones; long options are shortened with "…" instead of spilling outside | All |
 | 2026-10-28 | Vendors: "Service category" has a "+ Add new category…" option, and categories already used by your vendors are listed. Assets & records: new "Other" record type (name the kind in Category, expiry optional) for anything beyond Asset, Insurance, Compliance and Conflict of interest | 3.x Assets & records, Vendors |
 | 2026-10-28 | Monthly statements: the card now uses the full width (approval status, income / expenses / payments figures, then Review details and the action), and "Review details" shows each section as an aligned table with an amount column | 3.x Statements |
