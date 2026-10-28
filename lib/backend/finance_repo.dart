@@ -129,7 +129,13 @@ class FinanceRepo {
   );
 
   static Future<DuesData> dues() async {
-    final flatRows = await db.from('flats').select('id, number, block, flat_type').order('number');
+    // Scope to the active association: a person can belong to several, and RLS alone would mix their dues.
+    final assoc = await db.rpc('my_association') as String;
+    final flatRows = await db
+        .from('flats')
+        .select('id, number, block, flat_type')
+        .eq('association_id', assoc)
+        .order('number');
     final flats = [
       for (final r in flatRows)
         FlatInfo(
@@ -140,13 +146,22 @@ class FinanceRepo {
         ),
     ];
     final numberOf = {for (final f in flats) f.id: f.number};
-    final dueRows = await db.from('dues').select('id, flat_id, head, amount, due_date').order('due_date');
+    final dueRows = await db
+        .from('dues')
+        .select('id, flat_id, head, amount, due_date')
+        .eq('association_id', assoc)
+        .order('due_date');
     final payRows = await db
         .from('payments')
         .select('flat_id, due_id, amount, paid_on, mode, reference, receipt_no')
+        .eq('association_id', assoc)
         .order('paid_on')
         .order('created_at');
-    final ob = await db.from('opening_balances').select('account_name, amount, as_of').maybeSingle();
+    final ob = await db
+        .from('opening_balances')
+        .select('account_name, amount, as_of')
+        .eq('association_id', assoc)
+        .maybeSingle();
     final heads = {for (final r in dueRows) r['id'] as String: r['head'] as String};
     final paid = <String, int>{};
     final receipt = <String, String>{};
