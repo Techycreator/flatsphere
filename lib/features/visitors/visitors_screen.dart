@@ -69,9 +69,13 @@ class VisitorsScreen extends ConsumerWidget {
         const GateAlertsCard(),
         const DailyHelpSection(),
         const SizedBox(height: 12),
-        Row(
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            Expanded(child: Text(l.visitorRegister, style: Theme.of(context).textTheme.headlineSmall)),
+            Text(l.visitorRegister, style: Theme.of(context).textTheme.headlineSmall),
             if (canHost)
               FilledButton.icon(
                 onPressed: flats == null || flats.isLoading || flats.value?.isEmpty == true ? null : addRequest,
@@ -224,19 +228,23 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
                 child: TextField(
                   controller: _registration,
                   textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [VehicleNumberFormatter()],
                   onSubmitted: (_) => _search(),
                   decoration: InputDecoration(
                     labelText: l.vehicleRegistration,
-                    prefixIcon: Icon(Icons.search),
-                    isDense: true,
+                    hintText: 'e.g. KL07AB1234 or last 4 digits',
+                    prefixIcon: Icon(Icons.directions_car_outlined),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton.filledTonal(
-                tooltip: l.searchVehicleNumber,
-                onPressed: _search,
-                icon: const Icon(Icons.search),
+              SizedBox(
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: _search,
+                  icon: const Icon(Icons.search),
+                  label: const Text('Find', style: TextStyle(fontSize: 18)),
+                ),
               ),
             ],
           ),

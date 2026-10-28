@@ -50,6 +50,12 @@ class GateRepo {
     return [for (final r in rows) _row(r)];
   }
 
+  /// Active flat numbers for walk-in suggestions; cached on the phone for offline use.
+  static Future<List<String>> flatNumbers() async {
+    final rows = await db.from('flats').select('number').isFilter('retired_at', null).order('number');
+    return [for (final r in rows) r['number'] as String];
+  }
+
   static Future<List<GateVisitor>> history({int days = 30}) async {
     final since = DateTime.now().subtract(Duration(days: days)).toUtc().toIso8601String();
     final rows = await db

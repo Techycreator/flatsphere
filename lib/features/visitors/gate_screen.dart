@@ -265,6 +265,15 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     final vehicle = TextEditingController();
     var type = 'guest';
     Uint8List? photo;
+    var flats = const <String>[];
+    try {
+      flats = await GateRepo.flatNumbers();
+      await GateOffline.cacheFlats(flats);
+    } catch (_) {
+      flats = await GateOffline.cachedFlats();
+    }
+    String norm(String v) => v.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    if (!mounted) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -299,9 +308,28 @@ class _GateScreenState extends ConsumerState<GateScreen> {
                   icon: Icon(photo == null ? Icons.photo_camera_outlined : Icons.check_circle_outline),
                   label: Text(photo == null ? 'Take visitor photo' : 'Photo added · retake'),
                 ),
-                TextField(
-                  controller: flat,
-                  decoration: const InputDecoration(labelText: 'Flat number *'),
+                const SizedBox(height: 8),
+                Autocomplete<String>(
+                  optionsBuilder: (v) {
+                    final q = norm(v.text);
+                    if (q.isEmpty) return const Iterable<String>.empty();
+                    final starts = flats.where((f) => norm(f).startsWith(q));
+                    final rest = flats.where((f) => !norm(f).startsWith(q) && norm(f).contains(q));
+                    return [...starts, ...rest].take(8);
+                  },
+                  onSelected: (v) => flat.text = v,
+                  fieldViewBuilder: (ctx, ctl, focus, _) => TextField(
+                    controller: ctl,
+                    focusNode: focus,
+                    textCapitalization: TextCapitalization.characters,
+                    style: const TextStyle(fontSize: 20),
+                    onChanged: (v) => flat.text = v,
+                    decoration: const InputDecoration(
+                      labelText: 'Flat number *',
+                      hintText: 'Type a few letters, then tap the flat',
+                      prefixIcon: Icon(Icons.home_outlined),
+                    ),
+                  ),
                 ),
                 TextField(
                   controller: name,
@@ -315,7 +343,14 @@ class _GateScreenState extends ConsumerState<GateScreen> {
                 ),
                 TextField(
                   controller: vehicle,
-                  decoration: const InputDecoration(labelText: 'Vehicle number'),
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [VehicleNumberFormatter()],
+                  style: const TextStyle(fontSize: 20, letterSpacing: 1.5),
+                  decoration: const InputDecoration(
+                    labelText: 'Vehicle number',
+                    hintText: 'KL07AB1234 – spaces not needed',
+                    prefixIcon: Icon(Icons.directions_car_outlined),
+                  ),
                 ),
               ],
             ),
@@ -331,7 +366,16 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       ),
     );
     if (ok != true) return;
-    final f = flat.text.trim(), n = name.text.trim(), pic = photo;
+    var f = flat.text.trim();
+    final n = name.text.trim(), pic = photo;
+    if (flats.isNotEmpty) {
+      final match = flats.where((x) => norm(x) == norm(f)).firstOrNull;
+      if (match == null) {
+        if (mounted) toast(context, 'Flat "$f" not found. Type again and tap a flat from the list.');
+        return;
+      }
+      f = match;
+    }
     try {
       final id = await GateRepo.walkIn(flat: f, name: n, phone: phone.text, type: type, vehicle: vehicle.text);
       if (pic != null) {
@@ -375,24 +419,25 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     if (!const {Role.security, Role.caretaker, Role.admin, Role.president, Role.secretary}.contains(role)) {
       return const PageBody(children: [EmptyState('Gate mode is for security staff.')]);
     }
-    Widget big(IconData icon, String label, VoidCallback onTap) => Expanded(
-      child: SizedBox(
-        height: 96,
-        child: FilledButton.icon(
-          onPressed: onTap,
-          icon: Icon(icon, size: 32),
-          label: Text(label, style: const TextStyle(fontSize: 18)),
-        ),
+    final narrow = MediaQuery.sizeOf(context).width < 600;
+    Widget big(IconData icon, String label, VoidCallback onTap) => SizedBox(
+      height: narrow ? 72 : 96,
+      child: FilledButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 32),
+        label: Text(label, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
       ),
     );
     final active = _list.where((v) => v.status == 'expected' || v.status == 'checked_in').toList();
     return PageBody(
       maxWidth: 900,
       children: [
-        Row(
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 4,
+          runSpacing: 4,
           children: [
             Text('Gate', style: Theme.of(context).textTheme.headlineSmall),
-            const Spacer(),
             if (const {Role.admin, Role.president, Role.secretary}.contains(role))
               TextButton.icon(
                 onPressed: () => showDialog<void>(context: context, builder: (_) => const _GuardsDialog()),
@@ -431,20 +476,22 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         else if (_pending > 0)
           Text('$_pending saved entries waiting to send…'),
         const SizedBox(height: 12),
-        Row(
+        Flex(
+          direction: narrow ? Axis.vertical : Axis.horizontal,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            big(Icons.pin_outlined, 'Pass code', _pass),
-            const SizedBox(width: 12),
-            big(Icons.person_add_alt_1_outlined, 'Walk-in', _walkIn),
-            const SizedBox(width: 12),
-            big(
-              Icons.cleaning_services_outlined,
-              'Daily help',
-              () => showDialog<void>(
-                context: context,
-                builder: (_) => DailyHelpGateDialog(onQueued: () => _load()),
+            for (final (i, b) in [
+              big(Icons.pin_outlined, 'Pass code', _pass),
+              big(Icons.person_add_alt_1_outlined, 'Walk-in', _walkIn),
+              big(
+                Icons.cleaning_services_outlined,
+                'Daily help',
+                () => showDialog<void>(
+                  context: context,
+                  builder: (_) => DailyHelpGateDialog(onQueued: () => _load()),
+                ),
               ),
-            ),
+            ].indexed) ...[if (i > 0) const SizedBox(width: 12, height: 12), narrow ? b : Expanded(child: b)],
           ],
         ),
         const SizedBox(height: 16),
@@ -452,39 +499,68 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         if (active.isEmpty) const EmptyState('No visitors expected right now.'),
         for (final v in active)
           Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: v.photoPath == null ? null : VisitorPhoto(path: v.photoPath!),
-              title: Text('${v.guest} → ${v.flat}', style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text(
-                [
-                  v.type,
-                  if (v.vehicle != null) v.vehicle!,
-                  if (v.phone != null) v.phone!,
-                  dateTimeFmt.format(v.arrival),
-                  if (v.guardName != null) 'by ${v.guardName}',
-                ].join(' · '),
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+            margin: const EdgeInsets.only(bottom: 10),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  IconButton(
-                    tooltip: 'Call flat ${v.flat}',
-                    icon: const Icon(Icons.call_outlined),
-                    onPressed: () => _callFlat(v.flat),
+                  Row(
+                    children: [
+                      if (v.photoPath != null) ...[VisitorPhoto(path: v.photoPath!), const SizedBox(width: 12)],
+                      Expanded(
+                        child: Text(
+                          '${v.guest} → ${v.flat}',
+                          style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
                   ),
-                  switch ((v.approval, v.status)) {
-                    ('awaiting', _) => const Pill('Waiting for flat', color: AppColors.amber),
-                    ('denied', _) => const Pill('Denied', color: AppColors.red),
-                    (_, 'checked_in') => OutlinedButton(
-                      onPressed: () => _verify(v, false),
-                      child: const Text('Check out'),
-                    ),
-                    _ => FilledButton(
-                      onPressed: () => _verify(v, true),
-                      child: Text(v.approval == 'approved' ? 'Approved · Let in' : 'Check in'),
-                    ),
-                  },
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      v.type,
+                      if (v.vehicle != null) v.vehicle!,
+                      if (v.phone != null) v.phone!,
+                      dateTimeFmt.format(v.arrival),
+                      if (v.guardName != null) 'by ${v.guardName}',
+                    ].join(' · '),
+                    style: const TextStyle(fontSize: 15),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+                          onPressed: () => _callFlat(v.flat),
+                          icon: const Icon(Icons.call_outlined),
+                          label: const Text('Call flat', style: TextStyle(fontSize: 17)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: switch ((v.approval, v.status)) {
+                          ('awaiting', _) => const Center(child: Pill('Waiting for flat', color: AppColors.amber)),
+                          ('denied', _) => const Center(child: Pill('Denied', color: AppColors.red)),
+                          (_, 'checked_in') => OutlinedButton(
+                            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+                            onPressed: () => _verify(v, false),
+                            child: const Text('Check out', style: TextStyle(fontSize: 17)),
+                          ),
+                          _ => FilledButton(
+                            style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
+                            onPressed: () => _verify(v, true),
+                            child: Text(
+                              v.approval == 'approved' ? 'Approved · Let in' : 'Check in',
+                              style: const TextStyle(fontSize: 17),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        },
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -539,51 +615,61 @@ class _GateAlertsCardState extends State<GateAlertsCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final v in waiting)
+            for (final v in waiting) ...[
               ListTile(
+                contentPadding: EdgeInsets.zero,
                 leading: v.photoPath == null
                     ? const Icon(Icons.doorbell_outlined, color: AppColors.amber)
                     : VisitorPhoto(path: v.photoPath!),
                 title: Text('${v.guest} is at the gate for ${v.flat}'),
                 subtitle: Text([v.type, if (v.vehicle != null) v.vehicle!].join(' · ')),
-                trailing: Wrap(
-                  spacing: 6,
-                  children: [
-                    OutlinedButton(
-                      onPressed: () async {
-                        try {
-                          await GateRepo.decide(v.id, false);
-                        } catch (e) {
-                          if (context.mounted) toast(context, friendlyError(e));
-                        }
-                        _load();
-                      },
-                      child: const Text('Deny'),
-                    ),
-                    FilledButton(
-                      onPressed: () async {
-                        try {
-                          await GateRepo.decide(v.id, true);
-                        } catch (e) {
-                          if (context.mounted) toast(context, friendlyError(e));
-                        }
-                        _load();
-                      },
-                      child: const Text('Approve'),
-                    ),
-                  ],
-                ),
               ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(110, 48)),
+                    onPressed: () async {
+                      try {
+                        await GateRepo.decide(v.id, false);
+                      } catch (e) {
+                        if (context.mounted) toast(context, friendlyError(e));
+                      }
+                      _load();
+                    },
+                    child: const Text('Deny'),
+                  ),
+                  const SizedBox(width: 10),
+                  FilledButton(
+                    style: FilledButton.styleFrom(minimumSize: const Size(110, 48)),
+                    onPressed: () async {
+                      try {
+                        await GateRepo.decide(v.id, true);
+                      } catch (e) {
+                        if (context.mounted) toast(context, friendlyError(e));
+                      }
+                      _load();
+                    },
+                    child: const Text('Approve'),
+                  ),
+                ],
+              ),
+              const Divider(),
+            ],
             if (codes.isNotEmpty) ...[
-              const Text('Gate pass codes – share with your guest', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text(
+                'Gate pass codes – tell this number to your guest',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
               for (final v in codes)
                 ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.qr_code_2),
-                  title: Text('${v.guest} · ${dateTimeFmt.format(v.arrival)}'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.pin_outlined, size: 30),
+                  title: Text(v.guest, style: const TextStyle(fontSize: 17)),
+                  subtitle: Text('${v.flat} · ${dateTimeFmt.format(v.arrival)}'),
                   trailing: SelectableText(
                     v.passCode!,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 2),
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 3),
                   ),
                 ),
             ],
