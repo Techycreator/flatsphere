@@ -856,10 +856,17 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     final why = reason.text.trim();
     reason.dispose();
     if (ok != true) return;
-    await _run(
-      () => ref.read(directoryProvider.notifier).removePerson(p, reason: why),
-      '${p.role.label} role revoked for ${p.name}',
-    );
+    try {
+      final result = await ref.read(directoryProvider.notifier).removePerson(p, reason: why);
+      _toast(
+        result == 'pending_approval'
+            ? 'Removal of ${p.name}\'s ${p.role.label} role sent to the President for approval. It stays active until approved.'
+            : '${p.role.label} role revoked for ${p.name}',
+      );
+      ref.read(approvalsProvider.notifier).refresh();
+    } catch (e) {
+      _toast(friendlyError(e));
+    }
   }
 
   Future<void> _emailInvite(String email) async {

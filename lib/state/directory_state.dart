@@ -203,12 +203,14 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
     );
   }
 
-  Future<void> removePerson(Person p, {String reason = ''}) async {
+  Future<String> removePerson(Person p, {String reason = ''}) async {
     if (backendEnabled) {
-      await DirectoryRepo.remove(p, reason);
-      return refresh();
+      final result = await DirectoryRepo.remove(p, reason);
+      await refresh();
+      return result;
     }
     _set(people: state.people.where((x) => x.id != p.id).toList());
+    return 'removed';
   }
 
   Future<void> createMembershipChange({

@@ -294,10 +294,13 @@ class DirectoryRepo {
     params: {'p_kind': person.invited ? 'invited' : 'member', 'p_id': person.id, 'p_birth_date': _date(birthDate)},
   );
 
-  static Future<void> remove(Person p, String reason) => db.rpc(
-    'revoke_member_role',
-    params: {'p_kind': p.invited ? 'invited' : 'member', 'p_id': p.id, 'p_reason': reason.trim()},
-  );
+  /// Returns 'removed', or 'pending_approval' for committee/staff roles that need President approval.
+  static Future<String> remove(Person p, String reason) async =>
+      await db.rpc(
+        'revoke_member_role',
+        params: {'p_kind': p.invited ? 'invited' : 'member', 'p_id': p.id, 'p_reason': reason.trim()},
+      ) as String? ??
+      'removed';
 
   static Future<void> sendInviteEmail(String email) =>
       db.functions.invoke('send-invite-email', body: {'email': email.trim().toLowerCase()});
