@@ -47,6 +47,7 @@ class DemoUser {
     this.monitorAssignedBy,
     this.associationId,
     this.associations = const [],
+    this.flatsByRole = const {},
   });
 
   final String id;
@@ -54,6 +55,11 @@ class DemoUser {
   final String mobile;
   final List<Role> roles;
   final String? flatNumber;
+  final Map<Role, List<String>> flatsByRole;
+
+  /// Flats held under [role]; falls back to the primary flat for demo users.
+  List<String> flatsFor(Role role) =>
+      flatsByRole[role] ?? (flatNumber != null && (role == Role.owner || role == Role.resident) ? [flatNumber!] : const []);
   final List<String> monitorCategories;
   final List<String> designations;
   final DateTime? monitorUntil;

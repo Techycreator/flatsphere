@@ -42,9 +42,14 @@ class DashboardScreen extends ConsumerWidget {
           '${l.welcome}, ${s.user.name.split(' ').first}',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
-        Text(
-          '${s.activeRole.label} view${s.user.flatNumber != null ? ' · Flat ${s.user.flatNumber}' : ''}',
-          style: Theme.of(context).textTheme.bodyMedium,
+        Builder(
+          builder: (context) {
+            final flats = s.user.flatsFor(s.activeRole);
+            return Text(
+              '${s.activeRole.label} view${flats.isNotEmpty ? ' · Flat ${flats.join(', ')}' : ''}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            );
+          },
         ),
         const SizedBox(height: 16),
         body,
