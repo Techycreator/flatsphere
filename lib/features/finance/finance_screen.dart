@@ -938,40 +938,65 @@ class StatementsScreen extends ConsumerWidget {
           for (final statement in statements.value!)
             Card(
               margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: Icon(statement.status == 'published' ? Icons.lock : Icons.edit_document),
-                title: Text('Income & expenditure · ${DateFormat('MMMM yyyy').format(statement.periodStart)}'),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(statement.status == 'published' ? Icons.lock : Icons.edit_document),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Income & expenditure · ${DateFormat('MMMM yyyy').format(statement.periodStart)}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        sign('Treasurer', statement.treasurerApprovedBy != null),
+                        sign('Secretary', statement.secretaryApprovedBy != null),
+                        sign('President', statement.presidentApprovedBy != null),
+                      ],
+                    ),
+                    if (statement.snapshot['totals'] case final Map totals) ...[
+                      const SizedBox(height: 10),
                       Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
+                        spacing: 24,
+                        runSpacing: 8,
                         children: [
-                          sign('Treasurer', statement.treasurerApprovedBy != null),
-                          sign('Secretary', statement.secretaryApprovedBy != null),
-                          sign('President', statement.presidentApprovedBy != null),
+                          _statementFigure(context, l.incomeTotal, (totals['income'] as num?)?.toInt() ?? 0),
+                          _statementFigure(context, l.approvedExpenses, (totals['approved_expenses'] as num?)?.toInt() ?? 0),
+                          _statementFigure(context, l.paymentsReceived, (totals['payments_received'] as num?)?.toInt() ?? 0),
                         ],
                       ),
-                      if (statement.snapshot['totals'] case final Map totals)
-                        Text(
-                          '${l.incomeTotal} ${inr.format((totals['income'] as num?)?.toInt() ?? 0)} · '
-                          '${l.approvedExpenses} ${inr.format((totals['approved_expenses'] as num?)?.toInt() ?? 0)} · '
-                          '${l.paymentsReceived} ${inr.format((totals['payments_received'] as num?)?.toInt() ?? 0)}',
-                        ),
-                      TextButton.icon(
-                        onPressed: () => _reviewStatement(context, statement),
-                        icon: const Icon(Icons.fact_check_outlined),
-                        label: const Text('Review details'),
-                      ),
-                      if (statement.status == 'rejected' && statement.rejectionNote != null)
-                        Text('Rejected: ${statement.rejectionNote}'),
                     ],
-                  ),
+                    if (statement.status == 'rejected' && statement.rejectionNote != null) ...[
+                      const SizedBox(height: 8),
+                      Text('Rejected: ${statement.rejectionNote}'),
+                    ],
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _reviewStatement(context, statement),
+                          icon: const Icon(Icons.fact_check_outlined),
+                          label: const Text('Review details'),
+                        ),
+                        _statementAction(context, role, currentUserId, statement, decide),
+                      ],
+                    ),
+                  ],
                 ),
-                trailing: _statementAction(context, role, currentUserId, statement, decide),
               ),
             ),
         const SizedBox(height: 20),
@@ -1001,6 +1026,15 @@ class StatementsScreen extends ConsumerWidget {
       ],
     );
   }
+
+  Widget _statementFigure(BuildContext context, String label, int value) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(label, style: Theme.of(context).textTheme.bodySmall),
+      Text(inr.format(value), style: Theme.of(context).textTheme.titleSmall),
+    ],
+  );
 
   Widget _statementAction(
     BuildContext context,
@@ -1300,42 +1334,84 @@ Future<void> _exportLedger(BuildContext context, WidgetRef ref) async {
 void _reviewStatement(BuildContext context, MonthlyStatement s) {
   List<Map> rows(String k) => [for (final r in (s.snapshot[k] as List? ?? const [])) r as Map];
   String amt(Object? v) => inr.format((v as num?)?.toInt() ?? 0);
-  Widget section(String title, List<Map> list, String Function(Map) line) => ExpansionTile(
-    title: Text('$title (${list.length})'),
-    children: [for (final r in list) ListTile(dense: true, title: Text(line(r)))],
-  );
+  String text(Object? v) => '${v ?? ''}';
+  // Each entry is shown as aligned columns; the last column is the amount, right-aligned.
+  Widget section(String title, List<Map> list, List<(String header, int flex, String Function(Map) cell)> columns) {
+    Widget cell(String t, int flex, {bool last = false, bool bold = false}) => Expanded(
+      flex: flex,
+      child: Text(
+        t,
+        textAlign: last ? TextAlign.right : TextAlign.left,
+        style: TextStyle(fontSize: 13, fontWeight: bold ? FontWeight.w600 : FontWeight.w400),
+      ),
+    );
+    return ExpansionTile(
+      title: Text('$title (${list.length})'),
+      children: [
+        if (list.isEmpty)
+          const Padding(padding: EdgeInsets.only(bottom: 12), child: Text('No entries'))
+        else ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                for (var i = 0; i < columns.length; i++)
+                  cell(columns[i].$1, columns[i].$2, last: i == columns.length - 1, bold: true),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          for (final r in list)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < columns.length; i++)
+                    cell(columns[i].$3(r), columns[i].$2, last: i == columns.length - 1),
+                ],
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
   showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: Text('Statement · ${DateFormat('MMMM yyyy').format(s.periodStart)}'),
       content: SizedBox(
-        width: 560,
+        width: 640,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              section(
-                'Income',
-                rows('income'),
-                (r) =>
-                    '${r['date']} · ${r['category']} · ${amt(r['amount'])}'
-                    '${(r['source'] ?? '') == '' ? '' : ' · ${r['source']}'}',
-              ),
-              section(
-                'Approved expenses',
-                rows('expenses'),
-                (r) => '${r['date']} · ${r['reference']} · ${r['category']} · ${r['vendor']} · ${amt(r['amount'])}',
-              ),
-              section(
-                'Payments received',
-                rows('payments'),
-                (r) => '${r['date']} · ${r['flat']} · ${r['receipt']} · ${amt(r['amount'])}',
-              ),
-              section(
-                'Dues raised this month',
-                rows('dues'),
-                (r) => '${r['flat']} · ${r['head']} · paid ${amt(r['paid'])} · pending ${amt(r['pending'])}',
-              ),
+              section('Income', rows('income'), [
+                ('Date', 2, (r) => text(r['date'])),
+                ('Category', 3, (r) => text(r['category'])),
+                ('Source', 3, (r) => text(r['source'])),
+                ('Amount', 2, (r) => amt(r['amount'])),
+              ]),
+              section('Approved expenses', rows('expenses'), [
+                ('Date', 2, (r) => text(r['date'])),
+                ('Ref', 2, (r) => text(r['reference'])),
+                ('Category', 3, (r) => text(r['category'])),
+                ('Vendor', 3, (r) => text(r['vendor'])),
+                ('Amount', 2, (r) => amt(r['amount'])),
+              ]),
+              section('Payments received', rows('payments'), [
+                ('Date', 2, (r) => text(r['date'])),
+                ('Flat', 2, (r) => text(r['flat'])),
+                ('Receipt', 3, (r) => text(r['receipt'])),
+                ('Amount', 2, (r) => amt(r['amount'])),
+              ]),
+              section('Dues raised this month', rows('dues'), [
+                ('Flat', 2, (r) => text(r['flat'])),
+                ('Head', 3, (r) => text(r['head'])),
+                ('Paid', 2, (r) => amt(r['paid'])),
+                ('Pending', 2, (r) => amt(r['pending'])),
+              ]),
               const Padding(
                 padding: EdgeInsets.only(top: 8),
                 child: Text(
