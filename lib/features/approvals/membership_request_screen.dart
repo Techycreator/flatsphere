@@ -1,6 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +18,7 @@ import '../../state/directory_state.dart';
 import '../../state/demo_data.dart';
 import '../../widgets/common.dart';
 import '../../validation/input_validation.dart';
+import '../../widgets/mom.dart';
 
 /// New membership / committee change requests (spec W20–W22).
 enum MembershipRequestType {
@@ -66,7 +69,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
   String _position = 'Joint Secretary';
   String _changeType = 'Resignation and replacement';
   final _outgoing = TextEditingController();
-  String _mom = 'EC-2026-10 · Decision #3';
+  String _mom = backendEnabled ? '' : 'EC-2026-10 · Decision #3';
   final _for = TextEditingController(text: '7');
   final _against = TextEditingController(text: '1');
   final _abstain = TextEditingController(text: '0');
@@ -98,6 +101,10 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
   }
 
   Future<void> _submit() async {
+    if (widget.type == MembershipRequestType.committee && _mom.isEmpty) {
+      toast(context, 'Select the approved meeting minutes (MOM) for this change first.');
+      return;
+    }
     if (_submitting) return;
     final s = ref.read(sessionProvider)!;
     final role = s.activeRole;
@@ -110,9 +117,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
       return;
     }
     if (widget.type != MembershipRequestType.committee &&
-        (!InputValidation.isEmail(_email.text) ||
-          !InputValidation.isPhone(_mobile.text) ||
-            _proofs.isEmpty)) {
+        (!InputValidation.isEmail(_email.text) || !InputValidation.isPhone(_mobile.text) || _proofs.isEmpty)) {
       toast(context, 'Enter a valid email and phone number, and attach at least one ID proof');
       return;
     }
@@ -240,34 +245,38 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
       final requestId = await notifier.add(req);
       if (backendEnabled && widget.type != MembershipRequestType.committee) {
         final f = selectedFlat!;
-        await ref.read(directoryProvider.notifier).createMembershipChange(
-          requestId: requestId!,
-          flat: f,
-          type: widget.type == MembershipRequestType.owner ? 'owner' : 'resident',
-          name: _newName.text.trim(),
-          email: _email.text.trim(),
-          mobile: _mobile.text.trim(),
-          leasePeriod: _lease.text.trim(),
-          familyMembers: [
-            for (final member in _familyMembers)
-              (
-                name: member.name.text.trim(),
-                dateOfBirth: member.dateOfBirth!,
-                email: member.email.text.trim().isEmpty ? null : member.email.text.trim(),
-              ),
-          ],
-        );
+        await ref
+            .read(directoryProvider.notifier)
+            .createMembershipChange(
+              requestId: requestId!,
+              flat: f,
+              type: widget.type == MembershipRequestType.owner ? 'owner' : 'resident',
+              name: _newName.text.trim(),
+              email: _email.text.trim(),
+              mobile: _mobile.text.trim(),
+              leasePeriod: _lease.text.trim(),
+              familyMembers: [
+                for (final member in _familyMembers)
+                  (
+                    name: member.name.text.trim(),
+                    dateOfBirth: member.dateOfBirth!,
+                    email: member.email.text.trim().isEmpty ? null : member.email.text.trim(),
+                  ),
+              ],
+            );
         for (final proof in _proofs) {
           final bytes = await proof.file.xFile.readAsBytes();
-          await ref.read(directoryProvider.notifier).uploadMembershipProof(
-            requestId: requestId,
-            name: _newName.text.trim(),
-            email: _email.text.trim(),
-            flatId: f.id!,
-            type: proof.type,
-            bytes: bytes,
-            ext: proof.file.extension ?? '',
-          );
+          await ref
+              .read(directoryProvider.notifier)
+              .uploadMembershipProof(
+                requestId: requestId,
+                name: _newName.text.trim(),
+                email: _email.text.trim(),
+                flatId: f.id!,
+                type: proof.type,
+                bytes: bytes,
+                ext: proof.file.extension ?? '',
+              );
         }
       }
       if (!mounted) return;
@@ -285,8 +294,9 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
     final s = ref.watch(sessionProvider)!;
     final t = widget.type;
     final ownerSelf = t == MembershipRequestType.resident && s.activeRole == Role.owner;
-    final canSelfRequest = (t == MembershipRequestType.owner && s.activeRole == Role.owner) ||
-      (t == MembershipRequestType.resident && (s.activeRole == Role.owner || s.activeRole == Role.resident));
+    final canSelfRequest =
+        (t == MembershipRequestType.owner && s.activeRole == Role.owner) ||
+        (t == MembershipRequestType.resident && (s.activeRole == Role.owner || s.activeRole == Role.resident));
     final settings = s.user.association?.settings ?? const <String, dynamic>{};
     final minimumAgeSetting = settings['family_min_login_age'];
     final minimumLoginAge = minimumAgeSetting is num ? minimumAgeSetting.toInt() : 12;
@@ -326,10 +336,10 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
     }
     final pendingDues = ref.watch(duesProvider).pendingFor(_flat);
     final flats = canSelfRequest
-      ? ownFlats
+        ? ownFlats
         : t == MembershipRequestType.resident
-      ? directory.flats.where((f) => f.occupancy != Occupancy.ownerOccupied).toList()
-      : directory.flats;
+        ? directory.flats.where((f) => f.occupancy != Occupancy.ownerOccupied).toList()
+        : directory.flats;
     if (t != MembershipRequestType.committee && flats.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: Text(t.label)),
@@ -347,10 +357,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
       decoration: const InputDecoration(labelText: 'Flat'),
       items: [
         for (final f in flats)
-          DropdownMenuItem(
-            value: f.number,
-            child: Text('${f.number} · ${f.type} · ${f.occupancy.name}'),
-          ),
+          DropdownMenuItem(value: f.number, child: Text('${f.number} · ${f.type} · ${f.occupancy.name}')),
       ],
       onChanged: (v) => setState(() => _flat = v!),
     );
@@ -463,12 +470,19 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                               children: [
                                 Row(
                                   children: [
-                                    Expanded(child: Text('Family member ${index + 1}', style: Theme.of(context).textTheme.titleSmall)),
+                                    Expanded(
+                                      child: Text(
+                                        'Family member ${index + 1}',
+                                        style: Theme.of(context).textTheme.titleSmall,
+                                      ),
+                                    ),
                                     IconButton(
                                       tooltip: 'Remove family member',
-                                      onPressed: _submitting ? null : () => setState(() {
-                                        _familyMembers.removeAt(index).dispose();
-                                      }),
+                                      onPressed: _submitting
+                                          ? null
+                                          : () => setState(() {
+                                              _familyMembers.removeAt(index).dispose();
+                                            }),
                                       icon: const Icon(Icons.delete_outline),
                                     ),
                                   ],
@@ -479,21 +493,27 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                                   decoration: const InputDecoration(labelText: 'Family member name *'),
                                 ),
                                 TextButton.icon(
-                                  onPressed: _submitting ? null : () async {
-                                    final selected = await showDatePicker(
-                                      context: context,
-                                      initialDate: _familyMembers[index].dateOfBirth ?? DateTime.now().subtract(const Duration(days: 365 * 10)),
-                                      firstDate: DateTime(1900),
-                                      lastDate: DateUtils.dateOnly(DateTime.now()),
-                                    );
-                                    if (selected != null && mounted) {
-                                      setState(() => _familyMembers[index].dateOfBirth = selected);
-                                    }
-                                  },
+                                  onPressed: _submitting
+                                      ? null
+                                      : () async {
+                                          final selected = await showDatePicker(
+                                            context: context,
+                                            initialDate:
+                                                _familyMembers[index].dateOfBirth ??
+                                                DateTime.now().subtract(const Duration(days: 365 * 10)),
+                                            firstDate: DateTime(1900),
+                                            lastDate: DateUtils.dateOnly(DateTime.now()),
+                                          );
+                                          if (selected != null && mounted) {
+                                            setState(() => _familyMembers[index].dateOfBirth = selected);
+                                          }
+                                        },
                                   icon: const Icon(Icons.cake_outlined),
-                                  label: Text(_familyMembers[index].dateOfBirth == null
-                                      ? 'Date of birth *'
-                                      : 'Date of birth · ${dateFmt.format(_familyMembers[index].dateOfBirth!)}'),
+                                  label: Text(
+                                    _familyMembers[index].dateOfBirth == null
+                                        ? 'Date of birth *'
+                                        : 'Date of birth · ${dateFmt.format(_familyMembers[index].dateOfBirth!)}',
+                                  ),
                                 ),
                                 TextField(
                                   controller: _familyMembers[index].email,
@@ -571,11 +591,18 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      initialValue: _mom,
+                      initialValue: _mom.isEmpty ? null : _mom,
+                      isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Linked MOM decision (mandatory)'),
                       items: [
-                        for (final m in const ['EC-2026-10 · Decision #3', 'EC-2026-09 · Decision #5'])
-                          DropdownMenuItem(value: m, child: Text(m)),
+                        for (final m in {
+                          ...approvedMomOptions(context),
+                          if (!backendEnabled) ...const ['EC-2026-10 · Decision #3', 'EC-2026-09 · Decision #5'],
+                        })
+                          DropdownMenuItem(
+                            value: m,
+                            child: Text(m, overflow: TextOverflow.ellipsis),
+                          ),
                       ],
                       onChanged: (v) => setState(() => _mom = v!),
                     ),
@@ -588,7 +615,10 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                           child: TextField(
                             controller: _for,
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(6),
+                            ],
                             decoration: const InputDecoration(labelText: 'For'),
                           ),
                         ),
@@ -597,7 +627,10 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                           child: TextField(
                             controller: _against,
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(6),
+                            ],
                             decoration: const InputDecoration(labelText: 'Against'),
                           ),
                         ),
@@ -606,7 +639,10 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                           child: TextField(
                             controller: _abstain,
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(6),
+                            ],
                             decoration: const InputDecoration(labelText: 'Abstain'),
                           ),
                         ),

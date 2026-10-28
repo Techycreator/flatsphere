@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
@@ -10,6 +12,7 @@ import '../../backend/membership_transition_repo.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
+import '../../widgets/mom.dart';
 import '../../widgets/common.dart';
 
 final membershipTransitionChecklistProvider = FutureProvider.autoDispose.family<List<MembershipTransitionItem>, String>(
@@ -32,8 +35,8 @@ class ApprovalDetailScreen extends ConsumerWidget {
     final isInitiator = a.initiatorName.contains(s.user.name);
     final myTurn = a.awaits(s.activeRole, s.user.name);
     final paymentGate = backendEnabled && (a.code == 'W20' || a.code == 'W21')
-      ? ref.watch(membershipPaymentGateProvider(a.id))
-      : null;
+        ? ref.watch(membershipPaymentGateProvider(a.id))
+        : null;
     if (paymentGate != null) {
       ref.listen(membershipPaymentGateProvider(a.id), (previous, next) {
         final previousStatus = previous?.value?.status;
@@ -159,10 +162,7 @@ class ApprovalDetailScreen extends ConsumerWidget {
                           const Icon(Icons.description_outlined, color: Colors.indigo),
                           const SizedBox(width: 8),
                           Expanded(child: Text('Linked MOM: ${a.momRef ?? 'Not linked – cannot be approved'}')),
-                          TextButton(
-                            onPressed: () => toast(context, 'Opens the approved MOM PDF'),
-                            child: const Text('Open'),
-                          ),
+                          TextButton(onPressed: () => openMom(context, a.momRef), child: const Text('View minutes')),
                         ],
                       ),
                     ),
@@ -189,10 +189,16 @@ class ApprovalDetailScreen extends ConsumerWidget {
                   data: (gate) => ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
-                      gate.status == 'pending_payment_due' ? Icons.payments_outlined :
-                      gate.status == 'applied' ? Icons.verified_outlined : Icons.pending_actions_outlined,
-                      color: gate.status == 'pending_payment_due' ? AppColors.red :
-                          gate.status == 'applied' ? AppColors.green : AppColors.amber,
+                      gate.status == 'pending_payment_due'
+                          ? Icons.payments_outlined
+                          : gate.status == 'applied'
+                          ? Icons.verified_outlined
+                          : Icons.pending_actions_outlined,
+                      color: gate.status == 'pending_payment_due'
+                          ? AppColors.red
+                          : gate.status == 'applied'
+                          ? AppColors.green
+                          : AppColors.amber,
                     ),
                     title: Text(switch (gate.status) {
                       'pending_first_approval' => 'Waiting for first President approval',
@@ -203,8 +209,10 @@ class ApprovalDetailScreen extends ConsumerWidget {
                     }),
                     subtitle: Text(switch (gate.status) {
                       'pending_first_approval' => 'The outgoing record remains active until first approval.',
-                      'pending_payment_due' => 'The outgoing record is archived. The incoming person is not active for gate clearance.',
-                      'pending_final_approval' => 'Dues are currently zero; they are checked again before final activation.',
+                      'pending_payment_due' =>
+                        'The outgoing record is archived. The incoming person is not active for gate clearance.',
+                      'pending_final_approval' =>
+                        'Dues are currently zero; they are checked again before final activation.',
                       'applied' => 'The incoming owner or tenant is now in active association records.',
                       _ => '',
                     }),
@@ -214,7 +222,8 @@ class ApprovalDetailScreen extends ConsumerWidget {
             const SizedBox(height: 8),
             _MembershipTransitionChecklist(
               request: a,
-              canEdit: (isInitiator || s.activeRole == Role.owner || s.user.canInitiateMembership(s.activeRole)) &&
+              canEdit:
+                  (isInitiator || s.activeRole == Role.owner || s.user.canInitiateMembership(s.activeRole)) &&
                   a.overall == Decision.pending,
             ),
           ],
@@ -251,20 +260,18 @@ class ApprovalDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-            if (backendEnabled && a.steps.any((x) => x.isEcVote)) ...[
+          if (backendEnabled && a.steps.any((x) => x.isEcVote)) ...[
             _EcVotePanel(request: a),
             const SizedBox(height: 16),
           ],
-            if (a.code == 'W21' &&
+          if (a.code == 'W21' &&
               (backendEnabled ? paymentGate?.value?.status == 'applied' : a.overall == Decision.approved)) ...[
             const Card(
               color: Color(0xFFF0FDF4),
               child: ListTile(
                 leading: Icon(Icons.verified_user, color: AppColors.green),
                 title: Text('Applied to records'),
-                subtitle: Text(
-                  'Resident updated. Outgoing tenant and family logins disabled and archived.',
-                ),
+                subtitle: Text('Resident updated. Outgoing tenant and family logins disabled and archived.'),
               ),
             ),
             const SizedBox(height: 16),
@@ -333,7 +340,10 @@ class _MembershipTransitionChecklist extends ConsumerWidget {
                   padding: const EdgeInsets.only(top: 8, bottom: 4),
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(phase == 'move_out' ? 'Move-out' : 'Move-in', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    child: Text(
+                      phase == 'move_out' ? 'Move-out' : 'Move-in',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
               for (final entry in entries.where((entry) => entry.phase == phase))
@@ -344,7 +354,14 @@ class _MembershipTransitionChecklist extends ConsumerWidget {
                       ? (value) async {
                           var note = entry.note;
                           if (value == true) {
-                            note = await promptText(context, title: entry.label, hint: 'Optional note or reference', required: false) ?? '';
+                            note =
+                                await promptText(
+                                  context,
+                                  title: entry.label,
+                                  hint: 'Optional note or reference',
+                                  required: false,
+                                ) ??
+                                '';
                             if (!context.mounted) return;
                           }
                           try {
@@ -356,11 +373,13 @@ class _MembershipTransitionChecklist extends ConsumerWidget {
                         }
                       : null,
                   title: Text(entry.label),
-                  subtitle: Text([
-                    if (entry.required) 'Required before final approval',
-                    if (entry.completedAt != null) dateTimeFmt.format(entry.completedAt!),
-                    if (entry.note.isNotEmpty) entry.note,
-                  ].join(' · ')),
+                  subtitle: Text(
+                    [
+                      if (entry.required) 'Required before final approval',
+                      if (entry.completedAt != null) dateTimeFmt.format(entry.completedAt!),
+                      if (entry.note.isNotEmpty) entry.note,
+                    ].join(' · '),
+                  ),
                   secondary: entry.required ? const Icon(Icons.priority_high, color: AppColors.amber) : null,
                 ),
             ],
@@ -463,7 +482,10 @@ class _EcVotePanel extends ConsumerWidget {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Text('EC: ${s.yes} Yes \u00b7 ${s.no} No of ${s.total}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                Text(
+                  'EC: ${s.yes} Yes \u00b7 ${s.no} No of ${s.total}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
                 if (step.decision == Decision.approved)
                   const Pill('EC approved', color: AppColors.green)
                 else if (step.decision == Decision.rejected)
@@ -483,7 +505,11 @@ class _EcVotePanel extends ConsumerWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  FilledButton.icon(onPressed: () => vote('yes'), icon: const Icon(Icons.thumb_up_outlined), label: const Text('Vote Yes')),
+                  FilledButton.icon(
+                    onPressed: () => vote('yes'),
+                    icon: const Icon(Icons.thumb_up_outlined),
+                    label: const Text('Vote Yes'),
+                  ),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
                     onPressed: () => vote('no'),
@@ -503,7 +529,10 @@ class _EcVotePanel extends ConsumerWidget {
                 ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(v.vote == 'yes' ? Icons.check_circle : Icons.cancel, color: v.vote == 'yes' ? AppColors.green : AppColors.red),
+                  leading: Icon(
+                    v.vote == 'yes' ? Icons.check_circle : Icons.cancel,
+                    color: v.vote == 'yes' ? AppColors.green : AppColors.red,
+                  ),
                   title: Text(v.name),
                   subtitle: v.comment == null ? null : Text(v.comment!),
                 ),

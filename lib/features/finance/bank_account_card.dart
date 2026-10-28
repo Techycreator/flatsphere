@@ -8,6 +8,7 @@ import '../../backend/backend.dart' show backendEnabled;
 import '../../backend/bank_repo.dart';
 import '../../widgets/common.dart';
 import '../../widgets/tr_text.dart';
+import '../../widgets/mom.dart';
 
 final bankOverviewProvider = FutureProvider.autoDispose<BankOverview>((ref) => BankRepo.overview());
 
@@ -30,8 +31,13 @@ class BankAccountCard extends ConsumerWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(width: 120, child: Text(k, style: const TextStyle(color: Colors.black54))),
-              Expanded(child: Text(v, style: const TextStyle(fontWeight: FontWeight.w600))),
+              SizedBox(
+                width: 120,
+                child: Text(k, style: const TextStyle(color: Colors.black54)),
+              ),
+              Expanded(
+                child: Text(v, style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
         );
@@ -92,7 +98,10 @@ class BankAccountCard extends ConsumerWidget {
                   ),
                   trailing: pen.approvalRef == null
                       ? null
-                      : TextButton(onPressed: () => context.go('/approvals/${pen.approvalRef}'), child: const Text('View approval')),
+                      : TextButton(
+                          onPressed: () => context.go('/approvals/${pen.approvalRef}'),
+                          child: const Text('View approval'),
+                        ),
                 ),
               ),
             ],
@@ -128,11 +137,20 @@ class BankAccountCard extends ConsumerWidget {
                     style: TextStyle(fontSize: 12),
                   ),
                   const SizedBox(height: 12),
-                  TextField(controller: bank, decoration: const InputDecoration(labelText: 'Bank name *')),
+                  TextField(
+                    controller: bank,
+                    decoration: const InputDecoration(labelText: 'Bank name *'),
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: branch, decoration: const InputDecoration(labelText: 'Branch')),
+                  TextField(
+                    controller: branch,
+                    decoration: const InputDecoration(labelText: 'Branch'),
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: holder, decoration: const InputDecoration(labelText: 'Account holder name *')),
+                  TextField(
+                    controller: holder,
+                    decoration: const InputDecoration(labelText: 'Account holder name *'),
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: number,
@@ -147,9 +165,30 @@ class BankAccountCard extends ConsumerWidget {
                     decoration: const InputDecoration(labelText: 'IFSC code *'),
                   ),
                   const SizedBox(height: 12),
-                  TextField(controller: reason, maxLines: 2, decoration: const InputDecoration(labelText: 'Reason for the change *')),
+                  TextField(
+                    controller: reason,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: 'Reason for the change *'),
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: mom, decoration: const InputDecoration(labelText: 'MOM reference *')),
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'MOM – approved meeting minutes *',
+                      helperText: approvedMomOptions(context).isEmpty
+                          ? 'No approved minutes yet. Approve the EC meeting minutes in Meetings first.'
+                          : null,
+                      helperMaxLines: 2,
+                    ),
+                    items: [
+                      for (final o in approvedMomOptions(context))
+                        DropdownMenuItem(
+                          value: o,
+                          child: Text(o, overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: (v) => mom.text = v ?? '',
+                  ),
                   if (err != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
