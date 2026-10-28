@@ -497,6 +497,7 @@ class ChecklistItem {
     this.done = false,
     this.note = '',
     this.hasVoiceNote = false,
+    this.voicePath,
     this.proofRequired = false,
     this.photoProofPaths = const [],
     this.rejectedReason,
@@ -509,6 +510,7 @@ class ChecklistItem {
   final bool done;
   final String note;
   final bool hasVoiceNote;
+  final String? voicePath;
   final bool proofRequired;
   final List<String> photoProofPaths;
   final String? rejectedReason;
@@ -517,6 +519,8 @@ class ChecklistItem {
     bool? done,
     String? note,
     bool? hasVoiceNote,
+    String? voicePath,
+    bool clearVoicePath = false,
     List<String>? photoProofPaths,
     String? rejectedReason,
     bool clearRejection = false,
@@ -528,6 +532,7 @@ class ChecklistItem {
     done: done ?? this.done,
     note: note ?? this.note,
     hasVoiceNote: hasVoiceNote ?? this.hasVoiceNote,
+    voicePath: clearVoicePath ? null : (voicePath ?? this.voicePath),
     proofRequired: proofRequired,
     photoProofPaths: photoProofPaths ?? this.photoProofPaths,
     rejectedReason: clearRejection ? null : (rejectedReason ?? this.rejectedReason),

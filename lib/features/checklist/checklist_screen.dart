@@ -1,8 +1,17 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:record/record.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/complaints_repo.dart' show wavVoiceFormat, webmVoiceFormat, m4aVoiceFormat;
+import '../../backend/upload_preparation.dart' show maxUploadBytes;
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../app/theme.dart';
 import '../../l10n/app_localizations.dart';
@@ -197,6 +206,12 @@ class _ChecklistRow extends ConsumerWidget {
     final actions = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (item.voicePath != null)
+          IconButton(
+            tooltip: 'Play voice note',
+            icon: const Icon(Icons.play_circle_outline),
+            onPressed: () => _playVoice(context, ref),
+          ),
         if (editable && item.proofRequired)
           IconButton(
             tooltip: 'Add photo proof',
@@ -274,10 +289,85 @@ class _ChecklistRow extends ConsumerWidget {
     }
   }
 
+  Future<void> _playVoice(BuildContext context, WidgetRef ref) async {
+    try {
+      final url = await ref.read(checklistProvider.notifier).voiceUrl(item.voicePath!);
+      if (url == null) return;
+      if (!await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication) && context.mounted) {
+        toast(context, 'Could not open the voice note');
+      }
+    } catch (e) {
+      if (context.mounted) toast(context, friendlyError(e));
+    }
+  }
+
   void _noteSheet(BuildContext context, WidgetRef ref) {
     final ctrl = TextEditingController(text: item.note);
     var voice = item.hasVoiceNote;
+    Uint8List? newVoice;
+    var format = wavVoiceFormat;
+    var recording = false;
+    var busy = false;
+    String? error;
+    final recorder = AudioRecorder();
+    final audio = BytesBuilder(copy: false);
+    StreamSubscription<Uint8List>? sub;
+    Timer? limit;
     final l = AppLocalizations.of(context);
+
+    Future<void> stop(StateSetter setState) async {
+      if (!recording || busy) return;
+      setState(() => busy = true);
+      limit?.cancel();
+      try {
+        await recorder.stop();
+        await sub?.cancel();
+        sub = null;
+        final bytes = audio.takeBytes();
+        if (bytes.isEmpty) throw StateError('No audio was captured');
+        if (bytes.length > maxUploadBytes) throw StateError('Voice note exceeded the 5 MB limit');
+        newVoice = bytes;
+        voice = true;
+        error = null;
+      } catch (e) {
+        error = '$e';
+      }
+      setState(() {
+        recording = false;
+        busy = false;
+      });
+    }
+
+    Future<void> start(StateSetter setState) async {
+      if (!backendEnabled) return setState(() => voice = !voice);
+      try {
+        if (!await recorder.hasPermission()) {
+          return setState(() => error = 'Microphone permission is required to record a voice note');
+        }
+        audio.clear();
+        var config = const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1);
+        format = wavVoiceFormat;
+        if (kIsWeb) {
+          if (await recorder.isEncoderSupported(AudioEncoder.opus)) {
+            config = const RecordConfig(encoder: AudioEncoder.opus, sampleRate: 16000, numChannels: 1, bitRate: 24000);
+            format = webmVoiceFormat;
+          } else if (await recorder.isEncoderSupported(AudioEncoder.aacLc)) {
+            config = const RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 16000, numChannels: 1, bitRate: 32000);
+            format = m4aVoiceFormat;
+          }
+        }
+        final stream = await recorder.startStream(config);
+        sub = stream.listen(audio.add, onError: (Object e) => setState(() => error = 'Recording failed: $e'));
+        limit = Timer(const Duration(minutes: 3), () => unawaited(stop(setState)));
+        setState(() {
+          recording = true;
+          error = null;
+        });
+      } catch (e) {
+        setState(() => error = 'Could not start recording: $e');
+      }
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -294,27 +384,59 @@ class _ChecklistRow extends ConsumerWidget {
               TextField(
                 controller: ctrl,
                 maxLines: 3,
+                maxLength: 500,
                 decoration: InputDecoration(labelText: '${l.notes} (optional)'),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: () => setState(() => voice = !voice),
-                icon: Icon(voice ? Icons.check_circle : Icons.mic_none),
-                label: Text(voice ? 'Voice note recorded (tap to remove)' : l.recordVoice),
+                onPressed: busy ? null : () => recording ? stop(setState) : start(setState),
+                icon: Icon(recording ? Icons.stop_circle_outlined : (voice ? Icons.check_circle : Icons.mic_none)),
+                label: Text(recording ? 'Stop recording' : (voice ? 'Voice note recorded (tap to re-record)' : l.recordVoice)),
               ),
+              if (voice && !recording)
+                TextButton.icon(
+                  onPressed: () => setState(() {
+                    voice = false;
+                    newVoice = null;
+                  }),
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Remove voice note'),
+                ),
+              if (error != null)
+                Text(error!, style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
               const SizedBox(height: 12),
               FilledButton(
-                onPressed: () {
-                  ref.read(checklistProvider.notifier).setNote(item.id, ctrl.text.trim(), voice);
-                  Navigator.pop(ctx);
-                },
+                onPressed: recording || busy
+                    ? null
+                    : () async {
+                        try {
+                          await ref
+                              .read(checklistProvider.notifier)
+                              .setNote(
+                                item.id,
+                                ctrl.text.trim(),
+                                voice: voice,
+                                newVoice: newVoice,
+                                voiceExtension: format.extension,
+                                voiceContentType: format.contentType,
+                              );
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        } catch (e) {
+                          setState(() => error = friendlyError(e));
+                        }
+                      },
                 child: const Text('Save'),
               ),
             ],
           ),
         ),
       ),
-    );
+    ).whenComplete(() {
+      limit?.cancel();
+      unawaited(sub?.cancel());
+      unawaited(recorder.dispose());
+      ctrl.dispose();
+    });
   }
 }
 

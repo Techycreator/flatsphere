@@ -7,6 +7,7 @@ import 'backend.dart';
 import 'upload_preparation.dart';
 
 const _checklistBucket = 'checklist-proofs';
+const _notesBucket = 'checklist-notes';
 
 class ChecklistRepo {
   static Future<Map<String, List<String>>> proofs(DateTime date) async {
@@ -40,6 +41,53 @@ class ChecklistRepo {
   }
 
   static Future<String> viewUrl(String path) => db.storage.from(_checklistBucket).createSignedUrl(path, 60);
+
+  static Future<Map<String, ({String note, String? voicePath})>> notes(DateTime date) async {
+    final rows = await db
+        .from('checklist_notes')
+        .select('item_id, note, voice_path')
+        .eq('checklist_date', _date(date));
+    return {
+      for (final r in rows) r['item_id'] as String: (note: r['note'] as String? ?? '', voicePath: r['voice_path'] as String?),
+    };
+  }
+
+  /// Saves the day's note; [voice] replaces the stored recording, [removeVoice] clears it.
+  static Future<String?> saveNote({
+    required String itemId,
+    required DateTime date,
+    required String note,
+    Uint8List? voice,
+    String voiceExtension = 'wav',
+    String voiceContentType = 'audio/wav',
+    bool removeVoice = false,
+  }) async {
+    final day = _date(date);
+    String? voicePath;
+    if (voice != null) {
+      final association = await db.rpc('my_association') as String;
+      voicePath = '$association/$day/$itemId/${DateTime.now().microsecondsSinceEpoch}.$voiceExtension';
+      await db.storage
+          .from(_notesBucket)
+          .uploadBinary(voicePath, voice, fileOptions: FileOptions(contentType: voiceContentType));
+    }
+    try {
+      await db.from('checklist_notes').upsert({
+        'checklist_date': day,
+        'item_id': itemId,
+        'note': note,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+        if (voicePath != null) 'voice_path': voicePath,
+        if (removeVoice && voicePath == null) 'voice_path': null,
+      }, onConflict: 'association_id,checklist_date,item_id');
+    } catch (_) {
+      if (voicePath != null) await db.storage.from(_notesBucket).remove([voicePath]);
+      rethrow;
+    }
+    return voicePath;
+  }
+
+  static Future<String> voiceUrl(String path) => db.storage.from(_notesBucket).createSignedUrl(path, 120);
 
   static Future<List<ChecklistItem>> items() async {
     final rows = await db

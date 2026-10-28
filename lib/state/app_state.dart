@@ -242,8 +242,18 @@ class ChecklistNotifier extends Notifier<ChecklistState> {
     if (!backendEnabled) return;
     try {
       final proofs = await ChecklistRepo.proofs(date);
+      final notes = await ChecklistRepo.notes(date);
       state = state.copyWith(
-        items: [for (final item in state.items) item.copyWith(photoProofPaths: proofs[item.id] ?? const [])],
+        items: [
+          for (final item in state.items)
+            item.copyWith(
+              photoProofPaths: proofs[item.id] ?? const [],
+              note: notes[item.id]?.note ?? item.note,
+              voicePath: notes[item.id]?.voicePath,
+              clearVoicePath: notes[item.id]?.voicePath == null,
+              hasVoiceNote: notes[item.id]?.voicePath != null || (!backendEnabled && item.hasVoiceNote),
+            ),
+        ],
         clearError: true,
       );
     } catch (e) {
@@ -282,8 +292,30 @@ class ChecklistNotifier extends Notifier<ChecklistState> {
     _items([for (final i in state.items) i.id == id ? i.copyWith(done: done, clearRejection: true) : i]);
   }
 
-  void setNote(String id, String note, bool voice) =>
-      _items([for (final i in state.items) i.id == id ? i.copyWith(note: note, hasVoiceNote: voice) : i]);
+  Future<void> setNote(
+    String id,
+    String note, {
+    bool voice = false,
+    Uint8List? newVoice,
+    String voiceExtension = 'wav',
+    String voiceContentType = 'audio/wav',
+  }) async {
+    if (backendEnabled) {
+      await ChecklistRepo.saveNote(
+        itemId: id,
+        date: DateUtils.dateOnly(DateTime.now()),
+        note: note,
+        voice: newVoice,
+        voiceExtension: voiceExtension,
+        voiceContentType: voiceContentType,
+        removeVoice: !voice,
+      );
+      return refreshProofs(DateUtils.dateOnly(DateTime.now()));
+    }
+    _items([for (final i in state.items) i.id == id ? i.copyWith(note: note, hasVoiceNote: voice) : i]);
+  }
+
+  Future<String?> voiceUrl(String path) async => backendEnabled ? ChecklistRepo.voiceUrl(path) : null;
 
   void submit() => state = ChecklistState(items: state.items, submitted: true);
 
