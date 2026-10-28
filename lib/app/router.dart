@@ -25,6 +25,7 @@ import '../features/finance/my_dues_screen.dart';
 import '../features/attendance/household_staff_screen.dart';
 import '../features/meetings/meetings_screen.dart';
 import '../features/notices/notices_screen.dart';
+import '../features/visitors/gate_screen.dart';
 import '../features/visitors/visitors_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/shell/association_settings_screen.dart';
@@ -154,6 +155,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/family-accounts', pageBuilder: (_, _) => _page(const FamilyAccountsScreen())),
           GoRoute(path: '/notices', pageBuilder: (_, _) => _page(const NoticesScreen())),
           GoRoute(path: '/visitors', pageBuilder: (_, _) => _page(const VisitorsScreen())),
+          GoRoute(path: '/gate', pageBuilder: (_, _) => _page(const GateScreen())),
           GoRoute(path: '/vehicles', pageBuilder: (_, _) => _page(const VehicleLookupScreen())),
         ],
       ),

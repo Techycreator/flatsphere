@@ -18,6 +18,7 @@ import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
 import '../../validation/input_validation.dart';
+import 'gate_screen.dart';
 
 final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>((ref) {
   final role = ref.watch(sessionProvider.select((s) => s?.activeRole));
@@ -74,6 +75,7 @@ class VisitorsScreen extends ConsumerWidget {
     return PageBody(
       maxWidth: 1000,
       children: [
+        const GateAlertsCard(),
         Row(
           children: [
             Expanded(child: Text(l.visitorRegister, style: Theme.of(context).textTheme.headlineSmall)),
