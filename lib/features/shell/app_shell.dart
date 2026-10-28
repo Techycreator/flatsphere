@@ -44,34 +44,37 @@ class AppShell extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: Row(
-          children: [
-            Icon(Icons.apartment, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    session.user.association?.name ?? associationName,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (wide)
+        title: _AssociationSwitcher(
+          session: session,
+          child: Row(
+            children: [
+              Icon(Icons.apartment, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      session.user.association?.location ?? associationCity,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      session.user.association?.name ?? associationName,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                ],
+                    if (wide)
+                      Text(
+                        session.user.association?.location ?? associationCity,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (session.user.associations.length > 1) const Icon(Icons.arrow_drop_down),
+            ],
+          ),
         ),
         actions: [
-          _AssociationSwitcher(session: session),
           _RoleSwitcher(session: session),
           if (wide) const LanguageToggle(),
           if (wide) IconButton(
@@ -271,13 +274,14 @@ class AppShell extends ConsumerWidget {
 }
 
 class _AssociationSwitcher extends ConsumerWidget {
-  const _AssociationSwitcher({required this.session});
+  const _AssociationSwitcher({required this.session, required this.child});
   final Session session;
+  final Widget child;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final associations = session.user.associations;
-    if (associations.length < 2) return const SizedBox.shrink();
+    if (associations.length < 2) return child;
     return PopupMenuButton<String>(
       tooltip: 'Switch association',
       onSelected: (id) async {
@@ -298,7 +302,7 @@ class _AssociationSwitcher extends ConsumerWidget {
             child: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
       ],
-      child: const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.apartment_outlined)),
+      child: child,
     );
   }
 }
