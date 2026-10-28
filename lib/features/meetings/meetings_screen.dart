@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../backend/meetings_repo.dart';
+import '../../backend/finance_repo.dart' show FinanceRepo;
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../app/theme.dart';
 import '../../backend/backend.dart' show backendEnabled;
@@ -64,6 +65,12 @@ class MeetingsScreen extends ConsumerWidget {
     var at = DateTime.now().add(const Duration(days: 7));
     final title = TextEditingController(text: 'EC meeting – special');
     final agenda = TextEditingController();
+    if (backendEnabled) {
+      try {
+        agenda.text = (await FinanceRepo.flaggedAgenda()).join('\n');
+      } catch (_) {}
+    }
+    if (!context.mounted) return;
     final link = TextEditingController();
     final saved = await showDialog<bool>(
       context: context,

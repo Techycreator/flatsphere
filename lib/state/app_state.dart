@@ -815,7 +815,7 @@ class ExpensesNotifier extends Notifier<List<Expense>> {
     ];
   }
 
-  /// Actions: verify, approve, send_back, resubmit, flag. The server enforces who may do what.
+  /// Actions: verify, approve, send_back, resubmit, flag, resolve_flag. The server enforces who may do what.
   Future<void> decide(Expense e, String action, [String? comment]) async {
     if (backendEnabled) {
       await FinanceRepo.decide(e.dbId!, action, comment);
@@ -825,10 +825,11 @@ class ExpensesNotifier extends Notifier<List<Expense>> {
       e.id,
       (x) => switch (action) {
         'verify' => x.copyWith(status: ExpenseStatus.awaitingPresident),
-        'approve' => x.copyWith(status: ExpenseStatus.approved),
+        'approve' => x.flagged ? x : x.copyWith(status: ExpenseStatus.approved),
         'send_back' => x.copyWith(status: ExpenseStatus.sentBack, comment: comment),
         'resubmit' => x.copyWith(status: ExpenseStatus.awaitingTreasurer),
-        'flag' => x.copyWith(flagged: !x.flagged),
+        'flag' => x.copyWith(flagged: true, flagReason: comment),
+        'resolve_flag' => x.copyWith(flagged: false, flagResolution: comment),
         _ => x,
       },
     );

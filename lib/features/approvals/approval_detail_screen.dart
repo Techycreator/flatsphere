@@ -299,7 +299,7 @@ class ApprovalDetailScreen extends ConsumerWidget {
             TextButton.icon(
               onPressed: () {
                 notifier.flag(a.id);
-                toast(context, a.flagged ? 'Flag removed' : 'Flagged – added to next EC meeting agenda');
+                toast(context, a.flagged ? 'Flag removed' : 'Flagged for discussion');
               },
               icon: Icon(a.flagged ? Icons.flag : Icons.outlined_flag),
               label: Text(a.flagged ? 'Remove flag' : 'Flag for discussion'),

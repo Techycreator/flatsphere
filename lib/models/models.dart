@@ -727,6 +727,8 @@ class Expense {
     required this.enteredBy,
     this.documents = 1,
     this.flagged = false,
+    this.flagReason,
+    this.flagResolution,
     this.comment,
     this.dbId,
     this.billPaths = const [],
@@ -744,12 +746,14 @@ class Expense {
   final String enteredBy;
   final int documents;
   final bool flagged;
+  final String? flagReason;
+  final String? flagResolution;
   final String? comment;
   final String? dbId;
   final List<String> billPaths;
   final String? eventId;
 
-  Expense copyWith({ExpenseStatus? status, bool? flagged, String? comment, int? documents}) => Expense(
+  Expense copyWith({ExpenseStatus? status, bool? flagged, String? flagReason, String? flagResolution, String? comment, int? documents}) => Expense(
     id: id,
     date: date,
     category: category,
@@ -760,6 +764,8 @@ class Expense {
     enteredBy: enteredBy,
     documents: documents ?? this.documents,
     flagged: flagged ?? this.flagged,
+    flagReason: flagReason ?? this.flagReason,
+    flagResolution: flagResolution ?? this.flagResolution,
     comment: comment ?? this.comment,
     dbId: dbId,
     billPaths: billPaths,

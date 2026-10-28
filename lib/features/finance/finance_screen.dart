@@ -467,6 +467,27 @@ class _ExpensesTab extends ConsumerWidget {
       if (c != null) await act(e, 'send_back', c);
     }
 
+    Future<void> flag(Expense e) async {
+      final c = await promptText(
+        context,
+        title: 'Flag ${e.id} for discussion',
+        hint: 'Why does this need discussion? (shown to the committee)',
+      );
+      if (c != null && c.trim().isNotEmpty) {
+        await act(e, 'flag', c);
+        if (context.mounted) toast(context, 'Flagged. The committee is notified and it is offered for the next EC agenda.');
+      }
+    }
+
+    Future<void> resolveFlag(Expense e) async {
+      final c = await promptText(
+        context,
+        title: 'Resolve flag on ${e.id}',
+        hint: 'What was decided? (e.g. Discussed in EC meeting on 12 Nov; approved)',
+      );
+      if (c != null && c.trim().isNotEmpty) await act(e, 'resolve_flag', c);
+    }
+
     Future<void> attach(Expense e) async {
       final f = await pickBill(context);
       if (f == null) return;
@@ -560,7 +581,10 @@ class _ExpensesTab extends ConsumerWidget {
                         const Pill('No bill attached', color: AppColors.red, icon: Icons.attach_file)
                       else
                         Pill('${e.documents} document(s)', color: Colors.blueGrey, icon: Icons.attach_file),
-                      if (e.flagged) const Pill('Flagged by President', color: AppColors.amber, icon: Icons.flag),
+                      if (e.flagged)
+                        Pill('Flagged for discussion${e.flagReason == null ? '' : ': ${e.flagReason}'}', color: AppColors.amber, icon: Icons.flag)
+                      else if (e.flagResolution != null)
+                        Pill('Flag resolved: ${e.flagResolution}', color: AppColors.green, icon: Icons.check),
                       if (e.comment != null)
                         Text('“${e.comment}”', style: const TextStyle(fontStyle: FontStyle.italic)),
                     ],
@@ -578,7 +602,10 @@ class _ExpensesTab extends ConsumerWidget {
                         OutlinedButton(onPressed: () => sendBack(e), child: const Text('Send back')),
                       ],
                       if (role == Role.president && e.status == ExpenseStatus.awaitingPresident) ...[
-                        FilledButton(onPressed: () => act(e, 'approve'), child: const Text('Approve')),
+                        FilledButton(
+                          onPressed: e.flagged ? null : () => act(e, 'approve'),
+                          child: Text(e.flagged ? 'Approve (resolve flag first)' : 'Approve'),
+                        ),
                         OutlinedButton(onPressed: () => sendBack(e), child: const Text('Send back')),
                       ],
                       if ((canEnter || role == Role.treasurer) &&
@@ -594,11 +621,17 @@ class _ExpensesTab extends ConsumerWidget {
                           icon: const Icon(Icons.send),
                           label: const Text('Resubmit'),
                         ),
-                      if (role == Role.president)
+                      if (role == Role.president && !e.flagged)
                         TextButton.icon(
-                          onPressed: () => act(e, 'flag'),
-                          icon: Icon(e.flagged ? Icons.flag : Icons.outlined_flag),
-                          label: Text(e.flagged ? 'Unflag' : 'Flag for discussion'),
+                          onPressed: () => flag(e),
+                          icon: const Icon(Icons.outlined_flag),
+                          label: const Text('Flag for discussion'),
+                        ),
+                      if (e.flagged && (role == Role.president || role == Role.secretary))
+                        TextButton.icon(
+                          onPressed: () => resolveFlag(e),
+                          icon: const Icon(Icons.flag),
+                          label: const Text('Resolve flag'),
                         ),
                     ],
                   ),
