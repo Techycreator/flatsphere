@@ -504,7 +504,9 @@ class _DueReminderBanners extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final reminders = ref.watch(dueRemindersProvider).value ?? const [];
+    ref.listen(duesProvider, (_, _) => ref.invalidate(dueRemindersProvider));
+    final dues = ref.watch(duesProvider);
+    final reminders = (ref.watch(dueRemindersProvider).value ?? const []).where((r) => dues.pendingFor(r.flat) > 0).toList();
     if (reminders.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
