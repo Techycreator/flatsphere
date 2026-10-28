@@ -1,17 +1,15 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../backend/backend.dart' show backendEnabled;
-import '../../backend/complaints_repo.dart' show wavVoiceFormat, webmVoiceFormat, m4aVoiceFormat;
-import '../../backend/upload_preparation.dart' show maxUploadBytes;
+import '../../backend/complaints_repo.dart' show wavVoiceFormat;
+import '../../backend/voice_recorder.dart';
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../app/theme.dart';
 import '../../l10n/app_localizations.dart';
@@ -309,24 +307,16 @@ class _ChecklistRow extends ConsumerWidget {
     var recording = false;
     var busy = false;
     String? error;
-    final recorder = AudioRecorder();
-    final audio = BytesBuilder(copy: false);
-    StreamSubscription<Uint8List>? sub;
-    Timer? limit;
+    final recorder = VoiceRecorder();
     final l = AppLocalizations.of(context);
 
     Future<void> stop(StateSetter setState) async {
       if (!recording || busy) return;
       setState(() => busy = true);
-      limit?.cancel();
       try {
-        await recorder.stop();
-        await sub?.cancel();
-        sub = null;
-        final bytes = audio.takeBytes();
-        if (bytes.isEmpty) throw StateError('No audio was captured');
-        if (bytes.length > maxUploadBytes) throw StateError('Voice note exceeded the 5 MB limit');
-        newVoice = bytes;
+        final result = await recorder.stop();
+        newVoice = result.bytes;
+        format = result.format;
         voice = true;
         error = null;
       } catch (e) {
@@ -344,21 +334,10 @@ class _ChecklistRow extends ConsumerWidget {
         if (!await recorder.hasPermission()) {
           return setState(() => error = 'Microphone permission is required to record a voice note');
         }
-        audio.clear();
-        var config = const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1);
-        format = wavVoiceFormat;
-        if (kIsWeb) {
-          if (await recorder.isEncoderSupported(AudioEncoder.opus)) {
-            config = const RecordConfig(encoder: AudioEncoder.opus, sampleRate: 16000, numChannels: 1, bitRate: 24000);
-            format = webmVoiceFormat;
-          } else if (await recorder.isEncoderSupported(AudioEncoder.aacLc)) {
-            config = const RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 16000, numChannels: 1, bitRate: 32000);
-            format = m4aVoiceFormat;
-          }
-        }
-        final stream = await recorder.startStream(config);
-        sub = stream.listen(audio.add, onError: (Object e) => setState(() => error = 'Recording failed: $e'));
-        limit = Timer(const Duration(minutes: 3), () => unawaited(stop(setState)));
+        await recorder.start(
+          onAutoStop: () => unawaited(stop(setState)),
+          onError: (Object e) => setState(() => error = 'Recording failed: $e'),
+        );
         setState(() {
           recording = true;
           error = null;
@@ -367,7 +346,6 @@ class _ChecklistRow extends ConsumerWidget {
         setState(() => error = 'Could not start recording: $e');
       }
     }
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -432,9 +410,7 @@ class _ChecklistRow extends ConsumerWidget {
         ),
       ),
     ).whenComplete(() {
-      limit?.cancel();
-      unawaited(sub?.cancel());
-      unawaited(recorder.dispose());
+        unawaited(recorder.dispose());
       ctrl.dispose();
     });
   }

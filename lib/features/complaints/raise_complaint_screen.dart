@@ -1,22 +1,21 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:record/record.dart';
 
-import '../../backend/upload_preparation.dart' show maxOriginalImageBytes, maxUploadBytes;
+import '../../backend/upload_preparation.dart' show maxOriginalImageBytes;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../models/sla.dart';
 import '../../models/vendor.dart';
 import '../../backend/backend.dart' show backendEnabled;
-import '../../backend/complaints_repo.dart' show VoiceFormat, wavVoiceFormat, webmVoiceFormat, m4aVoiceFormat;
+import '../../backend/voice_recorder.dart';
+import '../../backend/complaints_repo.dart' show VoiceFormat, wavVoiceFormat;
 import '../../backend/vendors_repo.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
@@ -58,15 +57,11 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
   final List<Uint8List> _photos = [];
   Uint8List? _voiceNote;
   VoiceFormat _voiceFormat = wavVoiceFormat;
-  Timer? _recordingLimit;
   bool _recording = false;
   bool _recordingBusy = false;
-  bool _audioTooLarge = false;
   bool _submitting = false;
   final _imagePicker = ImagePicker();
-  final _recorder = AudioRecorder();
-  BytesBuilder _audioBytes = BytesBuilder(copy: false);
-  StreamSubscription<Uint8List>? _audioSubscription;
+  final _recorder = VoiceRecorder();
   Criticality? _override;
   String? _vendorId;
 
@@ -82,8 +77,6 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
 
   @override
   void dispose() {
-    _recordingLimit?.cancel();
-    unawaited(_audioSubscription?.cancel());
     unawaited(_recorder.dispose());
     _title.dispose();
     _desc.dispose();
@@ -138,33 +131,8 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
         if (mounted) toast(context, 'Microphone permission is required to record a voice note');
         return;
       }
-      _audioBytes = BytesBuilder(copy: false);
-      _audioTooLarge = false;
-      // Browsers can stream compressed audio (Opus/AAC, about 3 KB/s); native streaming is PCM only.
-      var config = const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1);
-      var format = wavVoiceFormat;
-      if (kIsWeb) {
-        const opus = RecordConfig(encoder: AudioEncoder.opus, sampleRate: 16000, numChannels: 1, bitRate: 24000);
-        const aac = RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 16000, numChannels: 1, bitRate: 32000);
-        if (await _recorder.isEncoderSupported(AudioEncoder.opus)) {
-          config = opus;
-          format = webmVoiceFormat;
-        } else if (await _recorder.isEncoderSupported(AudioEncoder.aacLc)) {
-          config = aac;
-          format = m4aVoiceFormat;
-        }
-      }
-      _voiceFormat = format;
-      final stream = await _recorder.startStream(config);
-      _recordingLimit = Timer(const Duration(minutes: 3), () => unawaited(_stopVoiceRecording()));
-      _audioSubscription = stream.listen(
-        (bytes) {
-          _audioBytes.add(bytes);
-          if (_audioBytes.length > maxUploadBytes && !_audioTooLarge) {
-            _audioTooLarge = true;
-            unawaited(_stopVoiceRecording());
-          }
-        },
+      await _recorder.start(
+        onAutoStop: () => unawaited(_stopVoiceRecording()),
         onError: (Object error) {
           if (mounted) {
             toast(context, 'Recording failed: $error');
@@ -181,18 +149,13 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
   Future<void> _stopVoiceRecording() async {
     if (!_recording || _recordingBusy) return;
     setState(() => _recordingBusy = true);
-    _recordingLimit?.cancel();
     try {
-      await _recorder.stop();
-      await _audioSubscription?.cancel();
-      _audioSubscription = null;
-      final bytes = _audioBytes.takeBytes();
-      if (_audioTooLarge) throw StateError('Voice note exceeded the 5 MB upload limit');
-      if (bytes.isEmpty) throw StateError('No audio was captured');
+      final result = await _recorder.stop();
       if (mounted) {
         setState(() {
           _recording = false;
-          _voiceNote = bytes;
+          _voiceNote = result.bytes;
+          _voiceFormat = result.format;
         });
       }
     } catch (error) {
@@ -204,7 +167,6 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
       if (mounted) setState(() => _recordingBusy = false);
     }
   }
-
   Future<void> _submit() async {
     if (_recording || _recordingBusy) {
       toast(context, 'Stop the voice recording before submitting');
