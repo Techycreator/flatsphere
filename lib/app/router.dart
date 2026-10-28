@@ -78,6 +78,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (lock == LockStatus.locked) return state.matchedLocation == '/unlock' ? null : '/unlock';
         if (lock == LockStatus.needsSetup) return state.matchedLocation == '/set-pin' ? null : '/set-pin';
       }
+      // Security has no dashboard: Gate is their start page.
+      if (session.activeRole == Role.security && state.matchedLocation == '/home') return '/gate';
       if (state.matchedLocation == '/unlock') return '/home';
       if (state.matchedLocation == '/set-pin') return null;
       if (atAssociationSetup) return '/home';

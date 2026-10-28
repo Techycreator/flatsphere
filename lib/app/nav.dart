@@ -207,6 +207,6 @@ List<NavItem> _baseNav(Role r) => switch (r) {
     _notices,
     _gate,
   ],
-  Role.security => [_gate, _home, _visitors, _vehicles, _community],
+  Role.security => [_gate, _visitors, _vehicles, _community],
   Role.auditor => [_home, _finance, _registers],
 };
