@@ -12,6 +12,11 @@ String _snake(String s) =>
 T _parse<T extends Enum>(List<T> values, Object? v, T fallback) =>
     values.where((e) => _snake(e.name) == v || e.name == v).firstOrNull ?? fallback;
 
+typedef VoiceFormat = ({String extension, String contentType});
+const wavVoiceFormat = (extension: 'wav', contentType: 'audio/wav');
+const webmVoiceFormat = (extension: 'webm', contentType: 'audio/webm');
+const m4aVoiceFormat = (extension: 'm4a', contentType: 'audio/mp4');
+
 class ComplaintsRepo {
   static const _select =
       '*, vendor:association_vendors(name), complaint_remarks(author_name, body, created_at), complaint_media(kind, storage_path)';
@@ -21,7 +26,12 @@ class ComplaintsRepo {
     return rows.map(_fromRow).toList();
   }
 
-  static Future<void> insert(Complaint c, {List<Uint8List> photos = const [], Uint8List? voiceNote}) async {
+  static Future<void> insert(
+    Complaint c, {
+    List<Uint8List> photos = const [],
+    Uint8List? voiceNote,
+    VoiceFormat voiceFormat = wavVoiceFormat,
+  }) async {
     final preparedPhotos = [for (final photo in photos) await prepareUpload(photo, 'jpg')];
     if (voiceNote != null && voiceNote.length > maxUploadBytes) {
       throw ArgumentError.value(voiceNote.length, 'voiceNote', 'Voice note must be 5 MB or smaller');
@@ -31,14 +41,19 @@ class ComplaintsRepo {
     await _addRemarks(complaintId, c.remarks);
     if (preparedPhotos.isNotEmpty || voiceNote != null) {
       try {
-        await _uploadMedia(complaintId, preparedPhotos, voiceNote);
+        await _uploadMedia(complaintId, preparedPhotos, voiceNote, voiceFormat);
       } catch (error) {
         throw StateError('Request ${c.id} was submitted, but its attachments could not be uploaded: $error');
       }
     }
   }
 
-  static Future<void> _uploadMedia(String complaintId, List<PreparedUpload> photos, Uint8List? voiceNote) async {
+  static Future<void> _uploadMedia(
+    String complaintId,
+    List<PreparedUpload> photos,
+    Uint8List? voiceNote,
+    VoiceFormat voiceFormat,
+  ) async {
     final association = await db.rpc('my_association') as String;
     final uploadedPaths = <String>[];
     final media = <Map<String, String>>[];
@@ -57,7 +72,9 @@ class ComplaintsRepo {
         final photo = photos[i];
         await upload('photo', photo.bytes, photo.extension, photo.contentType, i);
       }
-      if (voiceNote != null) await upload('voice', voiceNote, 'wav', 'audio/wav', photos.length);
+      if (voiceNote != null) {
+        await upload('voice', voiceNote, voiceFormat.extension, voiceFormat.contentType, photos.length);
+      }
       await db.from('complaint_media').insert(media);
     } catch (error) {
       if (uploadedPaths.isNotEmpty) {

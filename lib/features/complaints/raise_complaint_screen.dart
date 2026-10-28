@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
 import '../../widgets/tr_text.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +16,7 @@ import '../../models/models.dart';
 import '../../models/sla.dart';
 import '../../models/vendor.dart';
 import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/complaints_repo.dart' show VoiceFormat, wavVoiceFormat, webmVoiceFormat, m4aVoiceFormat;
 import '../../backend/vendors_repo.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
@@ -55,6 +57,8 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
   bool _private = false;
   final List<Uint8List> _photos = [];
   Uint8List? _voiceNote;
+  VoiceFormat _voiceFormat = wavVoiceFormat;
+  Timer? _recordingLimit;
   bool _recording = false;
   bool _recordingBusy = false;
   bool _audioTooLarge = false;
@@ -78,6 +82,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
 
   @override
   void dispose() {
+    _recordingLimit?.cancel();
     unawaited(_audioSubscription?.cancel());
     unawaited(_recorder.dispose());
     _title.dispose();
@@ -135,9 +140,23 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
       }
       _audioBytes = BytesBuilder(copy: false);
       _audioTooLarge = false;
-      final stream = await _recorder.startStream(
-        const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
-      );
+      // Browsers can stream compressed audio (Opus/AAC, about 3 KB/s); native streaming is PCM only.
+      var config = const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1);
+      var format = wavVoiceFormat;
+      if (kIsWeb) {
+        const opus = RecordConfig(encoder: AudioEncoder.opus, sampleRate: 16000, numChannels: 1, bitRate: 24000);
+        const aac = RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 16000, numChannels: 1, bitRate: 32000);
+        if (await _recorder.isEncoderSupported(AudioEncoder.opus)) {
+          config = opus;
+          format = webmVoiceFormat;
+        } else if (await _recorder.isEncoderSupported(AudioEncoder.aacLc)) {
+          config = aac;
+          format = m4aVoiceFormat;
+        }
+      }
+      _voiceFormat = format;
+      final stream = await _recorder.startStream(config);
+      _recordingLimit = Timer(const Duration(minutes: 3), () => unawaited(_stopVoiceRecording()));
       _audioSubscription = stream.listen(
         (bytes) {
           _audioBytes.add(bytes);
@@ -162,6 +181,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
   Future<void> _stopVoiceRecording() async {
     if (!_recording || _recordingBusy) return;
     setState(() => _recordingBusy = true);
+    _recordingLimit?.cancel();
     try {
       await _recorder.stop();
       await _audioSubscription?.cancel();
@@ -247,7 +267,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
       );
     setState(() => _submitting = true);
     try {
-      await notifier.add(complaint, photos: _photos, voiceNote: _voiceNote);
+      await notifier.add(complaint, photos: _photos, voiceNote: _voiceNote, voiceFormat: _voiceFormat);
     } catch (error) {
       if (mounted) toast(context, '$error');
       return;

@@ -104,13 +104,18 @@ class ComplaintsNotifier extends Notifier<List<Complaint>> {
     return 'CMP-2026-${(maxN + 1).toString().padLeft(4, '0')}';
   }
 
-  Future<void> add(Complaint c, {List<Uint8List> photos = const [], Uint8List? voiceNote}) async {
+  Future<void> add(
+    Complaint c, {
+    List<Uint8List> photos = const [],
+    Uint8List? voiceNote,
+    VoiceFormat voiceFormat = wavVoiceFormat,
+  }) async {
     if (!backendEnabled) {
       state = [c, ...state];
       return;
     }
     try {
-      await ComplaintsRepo.insert(c, photos: photos, voiceNote: voiceNote);
+      await ComplaintsRepo.insert(c, photos: photos, voiceNote: voiceNote, voiceFormat: voiceFormat);
     } catch (_) {
       await refresh();
       rethrow;
