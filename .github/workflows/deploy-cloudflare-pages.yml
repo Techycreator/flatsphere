@@ -1,0 +1,64 @@
+# Deploys the Flutter web app to Cloudflare Pages for this branch.
+name: Deploy FlatSphere PWA to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - feature/flatsphere-requirements-completion
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: cloudflare-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Analyze (errors block the deploy)
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Run tests
+        run: flutter test
+      - name: Build PWA
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "::error::SUPABASE_URL is missing. Add it as a repository variable or secret."
+            exit 1
+          fi
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_ANON_KEY is missing. Add it as a repository variable or secret."
+            exit 1
+          fi
+          flutter build web --release \
+            --base-href "/" \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+      - name: Stamp service worker version
+        run: |
+          sed -i "s/const CACHE = 'flatsphere-v2'/const CACHE = 'flatsphere-${GITHUB_SHA::8}'/" build/web/sw.js
+          sed -i "s/__BUILD_ID__/${GITHUB_SHA::8}/" build/web/index.html
+          echo "${GITHUB_SHA::8}" > build/web/build-id.txt
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy build/web --project-name=flatsphere
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

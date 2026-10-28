@@ -1,0 +1,40 @@
+# Free-plan backup: nightly encrypted pg_dump of the Supabase database, kept 30 days as a private artifact.
+# Needs repo secrets SUPABASE_DB_URL (Session pooler connection string) and BACKUP_PASSPHRASE.
+# Storage files (ID proofs, bills, photos) are not included.
+name: Nightly Supabase backup
+
+on:
+  schedule:
+    - cron: '30 20 * * *' # 02:00 IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+      - name: Dump and encrypt
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$DB_URL" ] || [ -z "$PASSPHRASE" ]; then
+            echo "::error::Add SUPABASE_DB_URL and BACKUP_PASSPHRASE repository secrets."; exit 1
+          fi
+          f="flatsphere-$(date -u +%F).dump"
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" -Fc --no-owner --no-privileges -n public -n auth -n storage -f "$f"
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$PASSPHRASE" -c -o "$f.gpg" "$f"
+          rm "$f"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: supabase-backup-${{ github.run_id }}
+          path: '*.gpg'
+          retention-days: 30

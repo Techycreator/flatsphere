@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="FlatSphere – apartment association management: complaints, dues, approvals, meetings and caretaker checklists.">
+  <meta name="theme-color" content="#0F766E">
+
+  <!-- iOS PWA -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="FlatSphere">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <title>FlatSphere</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    #splash { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+              background: #F6F8F8; font-family: system-ui, sans-serif; color: #0F766E; gap: 12px; }
+    #splash img { width: 72px; height: 72px; }
+  </style>
+</head>
+<body>
+  <div id="splash"><img src="icons/Icon-192.png" alt=""><div>Loading FlatSphere…</div></div>
+  <script>
+    // Device-only biometric gate: the browser asks the OS (Touch ID, Windows Hello, Android fingerprint); no biometric data reaches the app.
+    window.flatsphereBiometric = {
+      async available() {
+        try { return !!window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); } catch (e) { return false; }
+      },
+      async register(label) {
+        try {
+          const cred = await navigator.credentials.create({ publicKey: {
+            challenge: crypto.getRandomValues(new Uint8Array(32)),
+            rp: { name: 'FlatSphere' },
+            user: { id: crypto.getRandomValues(new Uint8Array(16)), name: label, displayName: label },
+            pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+            authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
+            timeout: 60000 } });
+          localStorage.setItem('fs_bio_cred', btoa(String.fromCharCode(...new Uint8Array(cred.rawId))));
+          return true;
+        } catch (e) { return false; }
+      },
+      async verify() {
+        try {
+          const id = localStorage.getItem('fs_bio_cred');
+          if (!id) return false;
+          await navigator.credentials.get({ publicKey: {
+            challenge: crypto.getRandomValues(new Uint8Array(32)),
+            allowCredentials: [{ type: 'public-key', id: Uint8Array.from(atob(id), c => c.charCodeAt(0)) }],
+            userVerification: 'required', timeout: 60000 } });
+          return true;
+        } catch (e) { return false; }
+      },
+    };
+    window.flatspherePush = {
+      async subscribe(key) {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return null;
+        if (await Notification.requestPermission() !== 'granted') return null;
+        const reg = await navigator.serviceWorker.ready;
+        const b64 = (key + '='.repeat((4 - key.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+        const appKey = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        const sub = (await reg.pushManager.getSubscription()) ||
+          (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey }));
+        return JSON.stringify(sub.toJSON());
+      },
+    };
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', async () => {
+        const reg = await navigator.serviceWorker.register('sw.js');
+        // Ask for consent when a new worker is waiting; it activates only after the user taps Update.
+        const offerWaiting = () => { if (reg.waiting && navigator.serviceWorker.controller) showUpdateRequired(); };
+        offerWaiting();
+        reg.addEventListener('updatefound', () => {
+          const worker = reg.installing;
+          if (worker) worker.addEventListener('statechange', () => { if (worker.state === 'installed') offerWaiting(); });
+        });
+        let reloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          // Only reload for an update the user started; the first install also fires this event.
+          if (reloading || !document.getElementById('fs-update')?.dataset.updating) return;
+          reloading = true;
+          location.reload();
+        });
+        setInterval(() => reg.update(), 60 * 60 * 1000);
+      });
+    }
+    // Holds the update overlay back while a critical action (e.g. a payment awaiting its gateway) is in flight.
+    // A hold auto-expires after 10 minutes so a stuck action can never block updates forever.
+    window.flatsphereUpdateGuard = (() => {
+      let holds = 0, pending = false;
+      const timers = [];
+      const flush = () => { if (holds === 0 && pending) { pending = false; showUpdateRequired(); } };
+      return {
+        busy: () => holds > 0,
+        defer: () => { pending = true; },
+        hold() {
+          holds++;
+          timers.push(setTimeout(() => this.release(), 10 * 60 * 1000));
+        },
+        release() {
+          if (holds === 0) return;
+          holds--;
+          clearTimeout(timers.pop());
+          flush();
+        },
+      };
+    })();
+    // Blocks the whole app until this device runs the latest deployed build; the build id is stamped on deploy.
+    const BUILD_ID = '__BUILD_ID__';
+    // Shows a full-screen "Updating" state, clears old copies of the app and reloads once. The attempt is remembered for
+    // two minutes so a slow CDN can never put the user in an Update-now loop.
+    const UPDATE_KEY = 'fs-update-attempt';
+    function updateAttemptedRecently() {
+      try { return Date.now() - Number(sessionStorage.getItem(UPDATE_KEY) || 0) < 120000; } catch (e) { return false; }
+    }
+    function showUpdating(o) {
+      o.innerHTML = '<style>@keyframes fsspin{to{transform:rotate(360deg)}}</style>'
+        + '<div style="width:48px;height:48px;border:5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:fsspin 1s linear infinite"></div>'
+        + '<div style="font-size:22px;font-weight:700">Updating FlatSphere…</div>'
+        + '<div style="max-width:360px">Installing the latest version. This takes a few seconds and the app will restart by itself. Please do not close this screen.</div>';
+    }
+    async function applyUpdate(o) {
+      if (o.dataset.updating) return;
+      o.dataset.updating = '1';
+      showUpdating(o);
+      try { sessionStorage.setItem(UPDATE_KEY, String(Date.now())); } catch (e) { /* ignore */ }
+      const hardReload = async () => {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        } catch (e) { /* reload anyway */ }
+        const u = new URL(location.href);
+        u.searchParams.set('v', String(Date.now()));
+        location.replace(u.toString());
+      };
+      try {
+        const current = await navigator.serviceWorker.getRegistration();
+        if (current && current.waiting) {
+          current.waiting.postMessage({ type: 'SKIP_WAITING' });
+          // controllerchange reloads the page; fall back to a hard reload if that does not happen.
+          setTimeout(hardReload, 6000);
+          return;
+        }
+      } catch (e) { /* fall through */ }
+      await hardReload();
+    }
+    function showUpdateRequired() {
+      if (document.getElementById('fs-update')) return;
+      if (updateAttemptedRecently()) return;
+      if (window.flatsphereUpdateGuard.busy()) { window.flatsphereUpdateGuard.defer(); return; }
+      const o = document.createElement('div');
+      o.id = 'fs-update';
+      o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#0F766E;color:#fff;display:flex;'
+        + 'flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;font:16px sans-serif';
+      o.innerHTML = '<div style="font-size:22px;font-weight:700">Update available</div>'
+        + '<div style="max-width:360px">A new version of FlatSphere is available. Please update to continue.</div>'
+        + '<button id="fs-update-btn" style="padding:12px 28px;border:0;border-radius:24px;font:600 16px sans-serif;background:#fff;color:#0F766E;cursor:pointer">Update now</button>';
+      document.body.appendChild(o);
+      document.body.style.overflow = 'hidden';
+      document.getElementById('fs-update-btn').onclick = () => applyUpdate(o);
+    }    async function checkForUpdate() {
+      if (BUILD_ID.startsWith('__')) return;
+      try {
+        const r = await fetch('build-id.txt', { cache: 'no-store' });
+        if (!r.ok) return;
+        const latest = (await r.text()).trim();
+        if (latest && latest !== BUILD_ID) showUpdateRequired();
+      } catch (e) { /* offline: cannot verify */ }
+    }
+    checkForUpdate();
+    setInterval(checkForUpdate, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+    window.addEventListener('flutter-first-frame', () => document.getElementById('splash')?.remove());
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
