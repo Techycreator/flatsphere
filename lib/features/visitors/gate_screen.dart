@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
 import '../../backend/backend.dart' show backendEnabled;
@@ -131,6 +132,46 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       setState(() => _pending++);
       toast(context, 'Offline: ${v.guest} checked $word. It will sync when the network is back.');
     }
+  }
+
+  Future<void> _callFlat(String flat) async {
+    final f = flat.trim().toUpperCase();
+    if (f.isEmpty) return;
+    List<({String name, String role, String mobile})> people;
+    try {
+      people = await GateRepo.flatContacts(f);
+    } catch (e) {
+      if (mounted) toast(context, friendlyError(e));
+      return;
+    }
+    if (!mounted) return;
+    if (people.isEmpty) {
+      toast(context, 'No phone number saved for flat $f.');
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text('Call flat $f', style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            for (final p in people)
+              ListTile(
+                leading: const Icon(Icons.call),
+                title: Text(p.name),
+                subtitle: Text('${p.role} · ${p.mobile}'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  launchUrl(Uri(scheme: 'tel', path: p.mobile));
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _startShift() async {
@@ -357,6 +398,14 @@ class _GateScreenState extends ConsumerState<GateScreen> {
                 icon: const Icon(Icons.badge_outlined),
                 label: const Text('Guards'),
               ),
+            IconButton(
+              tooltip: 'Call a flat',
+              icon: const Icon(Icons.call_outlined),
+              onPressed: () async {
+                final flat = await promptText(context, title: 'Call a flat', hint: 'Flat number, e.g. A-101');
+                if (flat != null) await _callFlat(flat);
+              },
+            ),
             TextButton.icon(
               onPressed: _startShift,
               icon: const Icon(Icons.how_to_reg_outlined),
@@ -401,15 +450,28 @@ class _GateScreenState extends ConsumerState<GateScreen> {
                   if (v.guardName != null) 'by ${v.guardName}',
                 ].join(' · '),
               ),
-              trailing: switch ((v.approval, v.status)) {
-                ('awaiting', _) => const Pill('Waiting for flat', color: AppColors.amber),
-                ('denied', _) => const Pill('Denied', color: AppColors.red),
-                (_, 'checked_in') => OutlinedButton(onPressed: () => _verify(v, false), child: const Text('Check out')),
-                _ => FilledButton(
-                  onPressed: () => _verify(v, true),
-                  child: Text(v.approval == 'approved' ? 'Approved · Let in' : 'Check in'),
-                ),
-              },
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Call flat ${v.flat}',
+                    icon: const Icon(Icons.call_outlined),
+                    onPressed: () => _callFlat(v.flat),
+                  ),
+                  switch ((v.approval, v.status)) {
+                    ('awaiting', _) => const Pill('Waiting for flat', color: AppColors.amber),
+                    ('denied', _) => const Pill('Denied', color: AppColors.red),
+                    (_, 'checked_in') => OutlinedButton(
+                      onPressed: () => _verify(v, false),
+                      child: const Text('Check out'),
+                    ),
+                    _ => FilledButton(
+                      onPressed: () => _verify(v, true),
+                      child: Text(v.approval == 'approved' ? 'Approved · Let in' : 'Check in'),
+                    ),
+                  },
+                ],
+              ),
             ),
           ),
       ],

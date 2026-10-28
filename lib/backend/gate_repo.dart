@@ -80,6 +80,14 @@ class GateRepo {
 
   static Future<String> photoUrl(String path) => db.storage.from('visitor-photos').createSignedUrl(path, 300);
 
+  static Future<List<({String name, String role, String mobile})>> flatContacts(String flat) async {
+    final rows = await db.rpc('gate_flat_contacts', params: {'p_flat': flat.trim()}) as List;
+    return [
+      for (final r in rows.cast<Map>())
+        (name: r['name'] as String, role: r['role'] as String, mobile: r['mobile'] as String),
+    ];
+  }
+
   static Future<List<({String id, String name})>> guards() async {
     final rows = await db.from('gate_guards').select('id, name').eq('active', true).order('name');
     return [for (final r in rows) (id: r['id'] as String, name: r['name'] as String)];
