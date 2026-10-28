@@ -67,6 +67,7 @@ class DirectoryRepo {
         .select(
           'id, number, block, flat_type, sqft, occupancy, flat_vehicles(vehicle_type, registration_number, parking_slot)',
         )
+        .isFilter('retired_at', null)
         .order('number');
     return [
       for (final r in rows)
@@ -201,6 +202,9 @@ class DirectoryRepo {
       'storage_path': path,
     });
   }
+
+  static Future<void> retireFlat(String id, String reason) =>
+      db.rpc('retire_flat', params: {'p_flat': id, 'p_reason': reason.trim()});
 
   static Future<void> saveFlat(FlatInfo f) async {
     final row = {

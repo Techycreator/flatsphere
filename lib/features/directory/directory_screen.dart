@@ -245,6 +245,15 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     ];
   }
 
+  Future<void> _retireFlat(FlatInfo f) async {
+    final reason = await promptText(context, title: 'Retire ${f.number}', hint: 'Reason (3–300 characters)');
+    if (reason == null) return;
+    await _run(() async {
+      await DirectoryRepo.retireFlat(f.id!, reason);
+      await ref.read(directoryProvider.notifier).refresh();
+    }, 'Flat retired');
+  }
+
   Future<void> _editFlat(FlatInfo? f) async {
     final number = TextEditingController(text: f?.number);
     final block = TextEditingController(text: f?.block);
@@ -254,6 +263,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     final bikeNumber = TextEditingController(text: f?.bikeNumber);
     final parkingSlot = TextEditingController(text: f?.parkingSlot);
     var occ = f?.occupancy ?? Occupancy.ownerOccupied;
+    var retire = false;
     String? err;
     final ok = await showDialog<bool>(
       context: context,
@@ -317,6 +327,14 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
             ),
           ),
           actions: [
+            if (f != null && backendEnabled)
+              TextButton(
+                onPressed: () {
+                  retire = true;
+                  Navigator.pop(ctx, false);
+                },
+                child: const Text('Retire flat'),
+              ),
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
             FilledButton(
               onPressed: () {
@@ -329,6 +347,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
         ),
       ),
     );
+    if (retire && f != null) return _retireFlat(f);
     if (ok != true) return;
     await _run(
       () => ref
