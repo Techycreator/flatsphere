@@ -15,13 +15,14 @@ class VisitorRepo {
     ];
   }
 
-  static Future<List<VisitorRequest>> load() async {
-    final rows = await db
+  static Future<List<VisitorRequest>> load({bool hostOnly = false}) async {
+    final query = db
         .from('visitor_requests')
         .select(
           'id, guest_name, guest_phone, expected_arrival, vehicle_number, note, status, host_name, '
           'flats(number, flat_vehicles(vehicle_type, registration_number, parking_slot))',
-        )
+        );
+    final rows = await (hostOnly ? query.eq('host_id', db.auth.currentUser!.id) : query)
         .order('expected_arrival', ascending: false);
     return [
       for (final row in rows)

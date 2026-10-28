@@ -31,6 +31,9 @@ class StaffAttendanceScreen extends ConsumerWidget {
         role == Role.vicePresident ||
         role == Role.secretary ||
         role == Role.jointSecretary ||
+        role == Role.treasurer ||
+        role == Role.jointTreasurer ||
+        role == Role.ecMember ||
         role == Role.monitor;
 
     Future<void> selectDate() async {
@@ -262,7 +265,7 @@ class StaffAttendanceScreen extends ConsumerWidget {
                         title: Text(staff.name),
                         subtitle: Text(attendanceSubtitle(staff)),
                         isThreeLine: state.records[staff.id] != null,
-                        trailing: canMark
+                        trailing: _withHistory(context, staff, canMark
                             ? DropdownButton<AttendanceStatus>(
                                 value: state.records[staff.id]?.status,
                                 hint: const Text('Mark'),
@@ -286,6 +289,7 @@ class StaffAttendanceScreen extends ConsumerWidget {
                                   AttendanceStatus.leave => AppColors.amber,
                                 },
                               ),
+                        ),
                       ),
                   ],
                 ),
@@ -296,6 +300,111 @@ class StaffAttendanceScreen extends ConsumerWidget {
       ],
     );
   }
+}
+
+Widget _withHistory(BuildContext context, StaffMember staff, Widget status) => Row(
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    status,
+    IconButton(
+      tooltip: 'Attendance history',
+      icon: const Icon(Icons.history),
+      onPressed: () => _showHistory(context, staff),
+    ),
+  ],
+);
+
+Future<void> _showHistory(BuildContext context, StaffMember staff) {
+  final today = DateUtils.dateOnly(DateTime.now());
+  var range = DateTimeRange(start: DateTime(today.year, today.month), end: today);
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => AlertDialog(
+        title: Text('${staff.name} attendance'),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                children: [
+                  ActionChip(
+                    label: const Text('This month'),
+                    onPressed: () => setState(() => range = DateTimeRange(start: DateTime(today.year, today.month), end: today)),
+                  ),
+                  ActionChip(
+                    label: const Text('Last month'),
+                    onPressed: () => setState(
+                      () => range = DateTimeRange(start: DateTime(today.year, today.month - 1), end: DateTime(today.year, today.month, 0)),
+                    ),
+                  ),
+                  ActionChip(
+                    avatar: const Icon(Icons.date_range, size: 18),
+                    label: const Text('Pick period'),
+                    onPressed: () async {
+                      final picked = await showDateRangePicker(
+                        context: ctx,
+                        firstDate: DateTime(2020),
+                        lastDate: today,
+                        initialDateRange: range,
+                      );
+                      if (picked != null) setState(() => range = picked);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('${dateFmt.format(range.start)} to ${dateFmt.format(range.end)}'),
+              const SizedBox(height: 8),
+              Flexible(
+                child: FutureBuilder<List<StaffAttendance>>(
+                  key: ValueKey(range),
+                  future: AttendanceRepo.history(staff.id, range.start, range.end),
+                  builder: (_, snapshot) {
+                    if (snapshot.hasError) return Text('${snapshot.error}');
+                    final rows = snapshot.data;
+                    if (rows == null) return const LinearProgressIndicator();
+                    int count(AttendanceStatus s) => rows.where((r) => r.status == s).length;
+                    final days = range.end.difference(range.start).inDays + 1;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Present ${count(AttendanceStatus.present)} \u00b7 Absent ${count(AttendanceStatus.absent)} '
+                          '\u00b7 Leave ${count(AttendanceStatus.leave)} \u00b7 Not marked ${days - rows.length}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 8),
+                        Flexible(
+                          child: ListView(
+                            shrinkWrap: true,
+                            children: [
+                              for (final r in rows)
+                                ListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text('${dateFmt.format(r.date)} \u00b7 ${r.status.label}'),
+                                  subtitle: Text('Marked by ${r.markedBy}${r.note.isEmpty ? '' : ' \u00b7 ${r.note}'}'),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+      ),
+    ),
+  );
 }
 
 class _StaffDraft {

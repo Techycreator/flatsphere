@@ -80,6 +80,7 @@ class TextField extends m.StatelessWidget {
     this.keyboardType,
     this.maxLength,
     this.maxLines = 1,
+    this.minLines,
     this.obscureText = false,
     this.onChanged,
     this.onSubmitted,
@@ -94,6 +95,7 @@ class TextField extends m.StatelessWidget {
   final s.TextInputType? keyboardType;
   final int? maxLength;
   final int? maxLines;
+  final int? minLines;
   final bool obscureText;
   final void Function(String)? onChanged;
   final void Function(String)? onSubmitted;
@@ -109,6 +111,7 @@ class TextField extends m.StatelessWidget {
     keyboardType: keyboardType,
     maxLength: maxLength,
     maxLines: maxLines,
+    minLines: minLines,
     obscureText: obscureText,
     onChanged: onChanged,
     onSubmitted: onSubmitted,

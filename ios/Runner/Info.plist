@@ -4,6 +4,12 @@
 <dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Unlock FlatSphere on this device with Face ID.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo to attach to a complaint or request.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a photo to attach to a complaint or request.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Record a voice note to attach to a complaint or request.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

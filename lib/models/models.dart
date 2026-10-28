@@ -379,6 +379,13 @@ class TicketRemark {
   final String text;
 }
 
+class ComplaintMedia {
+  const ComplaintMedia({required this.kind, required this.storagePath});
+
+  final String kind;
+  final String storagePath;
+}
+
 class Complaint {
   const Complaint({
     required this.id,
@@ -391,9 +398,11 @@ class Complaint {
     required this.status,
     required this.createdAt,
     required this.raisedBy,
+    this.raisedById,
     this.aiSuggested = false,
     this.assignee,
     this.remarks = const [],
+    this.media = const [],
     this.photoCount = 0,
     this.hasVoiceNote = false,
     this.isPrivate = false,
@@ -415,9 +424,11 @@ class Complaint {
   final TicketStatus status;
   final DateTime createdAt;
   final String raisedBy;
+  final String? raisedById;
   final bool aiSuggested;
   final String? assignee;
   final List<TicketRemark> remarks;
+  final List<ComplaintMedia> media;
   final int photoCount;
   final bool hasVoiceNote;
   final bool isPrivate;
@@ -460,9 +471,11 @@ class Complaint {
     status: status ?? this.status,
     createdAt: createdAt,
     raisedBy: raisedBy,
+    raisedById: raisedById,
     aiSuggested: aiSuggested ?? this.aiSuggested,
     assignee: assignee ?? this.assignee,
     remarks: remarks ?? this.remarks,
+    media: media,
     photoCount: photoCount,
     hasVoiceNote: hasVoiceNote,
     isPrivate: isPrivate,

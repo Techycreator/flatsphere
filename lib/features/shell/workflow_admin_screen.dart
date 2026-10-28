@@ -11,7 +11,8 @@ import '../../widgets/tr_text.dart';
 String _flowText(WorkflowInfo w) {
   final parts = [
     for (final s in w.flow)
-      if (s.type == 'approval' || s.type == 'cooling_period') s.label.replaceAll(RegExp(r' approval$'), ''),
+      if (s.type == 'approval' || s.type == 'cooling_period')
+        (s.label.isEmpty ? (s.role ?? 'Approval').replaceAll('_', ' ') : s.label).replaceAll(RegExp(r' approval$'), ''),
   ];
   return parts.isEmpty ? '-' : parts.join(' \u2192 ');
 }
@@ -89,6 +90,10 @@ class _WorkflowAdminScreenState extends ConsumerState<WorkflowAdminScreen> {
     final wide = MediaQuery.sizeOf(context).width >= 760;
 
     List<ProcessInfo> usedBy(WorkflowInfo w) => [for (final p in data!.processes) if (p.workflowCode == w.code) p];
+    String workflowLabel(String code) {
+      final workflow = data?.workflows.where((w) => w.code == code).firstOrNull;
+      return workflow == null ? code : '${workflow.code} · ${workflow.name}';
+    }
 
     return PageBody(
       maxWidth: 1100,
@@ -117,6 +122,7 @@ class _WorkflowAdminScreenState extends ConsumerState<WorkflowAdminScreen> {
                       columns: const [
                         DataColumn(label: Text('Code')),
                         DataColumn(label: Text('Workflow')),
+                        DataColumn(label: Text('Description')),
                         DataColumn(label: Text('Approval flow')),
                         DataColumn(label: Text('Processes using it')),
                       ],
@@ -126,6 +132,7 @@ class _WorkflowAdminScreenState extends ConsumerState<WorkflowAdminScreen> {
                             cells: [
                               DataCell(Text(w.code, style: const TextStyle(fontWeight: FontWeight.w700))),
                               DataCell(Text(w.name)),
+                              DataCell(Text(w.description)),
                               DataCell(Text(_flowText(w))),
                               DataCell(Text(usedBy(w).isEmpty ? '-' : usedBy(w).map((p) => p.name).join(', '))),
                             ],
@@ -139,7 +146,7 @@ class _WorkflowAdminScreenState extends ConsumerState<WorkflowAdminScreen> {
                         ListTile(
                           title: Text('${w.code} \u00b7 ${w.name}'),
                           subtitle: Text(
-                            'Flow: ${_flowText(w)}\nUsed by: ${usedBy(w).isEmpty ? '-' : usedBy(w).map((p) => p.name).join(', ')}',
+                            '${w.description}\nFlow: ${_flowText(w)}\nUsed by: ${usedBy(w).isEmpty ? '-' : usedBy(w).map((p) => p.name).join(', ')}',
                           ),
                           isThreeLine: true,
                         ),
@@ -155,7 +162,7 @@ class _WorkflowAdminScreenState extends ConsumerState<WorkflowAdminScreen> {
                 for (final p in data.processes)
                   ListTile(
                     title: Text(p.name),
-                    subtitle: Text(p.reassignable ? 'Currently uses ${p.workflowCode}' : (p.note.isEmpty ? 'Cannot be reassigned' : p.note)),
+                    subtitle: Text(p.reassignable ? 'Currently uses ${workflowLabel(p.workflowCode)}' : (p.note.isEmpty ? 'Cannot be reassigned' : p.note)),
                     trailing: p.reassignable
                         ? DropdownButton<String>(
                             value: data.workflows.any((w) => w.code == p.workflowCode) ? p.workflowCode : null,

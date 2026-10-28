@@ -17,7 +17,10 @@ import '../../state/app_state.dart';
 import '../../widgets/common.dart';
 import '../../validation/input_validation.dart';
 
-final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>((ref) => VisitorRepo.load());
+final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>((ref) {
+  final role = ref.watch(sessionProvider.select((s) => s?.activeRole));
+  return VisitorRepo.load(hostOnly: role == Role.owner || role == Role.resident);
+});
 final visitorFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>((ref) => VisitorRepo.myFlats());
 final vehicleSearchProvider = FutureProvider.autoDispose.family<List<VehicleContact>, String>(
   (ref, registration) => DirectoryRepo.searchVehicle(registration),
@@ -246,10 +249,14 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
               for (final contact in results.value!)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(contact.vehicleType == 'car' ? Icons.directions_car_outlined : Icons.two_wheeler_outlined),
-                  title: Text('${contact.registrationNumber} · Flat ${contact.flatNumber}'),
+                  leading: Icon(switch (contact.vehicleType) {
+                    'car' => Icons.directions_car_outlined,
+                    'visitor' => Icons.badge_outlined,
+                    _ => Icons.two_wheeler_outlined,
+                  }),
+                  title: Text('${contact.registrationNumber} Â· Flat ${contact.flatNumber}'),
                   subtitle: Text(
-                    '${contact.vehicleType == 'car' ? 'Car' : 'Bike'} · ${contact.personName ?? l.noActiveOccupant}'
+                    '${switch (contact.vehicleType) { 'car' => 'Car', 'visitor' => 'Visitor vehicle', _ => 'Bike' }} Â· ${contact.personName ?? l.noActiveOccupant}'
                     '${contact.phone == null ? ' · ${l.noPhoneOnRecord}' : ' · ${contact.phone}'}',
                   ),
                   trailing: contact.phone == null

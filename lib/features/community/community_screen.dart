@@ -43,25 +43,35 @@ class CommunityScreen extends ConsumerWidget {
     final canManage = role == Role.admin || role == Role.president || role == Role.secretary;
     final canOrganize = canManage || role == Role.jointSecretary;
     final marketplaceTypes = marketplacePostTypesFor(role);
+    final showMarketplace = role != Role.security;
+    final showEvents = role != Role.security;
+    final showMom = role != Role.security && role != Role.caretaker && role != Role.resident;
     final financeVisible = role.seesFinance;
     final approvedExpenses = financeVisible
       ? ref.watch(expensesProvider).where((expense) => expense.status == ExpenseStatus.approved).toList()
       : const <Expense>[];
     final contacts = ref.watch(emergencyContactsProvider);
-    final events = ref.watch(communityEventsProvider);
-    final actions = ref.watch(meetingActionsProvider);
-    final posts = ref.watch(marketplaceProvider);
+    final events = showEvents ? ref.watch(communityEventsProvider) : const AsyncData<List<CommunityEvent>>([]);
+    final actions = showMom ? ref.watch(meetingActionsProvider) : const AsyncData<List<MeetingAction>>([]);
+    final posts = showMarketplace ? ref.watch(marketplaceProvider) : const AsyncData<List<MarketplacePost>>([]);
+    final canRemovePosts = role.isOfficeBearer;
+    final tabCount = 1 + (showMarketplace ? 1 : 0) + (showEvents ? 1 : 0) + (showMom ? 1 : 0);
 
     return DefaultTabController(
-      length: 4,
-      initialIndex: initialTab,
+      length: tabCount,
+      initialIndex: initialTab < tabCount ? initialTab : 0,
       child: Column(
         children: [
           Material(
             color: Theme.of(context).colorScheme.surface,
-            child: const TabBar(
+            child: TabBar(
               isScrollable: true,
-              tabs: [Tab(text: 'Emergency'), Tab(text: 'Marketplace'), Tab(text: 'Events'), Tab(text: 'MOM actions')],
+              tabs: [
+                const Tab(text: 'Emergency'),
+                if (showMarketplace) const Tab(text: 'Marketplace'),
+                if (showEvents) const Tab(text: 'Events'),
+                if (showMom) const Tab(text: 'MOM actions'),
+              ],
             ),
           ),
           Expanded(
@@ -86,7 +96,7 @@ class CommunityScreen extends ConsumerWidget {
                         ),
                   ],
                 ),
-                PageBody(
+                if (showMarketplace) PageBody(
                   children: [
                     _header(
                       'Owner marketplace',
@@ -112,7 +122,7 @@ class CommunityScreen extends ConsumerWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 if (post.price != null) Text(inr.format(post.price)),
-                                if (post.createdBy == me || role == Role.president || role == Role.secretary)
+                                if (post.createdBy == me || canRemovePosts)
                                   IconButton(
                                     tooltip: 'Remove post',
                                     icon: const Icon(Icons.delete_outline),
@@ -124,7 +134,7 @@ class CommunityScreen extends ConsumerWidget {
                         ),
                   ],
                 ),
-                PageBody(
+                if (showEvents) PageBody(
                   children: [
                     _header('Community events', canOrganize ? 'Add event' : null, canOrganize ? () => _addEvent(context, ref) : null),
                     if (events.isLoading) const LinearProgressIndicator(),
@@ -168,7 +178,7 @@ class CommunityScreen extends ConsumerWidget {
                         ),
                   ],
                 ),
-                PageBody(
+                if (showMom) PageBody(
                   children: [
                     _header('Action tracker', canOrganize ? 'Add action' : null, canOrganize ? () => _addAction(context, ref) : null),
                     if (actions.isLoading) const LinearProgressIndicator(),

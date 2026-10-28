@@ -66,6 +66,7 @@ class AssociationRegisterScreen extends ConsumerWidget {
             color: Theme.of(context).colorScheme.surface,
             child: const TabBar(
               isScrollable: true,
+              tabAlignment: TabAlignment.start,
               tabs: [Tab(text: 'Registers'), Tab(text: 'Expiry dashboard'), Tab(text: 'Vendors & AMCs')],
             ),
           ),

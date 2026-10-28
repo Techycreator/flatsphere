@@ -24,6 +24,26 @@ class AttendanceRepo {
     ];
   }
 
+  static Future<List<StaffAttendance>> history(String staffId, DateTime from, DateTime to) async {
+    final rows = await db
+        .from('staff_attendance')
+        .select('staff_id, attendance_date, status, note, marked_by_name')
+        .eq('staff_id', staffId)
+        .gte('attendance_date', _date(from))
+        .lte('attendance_date', _date(to))
+        .order('attendance_date');
+    return [
+      for (final row in rows)
+        StaffAttendance(
+          staffId: row['staff_id'] as String,
+          date: DateTime.parse(row['attendance_date'] as String),
+          status: _attendanceStatus(row['status']),
+          markedBy: row['marked_by_name'] as String? ?? '',
+          note: row['note'] as String? ?? '',
+        ),
+    ];
+  }
+
   static Future<AttendanceData> load(DateTime date, {bool includeInactive = false}) async {
     final day = _date(date);
     var staffQuery = db

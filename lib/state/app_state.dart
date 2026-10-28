@@ -104,9 +104,18 @@ class ComplaintsNotifier extends Notifier<List<Complaint>> {
     return 'CMP-2026-${(maxN + 1).toString().padLeft(4, '0')}';
   }
 
-  void add(Complaint c) {
-    state = [c, ...state];
-    if (backendEnabled) ComplaintsRepo.insert(c).catchError((_) => refresh());
+  Future<void> add(Complaint c, {List<Uint8List> photos = const [], Uint8List? voiceNote}) async {
+    if (!backendEnabled) {
+      state = [c, ...state];
+      return;
+    }
+    try {
+      await ComplaintsRepo.insert(c, photos: photos, voiceNote: voiceNote);
+    } catch (_) {
+      await refresh();
+      rethrow;
+    }
+    await refresh();
   }
 
   void update(String id, Complaint Function(Complaint) f) {
@@ -132,6 +141,27 @@ class ComplaintsNotifier extends Notifier<List<Complaint>> {
             by: ref.read(sessionProvider)?.user.name ?? 'Demo user',
             at: DateTime.now(),
             text: '[${status.label}] $note',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> closeOrReopen(String id, {required bool close, String note = ''}) async {
+    if (backendEnabled) {
+      await ComplaintsRepo.closeOrReopen(id, close: close, note: note);
+      return refresh();
+    }
+    update(
+      id,
+      (complaint) => complaint.copyWith(
+        status: close ? TicketStatus.closed : TicketStatus.inProgress,
+        remarks: [
+          ...complaint.remarks,
+          TicketRemark(
+            by: ref.read(sessionProvider)?.user.name ?? 'Demo user',
+            at: DateTime.now(),
+            text: '[${close ? 'closed' : 'in_progress'}] ${note.isEmpty ? (close ? 'Confirmed resolved' : 'Reopened') : note}',
           ),
         ],
       ),

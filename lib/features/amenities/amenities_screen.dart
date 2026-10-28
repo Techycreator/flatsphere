@@ -188,6 +188,7 @@ Future<_BookingDraft?> _bookingDialog(
   String? error;
   String? busyKey;
   Future<List<(DateTime, DateTime, String)>>? busy;
+  var busyLoaded = false;
   var lastSlots = const <(DateTime, DateTime, String)>[];
   bool clashes(List<(DateTime, DateTime, String)> slots) =>
       slots.any((s) => startsAt.isBefore(s.$2) && endsAt.isAfter(s.$1));
@@ -225,21 +226,39 @@ Future<_BookingDraft?> _bookingDialog(
                 const SizedBox(height: 12),
                 _dateTimeButton(dialogContext, 'Starts', startsAt, (value) => setState(() => startsAt = value)),
                 _dateTimeButton(dialogContext, 'Ends', endsAt, (value) => setState(() => endsAt = value)),
+                TextField(
+                  controller: guests,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  maxLength: 5,
+                  decoration: const InputDecoration(labelText: 'Expected guests'),
+                ),
+                TextField(
+                  controller: note,
+                  minLines: 2,
+                  maxLength: 500,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Note / event type'),
+                ),
+                if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!, style: const TextStyle(color: AppColors.red))),
                 Builder(
                   builder: (_) {
                     final key = '$amenityId|${DateUtils.dateOnly(startsAt)}';
                     if (key != busyKey) {
                       busyKey = key;
+                      busyLoaded = false;
                       busy = AmenitiesRepo.busySlots(
                         amenityId,
                         DateUtils.dateOnly(startsAt),
-                      ).catchError((_) => <(DateTime, DateTime, String)>[]);
+                      );
                     }
                     return FutureBuilder(
                       future: busy,
                       builder: (_, snap) {
+                        if (snap.hasError) return Text('Could not check availability: ${snap.error}');
                         if (!snap.hasData) return const LinearProgressIndicator();
                         lastSlots = snap.data!;
+                        busyLoaded = true;
                         final clash = clashes(lastSlots);
                         return Align(
                           alignment: Alignment.centerLeft,
@@ -265,20 +284,6 @@ Future<_BookingDraft?> _bookingDialog(
                     );
                   },
                 ),
-                TextField(
-                  controller: guests,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  maxLength: 5,
-                  decoration: const InputDecoration(labelText: 'Expected guests'),
-                ),
-                TextField(
-                  controller: note,
-                  maxLength: 500,
-                  maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Note / event type'),
-                ),
-                if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
               ],
             ),
           ),
@@ -291,8 +296,12 @@ Future<_BookingDraft?> _bookingDialog(
               if (guestCount == null || guestCount <= 0) {
                 return setState(() => error = 'Enter at least one expected guest');
               }
-              if (endsAt.isBefore(startsAt) || endsAt.isAtSameMomentAs(startsAt))
+              if (endsAt.isBefore(startsAt) || endsAt.isAtSameMomentAs(startsAt)) {
                 return setState(() => error = 'End time must be after start time');
+              }
+              if (!busyLoaded) {
+                return setState(() => error = 'Wait for availability to finish checking');
+              }
               if (clashes(lastSlots)) return setState(() => error = 'That time is already booked. Choose a free slot.');
               Navigator.pop(
                 dialogContext,
