@@ -50,6 +50,17 @@ class GateRepo {
     return [for (final r in rows) _row(r)];
   }
 
+  static Future<List<GateVisitor>> history({int days = 30}) async {
+    final since = DateTime.now().subtract(Duration(days: days)).toUtc().toIso8601String();
+    final rows = await db
+        .from('visitor_requests')
+        .select(_cols)
+        .gte('expected_arrival', since)
+        .order('expected_arrival', ascending: false)
+        .limit(500);
+    return [for (final r in rows) _row(r)];
+  }
+
   static Future<String?> checkPass(String code) async {
     final rows = await db.rpc('gate_check_pass', params: {'p_code': code.trim()}) as List;
     if (rows.isEmpty) return null;

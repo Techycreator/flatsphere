@@ -39,7 +39,6 @@ class VisitorsScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final role = ref.watch(sessionProvider)!.activeRole;
     final canHost = role == Role.owner || role == Role.resident;
-    final canVerify = role == Role.security || role == Role.caretaker;
     final requests = ref.watch(visitorRequestsProvider);
     final flats = canHost ? ref.watch(visitorFlatsProvider) : null;
 
@@ -63,15 +62,6 @@ class VisitorsScreen extends ConsumerWidget {
       }
     }
 
-    Future<void> verify(VisitorRequest request, VisitorStatus status) async {
-      try {
-        await VisitorRepo.verify(request.id, status);
-        ref.invalidate(visitorRequestsProvider);
-      } catch (error) {
-        if (context.mounted) toast(context, '$error');
-      }
-    }
-
     return PageBody(
       maxWidth: 1000,
       children: [
@@ -88,14 +78,7 @@ class VisitorsScreen extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 8),
-        Text(
-          canHost
-              ? l.visitorHostIntro
-              : canVerify
-              ? l.visitorGateIntro
-              : l.visitorRoleIntro,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        Text(canHost ? l.visitorHostIntro : l.visitorRoleIntro, style: Theme.of(context).textTheme.bodySmall),
         if (flats?.hasError == true)
           Card(
             child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${flats!.error}')),
@@ -127,19 +110,7 @@ class VisitorsScreen extends ConsumerWidget {
                   '${request.parkingSlot == null ? '' : ' · ${l.slot} ${request.parkingSlot}'}'
                   '${request.note.isEmpty ? '' : '\n${request.note}'}',
                 ),
-                trailing: canVerify
-                    ? switch (request.status) {
-                        VisitorStatus.expected => FilledButton.tonal(
-                          onPressed: () => verify(request, VisitorStatus.checkedIn),
-                          child: Text(l.verifyEntry),
-                        ),
-                        VisitorStatus.checkedIn => FilledButton.tonal(
-                          onPressed: () => verify(request, VisitorStatus.checkedOut),
-                          child: Text(l.checkOut),
-                        ),
-                        _ => Pill(request.status.label, color: _statusColor(request.status)),
-                      }
-                    : Pill(request.status.label, color: _statusColor(request.status)),
+                trailing: Pill(request.status.label, color: _statusColor(request.status)),
               ),
             ),
       ],

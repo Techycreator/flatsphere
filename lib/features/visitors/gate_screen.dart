@@ -399,6 +399,11 @@ class _GateScreenState extends ConsumerState<GateScreen> {
                 label: const Text('Guards'),
               ),
             IconButton(
+              tooltip: 'History (30 days)',
+              icon: const Icon(Icons.history),
+              onPressed: () => showDialog<void>(context: context, builder: (_) => const _GateHistoryDialog()),
+            ),
+            IconButton(
               tooltip: 'Call a flat',
               icon: const Icon(Icons.call_outlined),
               onPressed: () async {
@@ -704,5 +709,58 @@ class _VisitorPhotoState extends State<VisitorPhoto> {
         child: CircleAvatar(radius: 24, backgroundImage: NetworkImage(url)),
       );
     },
+  );
+}
+
+class _GateHistoryDialog extends StatelessWidget {
+  const _GateHistoryDialog();
+
+  static String _when(DateTime d) {
+    final t = d.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(t.day)}/${two(t.month)} ${two(t.hour)}:${two(t.minute)}';
+  }
+
+  static String _status(GateVisitor v) => switch ((v.approval, v.status)) {
+    ('denied', _) => 'Denied',
+    ('awaiting', _) => 'Waiting for flat',
+    (_, 'checked_in') => 'Inside',
+    (_, 'checked_out') => 'Left',
+    (_, 'expected') => 'Expected',
+    (_, final s) => s.replaceAll('_', ' '),
+  };
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Gate history (30 days)'),
+    content: SizedBox(
+      width: 520,
+      child: FutureBuilder<List<GateVisitor>>(
+        future: GateRepo.history(),
+        builder: (context, snap) {
+          if (snap.hasError) return Text(friendlyError(snap.error!));
+          if (!snap.hasData) return const LinearProgressIndicator();
+          final list = snap.data!;
+          if (list.isEmpty) return const Text('No visitors in the last 30 days.');
+          return ListView(
+            shrinkWrap: true,
+            children: [
+              for (final v in list)
+                ListTile(
+                  dense: true,
+                  title: Text('${v.guest} · flat ${v.flat}'),
+                  subtitle: Text(
+                    '${_when(v.arrival)} · ${v.type}'
+                    '${v.vehicle == null ? '' : ' · ${v.vehicle}'}'
+                    '${v.guardName == null ? '' : ' · by ${v.guardName}'}',
+                  ),
+                  trailing: Text(_status(v)),
+                ),
+            ],
+          );
+        },
+      ),
+    ),
+    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
   );
 }
