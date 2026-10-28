@@ -49,6 +49,7 @@ bool canAccess(Role role, String location, {bool membershipDesk = false}) {
     if (role == Role.owner) '/approvals',
     '/notices',
     if (const {Role.admin, Role.president, Role.secretary}.contains(role)) ...['/audit', '/data-tools'],
+    if (const {Role.admin, Role.president, Role.secretary}.contains(role)) '/gate',
   ];
   return allowed.any((p) => location == p || location.startsWith('$p/'));
 }
