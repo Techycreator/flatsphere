@@ -1,4 +1,9 @@
+import 'dart:typed_data';
+
+import 'package:supabase_flutter/supabase_flutter.dart' show FileOptions;
+
 import 'backend.dart';
+import 'upload_preparation.dart';
 
 typedef GateVisitor = ({
   String id,
@@ -11,6 +16,8 @@ typedef GateVisitor = ({
   String? vehicle,
   String? passCode,
   DateTime arrival,
+  String? photoPath,
+  String? guardName,
 });
 
 class GateRepo {
@@ -25,10 +32,12 @@ class GateRepo {
     vehicle: r['vehicle_number'] as String?,
     passCode: r['pass_code'] as String?,
     arrival: DateTime.parse(r['expected_arrival'] as String).toLocal(),
+    photoPath: r['photo_path'] as String?,
+    guardName: r['guard_name'] as String?,
   );
 
   static const _cols =
-      'id, guest_name, guest_phone, status, approval, entry_type, vehicle_number, pass_code, expected_arrival, flats(number)';
+      'id, guest_name, guest_phone, status, approval, entry_type, vehicle_number, pass_code, expected_arrival, photo_path, guard_name, flats(number)';
 
   /// Visitors expected or at the gate from yesterday onwards.
   static Future<List<GateVisitor>> today() async {
@@ -48,16 +57,41 @@ class GateRepo {
     return '${r['guest_name']} for flat ${r['flat_number']} (invited by ${r['host_name']})';
   }
 
-  static Future<void> walkIn({
+  static Future<String> walkIn({
     required String flat,
     required String name,
     String phone = '',
     String type = 'guest',
     String vehicle = '',
-  }) => db.rpc(
+  }) async => await db.rpc(
     'gate_walk_in',
     params: {'p_flat': flat, 'p_name': name, 'p_phone': phone, 'p_type': type, 'p_vehicle': vehicle},
-  );
+  ) as String;
+
+  static Future<void> attachPhoto(String id, Uint8List bytes) async {
+    final prepared = await prepareUpload(bytes, 'jpg');
+    final assoc = await db.rpc('my_association') as String;
+    final path = '$assoc/$id.${prepared.extension}';
+    await db.storage
+        .from('visitor-photos')
+        .uploadBinary(path, prepared.bytes, fileOptions: FileOptions(contentType: prepared.contentType));
+    await db.rpc('set_visitor_photo', params: {'p_request': id, 'p_path': path});
+  }
+
+  static Future<String> photoUrl(String path) => db.storage.from('visitor-photos').createSignedUrl(path, 300);
+
+  static Future<List<({String id, String name})>> guards() async {
+    final rows = await db.from('gate_guards').select('id, name').eq('active', true).order('name');
+    return [for (final r in rows) (id: r['id'] as String, name: r['name'] as String)];
+  }
+
+  static Future<void> saveGuard(String name, String pin, {String? id}) =>
+      db.rpc('save_gate_guard', params: {'p_id': id, 'p_name': name, 'p_pin': pin});
+
+  static Future<void> removeGuard(String id) => db.rpc('remove_gate_guard', params: {'p_id': id});
+
+  static Future<String> startShift(String id, String pin) async =>
+      await db.rpc('gate_start_shift', params: {'p_guard': id, 'p_pin': pin}) as String;
 
   static Future<void> decide(String id, bool approve) =>
       db.rpc('decide_gate_visitor', params: {'p_request': id, 'p_approve': approve});

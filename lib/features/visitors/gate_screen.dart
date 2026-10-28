@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/theme.dart';
 import '../../backend/backend.dart' show backendEnabled;
 import '../../backend/directory_repo.dart' show friendlyError;
+import '../../backend/gate_offline.dart';
 import '../../backend/gate_repo.dart';
 import '../../backend/visitor_repo.dart';
 import '../../models/models.dart';
@@ -25,10 +29,16 @@ class _GateScreenState extends ConsumerState<GateScreen> {
   List<GateVisitor> _list = const [];
   Timer? _timer;
   String? _error;
+  bool _offline = false;
+  int _pending = 0;
+  String? _onDuty;
 
   @override
   void initState() {
     super.initState();
+    SharedPreferences.getInstance().then((p) {
+      if (mounted) setState(() => _onDuty = p.getString(GateOffline.guardKey));
+    });
     _load();
     _timer = Timer.periodic(const Duration(seconds: 10), (_) => _load());
   }
@@ -42,23 +52,139 @@ class _GateScreenState extends ConsumerState<GateScreen> {
   Future<void> _load() async {
     if (!backendEnabled) return;
     try {
+      final (sent, failed) = await GateOffline.flush();
+      if (mounted && sent > 0) toast(context, '$sent saved gate entr${sent == 1 ? 'y' : 'ies'} sent');
+      for (final f in failed) {
+        if (mounted) toast(context, 'Not accepted: $f');
+      }
       final list = await GateRepo.today();
+      await GateOffline.cache(list);
+      final pending = (await GateOffline.queue()).length;
       if (mounted) {
         setState(() {
           _list = list;
           _error = null;
+          _offline = false;
+          _pending = pending;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = friendlyError(e));
+      if (isOffline(e)) {
+        final cached = _list.isEmpty ? await GateOffline.cached() : _list;
+        final pending = (await GateOffline.queue()).length;
+        if (mounted) {
+          setState(() {
+            _offline = true;
+            _list = cached;
+            _pending = pending;
+            _error = null;
+          });
+        }
+      } else if (mounted) {
+        setState(() => _error = friendlyError(e));
+      }
     }
   }
 
-  Future<void> _guard(Future<void> Function() action, String done) async {
+  void _setLocal(String id, String status) => setState(
+    () => _list = [
+      for (final v in _list)
+        v.id == id
+            ? (
+                id: v.id,
+                guest: v.guest,
+                phone: v.phone,
+                flat: v.flat,
+                status: status,
+                approval: v.approval,
+                type: v.type,
+                vehicle: v.vehicle,
+                passCode: v.passCode,
+                arrival: v.arrival,
+                photoPath: v.photoPath,
+                guardName: v.guardName,
+              )
+            : v,
+    ],
+  );
+
+  Future<void> _verify(GateVisitor v, bool checkIn) async {
+    final word = checkIn ? 'in' : 'out';
     try {
-      await action();
-      if (mounted) toast(context, done);
+      await VisitorRepo.verify(v.id, checkIn ? VisitorStatus.checkedIn : VisitorStatus.checkedOut);
+      if (mounted) toast(context, '${v.guest} checked $word');
       await _load();
+    } catch (e) {
+      if (!isOffline(e)) {
+        if (mounted) toast(context, friendlyError(e));
+        return;
+      }
+      await GateOffline.add({
+        'kind': 'verify',
+        'id': v.id,
+        'action': checkIn ? 'check_in' : 'check_out',
+        'label': '${v.guest} → ${v.flat}',
+      });
+      if (!mounted) return;
+      _setLocal(v.id, checkIn ? 'checked_in' : 'checked_out');
+      setState(() => _pending++);
+      toast(context, 'Offline: ${v.guest} checked $word. It will sync when the network is back.');
+    }
+  }
+
+  Future<void> _startShift() async {
+    List<({String id, String name})> guards;
+    try {
+      guards = await GateRepo.guards();
+    } catch (e) {
+      if (mounted) toast(context, friendlyError(e));
+      return;
+    }
+    if (!mounted) return;
+    if (guards.isEmpty) {
+      toast(context, 'No guards added yet. The Secretary or Admin adds them under Guards.');
+      return;
+    }
+    String? id = guards.first.id;
+    final pin = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Start shift'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: id,
+              decoration: const InputDecoration(labelText: 'Guard'),
+              items: [for (final g in guards) DropdownMenuItem(value: g.id, child: Text(g.name))],
+              onChanged: (v) => id = v,
+            ),
+            TextField(
+              controller: pin,
+              obscureText: true,
+              maxLength: 4,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: 'Guard PIN'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Start')),
+        ],
+      ),
+    );
+    final gid = id;
+    if (ok != true || gid == null) return;
+    try {
+      final name = await GateRepo.startShift(gid, pin.text);
+      await (await SharedPreferences.getInstance()).setString(GateOffline.guardKey, name);
+      if (mounted) {
+        setState(() => _onDuty = name);
+        toast(context, 'Shift started: $name. Entries are recorded under this name.');
+      }
     } catch (e) {
       if (mounted) toast(context, friendlyError(e));
     }
@@ -73,7 +199,16 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         toast(context, who == null ? 'Code not valid for today. Ask the resident or use Walk-in.' : 'Checked in: $who');
       await _load();
     } catch (e) {
-      if (mounted) toast(context, friendlyError(e));
+      if (!isOffline(e)) {
+        if (mounted) toast(context, friendlyError(e));
+        return;
+      }
+      final match = _list.where((v) => v.passCode == code.trim() && v.status == 'expected').firstOrNull;
+      if (match == null) {
+        if (mounted) toast(context, 'Offline and this code is not in the saved list. Call the flat or use Walk-in.');
+        return;
+      }
+      await _verify(match, true);
     }
   }
 
@@ -81,6 +216,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     final flat = TextEditingController(), name = TextEditingController(), phone = TextEditingController();
     final vehicle = TextEditingController();
     var type = 'guest';
+    Uint8List? photo;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -99,6 +235,21 @@ class _GateScreenState extends ConsumerState<GateScreen> {
                   ],
                   selected: {type},
                   onSelectionChanged: (v) => set(() => type = v.first),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final f = await ImagePicker().pickImage(
+                      source: ImageSource.camera,
+                      maxWidth: 800,
+                      imageQuality: 60,
+                    );
+                    if (f == null) return;
+                    final b = await f.readAsBytes();
+                    set(() => photo = b);
+                  },
+                  icon: Icon(photo == null ? Icons.photo_camera_outlined : Icons.check_circle_outline),
+                  label: Text(photo == null ? 'Take visitor photo' : 'Photo added · retake'),
                 ),
                 TextField(
                   controller: flat,
@@ -132,10 +283,41 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       ),
     );
     if (ok != true) return;
-    await _guard(
-      () => GateRepo.walkIn(flat: flat.text, name: name.text, phone: phone.text, type: type, vehicle: vehicle.text),
-      'Sent to flat ${flat.text.trim().toUpperCase()}. Wait for Approved before letting them in.',
-    );
+    final f = flat.text.trim(), n = name.text.trim(), pic = photo;
+    try {
+      final id = await GateRepo.walkIn(flat: f, name: n, phone: phone.text, type: type, vehicle: vehicle.text);
+      if (pic != null) {
+        try {
+          await GateRepo.attachPhoto(id, pic);
+        } catch (_) {
+          if (mounted) toast(context, 'Visitor sent, but the photo could not be uploaded.');
+        }
+      }
+      if (mounted) toast(context, 'Sent to flat ${f.toUpperCase()}. Wait for Approved before letting them in.');
+      await _load();
+    } catch (e) {
+      if (!isOffline(e)) {
+        if (mounted) toast(context, friendlyError(e));
+        return;
+      }
+      await GateOffline.add({
+        'kind': 'walkin',
+        'flat': f,
+        'name': n,
+        'phone': phone.text,
+        'type': type,
+        'vehicle': vehicle.text,
+        'photo': pic == null ? null : base64Encode(pic),
+        'label': '$n → ${f.toUpperCase()}',
+      });
+      if (mounted) {
+        setState(() => _pending++);
+        toast(
+          context,
+          'Offline: saved. It goes to flat ${f.toUpperCase()} when the network is back. Call the flat meanwhile.',
+        );
+      }
+    }
   }
 
   @override
@@ -159,7 +341,34 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     return PageBody(
       maxWidth: 900,
       children: [
-        Text('Gate', style: Theme.of(context).textTheme.headlineSmall),
+        Row(
+          children: [
+            Text('Gate', style: Theme.of(context).textTheme.headlineSmall),
+            const Spacer(),
+            if (const {Role.admin, Role.president, Role.secretary}.contains(role))
+              TextButton.icon(
+                onPressed: () => showDialog<void>(context: context, builder: (_) => const _GuardsDialog()),
+                icon: const Icon(Icons.badge_outlined),
+                label: const Text('Guards'),
+              ),
+            TextButton.icon(
+              onPressed: _startShift,
+              icon: const Icon(Icons.how_to_reg_outlined),
+              label: Text(_onDuty == null ? 'Start shift' : 'On duty: $_onDuty'),
+            ),
+          ],
+        ),
+        if (_offline)
+          Card(
+            color: AppColors.amber.withValues(alpha: .15),
+            child: ListTile(
+              leading: const Icon(Icons.cloud_off_outlined),
+              title: const Text('Offline – entries are saved on this phone'),
+              subtitle: Text('$_pending waiting to send. Pass codes are checked against the last saved list.'),
+            ),
+          )
+        else if (_pending > 0)
+          Text('$_pending saved entries waiting to send…'),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -175,6 +384,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
           Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
+              leading: v.photoPath == null ? null : VisitorPhoto(path: v.photoPath!),
               title: Text('${v.guest} → ${v.flat}', style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text(
                 [
@@ -182,19 +392,15 @@ class _GateScreenState extends ConsumerState<GateScreen> {
                   if (v.vehicle != null) v.vehicle!,
                   if (v.phone != null) v.phone!,
                   dateTimeFmt.format(v.arrival),
+                  if (v.guardName != null) 'by ${v.guardName}',
                 ].join(' · '),
               ),
               trailing: switch ((v.approval, v.status)) {
                 ('awaiting', _) => const Pill('Waiting for flat', color: AppColors.amber),
                 ('denied', _) => const Pill('Denied', color: AppColors.red),
-                (_, 'checked_in') => OutlinedButton(
-                  onPressed: () =>
-                      _guard(() => VisitorRepo.verify(v.id, VisitorStatus.checkedOut), '${v.guest} checked out'),
-                  child: const Text('Check out'),
-                ),
+                (_, 'checked_in') => OutlinedButton(onPressed: () => _verify(v, false), child: const Text('Check out')),
                 _ => FilledButton(
-                  onPressed: () =>
-                      _guard(() => VisitorRepo.verify(v.id, VisitorStatus.checkedIn), '${v.guest} checked in'),
+                  onPressed: () => _verify(v, true),
                   child: Text(v.approval == 'approved' ? 'Approved · Let in' : 'Check in'),
                 ),
               },
@@ -252,7 +458,9 @@ class _GateAlertsCardState extends State<GateAlertsCard> {
           children: [
             for (final v in waiting)
               ListTile(
-                leading: const Icon(Icons.doorbell_outlined, color: AppColors.amber),
+                leading: v.photoPath == null
+                    ? const Icon(Icons.doorbell_outlined, color: AppColors.amber)
+                    : VisitorPhoto(path: v.photoPath!),
                 title: Text('${v.guest} is at the gate for ${v.flat}'),
                 subtitle: Text([v.type, if (v.vehicle != null) v.vehicle!].join(' · ')),
                 trailing: Wrap(
@@ -301,4 +509,119 @@ class _GateAlertsCardState extends State<GateAlertsCard> {
       ),
     );
   }
+}
+
+class _GuardsDialog extends StatefulWidget {
+  const _GuardsDialog();
+
+  @override
+  State<_GuardsDialog> createState() => _GuardsDialogState();
+}
+
+class _GuardsDialogState extends State<_GuardsDialog> {
+  List<({String id, String name})> _guards = const [];
+  final _name = TextEditingController(), _pin = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final g = await GateRepo.guards();
+      if (mounted) setState(() => _guards = g);
+    } catch (e) {
+      if (mounted) toast(context, friendlyError(e));
+    }
+  }
+
+  Future<void> _run(Future<void> Function() f) async {
+    try {
+      await f();
+      await _load();
+    } catch (e) {
+      if (mounted) toast(context, friendlyError(e));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Gate guards'),
+    content: SizedBox(
+      width: 420,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Guards share the gate phone. Each starts a shift with their name and 4-digit PIN.'),
+            for (final g in _guards)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.badge_outlined),
+                title: Text(g.name),
+                trailing: IconButton(
+                  tooltip: 'Remove',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => _run(() => GateRepo.removeGuard(g.id)),
+                ),
+              ),
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(labelText: 'Guard name'),
+            ),
+            TextField(
+              controller: _pin,
+              obscureText: true,
+              maxLength: 4,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: '4-digit PIN'),
+            ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+      FilledButton(
+        onPressed: () => _run(() async {
+          await GateRepo.saveGuard(_name.text, _pin.text);
+          _name.clear();
+          _pin.clear();
+        }),
+        child: const Text('Add guard'),
+      ),
+    ],
+  );
+}
+
+/// Visitor photo thumbnail from the private bucket; tap to enlarge.
+class VisitorPhoto extends StatefulWidget {
+  const VisitorPhoto({super.key, required this.path});
+  final String path;
+
+  @override
+  State<VisitorPhoto> createState() => _VisitorPhotoState();
+}
+
+class _VisitorPhotoState extends State<VisitorPhoto> {
+  late final Future<String> _url = GateRepo.photoUrl(widget.path);
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<String>(
+    future: _url,
+    builder: (context, s) {
+      final url = s.data;
+      if (url == null) return const CircleAvatar(radius: 24, child: Icon(Icons.person_outline));
+      return GestureDetector(
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (_) => Dialog(child: Image.network(url)),
+        ),
+        child: CircleAvatar(radius: 24, backgroundImage: NetworkImage(url)),
+      );
+    },
+  );
 }
