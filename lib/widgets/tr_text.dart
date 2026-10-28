@@ -139,12 +139,23 @@ class DropdownButtonFormField<T> extends m.StatelessWidget {
   final bool isDense;
 
   @override
-  m.Widget build(m.BuildContext context) => m.DropdownButtonFormField<T>(
-    initialValue: initialValue,
-    items: items,
-    onChanged: onChanged,
-    decoration: _trDecoration(context, decoration),
-    isExpanded: isExpanded,
-    isDense: isDense,
+  m.Widget build(m.BuildContext context) => m.LayoutBuilder(
+    // Fill the available width whenever it is bounded, so long labels truncate instead of overflowing the card.
+    builder: (context, constraints) => m.DropdownButtonFormField<T>(
+      initialValue: initialValue,
+      items: [
+        for (final item in items ?? <m.DropdownMenuItem<T>>[])
+          m.DropdownMenuItem<T>(
+            value: item.value,
+            enabled: item.enabled,
+            onTap: item.onTap,
+            child: m.DefaultTextStyle.merge(overflow: m.TextOverflow.ellipsis, child: item.child),
+          ),
+      ],
+      onChanged: onChanged,
+      decoration: _trDecoration(context, decoration),
+      isExpanded: isExpanded || constraints.hasBoundedWidth,
+      isDense: isDense,
+    ),
   );
 }

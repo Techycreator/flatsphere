@@ -120,8 +120,12 @@ Future<_DocumentDraft?> _documentDialog(BuildContext context) async {
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: type,
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Document type'),
-                  items: [for (final entry in associationDocumentTypes.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
+                  items: [
+                    for (final entry in associationDocumentTypes.entries)
+                      DropdownMenuItem(value: entry.key, child: Text(entry.value, overflow: TextOverflow.ellipsis)),
+                  ],
                   onChanged: (value) => setState(() => type = value ?? type),
                 ),
                 const SizedBox(height: 12),
