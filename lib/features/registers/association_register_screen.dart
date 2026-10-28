@@ -18,6 +18,7 @@ const _types = [
   ('insurance', 'Insurance'),
   ('compliance', 'Compliance document'),
   ('conflict', 'Conflict of interest'),
+  ('other', 'Other (name it in Category)'),
 ];
 
 class AssociationRegisterScreen extends ConsumerWidget {
@@ -210,7 +211,10 @@ Future<_RegisterDraft?> _recordDialog(BuildContext context) async {
                 const SizedBox(height: 12),
                 TextField(controller: name, decoration: const InputDecoration(labelText: 'Name *')),
                 const SizedBox(height: 12),
-                TextField(controller: category, decoration: const InputDecoration(labelText: 'Category / certificate type')),
+                TextField(
+                  controller: category,
+                  decoration: InputDecoration(labelText: type == 'other' ? 'Record kind * (e.g. Licence, Lease)' : 'Category / certificate type'),
+                ),
                 const SizedBox(height: 12),
                 TextField(controller: vendor, decoration: const InputDecoration(labelText: 'Vendor / insurer (optional)')),
                 if (type == 'asset') ...[
@@ -230,8 +234,14 @@ Future<_RegisterDraft?> _recordDialog(BuildContext context) async {
                   _dateButton(context, 'Warranty end', warrantyEnd, (d) => setState(() => warrantyEnd = d), pickDate),
                   _dateButton(context, 'AMC end', amcEnd, (d) => setState(() => amcEnd = d), pickDate),
                 ],
-                if (type == 'insurance' || type == 'compliance')
-                  _dateButton(context, 'Expiry date *', expiresOn, (d) => setState(() => expiresOn = d), pickDate),
+                if (type == 'insurance' || type == 'compliance' || type == 'other')
+                  _dateButton(
+                    context,
+                    type == 'other' ? 'Expiry date (optional)' : 'Expiry date *',
+                    expiresOn,
+                    (d) => setState(() => expiresOn = d),
+                    pickDate,
+                  ),
                 const SizedBox(height: 8),
                 TextField(controller: details, maxLines: 3, decoration: const InputDecoration(labelText: 'Notes / conflict details')),
                 if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
@@ -244,6 +254,7 @@ Future<_RegisterDraft?> _recordDialog(BuildContext context) async {
           FilledButton(
             onPressed: () {
               if (name.text.trim().isEmpty) return setState(() => error = 'Name is required');
+              if (type == 'other' && category.text.trim().isEmpty) return setState(() => error = 'Enter the record kind');
               if ((type == 'insurance' || type == 'compliance') && expiresOn == null) {
                 return setState(() => error = 'Expiry date is required');
               }
