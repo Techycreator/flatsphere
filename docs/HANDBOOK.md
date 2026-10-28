@@ -112,7 +112,7 @@ Owners and residents request family members (W30). Approved members get their ow
 Schedule meetings, record RSVP, write minutes and have them approved. Action items from minutes are tracked in Community.
 
 ### 3.11 Amenities
-Owners and residents request a booking (date, time, guests, notes). Approval and any fee follow the W25 workflow. Cancel before the start time if plans change.
+Owners and residents request a booking (date, time, guests, notes). Every booking goes to the Secretary for approval under W25 and stays Pending and Unpaid until then. After approval, a free amenity is marked Waived automatically; a paid one is marked Paid by the Treasurer, Joint Treasurer or Secretary. Cancel before the start time if plans change.
 
 ### 3.12 Community
 Events, notices, marketplace and meeting actions.
@@ -215,5 +215,6 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 | Date | Change | Sections |
 |---|---|---|
 | 2026-10-28 | Handbook created. Bulk CSV import, ZIP export, flat retirement, association offboarding, last-holder guard, checklist notes and voice notes, invite limit raised to 400/day, fixed the Audit log menu link being redirected | All |
+| 2026-10-28 | Amenity bookings now always follow W25 approval (previously free amenities were auto-approved and shown Waived instantly). Waived is set only after approval | 3.x Amenities |
 | 2026-10-28 | Fixed a flat appearing twice in the "Add housekeeping staff" flat dropdown when the same person is both owner and resident of it | 3.x Household staff |
 | 2026-10-28 | Fixed "stream not supported" when recording a voice note. Browsers now record compressed Opus/AAC; other devices record WAV. Same recorder for complaints and checklist notes | 3.2, 3.9 |

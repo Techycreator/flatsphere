@@ -92,7 +92,7 @@ class AmenitiesScreen extends ConsumerWidget {
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.meeting_room_outlined),
                         title: Text(amenity.name),
-                        subtitle: Text('${amenity.rules}${amenity.requiresApproval ? ' · Approval required' : ''}'),
+                        subtitle: Text('${amenity.rules} · Approval required'),
                         trailing: Text(amenity.fee == 0 ? 'No fee' : inr.format(amenity.fee)),
                       ),
                   ],
