@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
@@ -7,6 +9,7 @@ import '../../backend/backend.dart' show backendEnabled;
 import '../../l10n/app_localizations.dart';
 import '../../state/app_state.dart';
 import '../../widgets/common.dart';
+import 'polls_card.dart';
 
 class NoticesScreen extends ConsumerWidget {
   const NoticesScreen({super.key});
@@ -19,6 +22,8 @@ class NoticesScreen extends ConsumerWidget {
       maxWidth: 900,
       children: [
         Text(l.notices, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
+        const PollsCard(),
         const SizedBox(height: 12),
         for (final n in notices)
           Card(
@@ -35,41 +40,42 @@ class NoticesScreen extends ConsumerWidget {
             ),
           ),
         const SizedBox(height: 8),
-        if (!backendEnabled) const SectionCard(
-          title: 'Emergency contacts',
-          child: Column(
-            children: [
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.local_police_outlined),
-                title: Text('Police'),
-                trailing: Text('112'),
-              ),
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.local_fire_department_outlined),
-                title: Text('Fire'),
-                trailing: Text('101'),
-              ),
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.local_hospital_outlined),
-                title: Text('Ambulance'),
-                trailing: Text('108'),
-              ),
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.support_agent),
-                title: Text('Caretaker – Suresh Kumar'),
-                trailing: Text('98470 77777'),
-              ),
-            ],
+        if (!backendEnabled)
+          const SectionCard(
+            title: 'Emergency contacts',
+            child: Column(
+              children: [
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.local_police_outlined),
+                  title: Text('Police'),
+                  trailing: Text('112'),
+                ),
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.local_fire_department_outlined),
+                  title: Text('Fire'),
+                  trailing: Text('101'),
+                ),
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.local_hospital_outlined),
+                  title: Text('Ambulance'),
+                  trailing: Text('108'),
+                ),
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.support_agent),
+                  title: Text('Caretaker – Suresh Kumar'),
+                  trailing: Text('98470 77777'),
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
