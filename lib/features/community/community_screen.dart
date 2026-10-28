@@ -66,6 +66,7 @@ class CommunityScreen extends ConsumerWidget {
             color: Theme.of(context).colorScheme.surface,
             child: TabBar(
               isScrollable: true,
+              tabAlignment: TabAlignment.start,
               tabs: [
                 const Tab(text: 'Emergency'),
                 if (showMarketplace) const Tab(text: 'Marketplace'),
@@ -299,6 +300,7 @@ Future<void> _addEvent(BuildContext context, WidgetRef ref) async {
   final fundRequests = backendEnabled
       ? (await FinanceRepo.fundRequests()).where((request) => request.status == 'active').toList()
       : <FundRequestRecord>[];
+  if (!context.mounted) return;
   final title = TextEditingController();
   final description = TextEditingController();
   final location = TextEditingController();

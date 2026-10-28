@@ -160,7 +160,7 @@ class _VehicleLookupPanelState extends ConsumerState<_VehicleLookupPanel> {
 
   void _search() {
     final value = _registration.text.trim().toUpperCase();
-    if (value.length < 3) {
+    if (value.replaceAll(RegExp(r'[^A-Z0-9]'), '').length < 3) {
       toast(context, AppLocalizations.of(context).enterThreeVehicleChars);
       return;
     }
