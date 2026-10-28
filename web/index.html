@@ -70,7 +70,8 @@
         });
         let reloading = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (reloading) return;
+          // Only reload for an update the user started; the first install also fires this event.
+          if (reloading || !document.getElementById('fs-update')?.dataset.updating) return;
           reloading = true;
           location.reload();
         });
@@ -100,8 +101,48 @@
     })();
     // Blocks the whole app until this device runs the latest deployed build; the build id is stamped on deploy.
     const BUILD_ID = '__BUILD_ID__';
+    // Shows a full-screen "Updating" state, clears old copies of the app and reloads once. The attempt is remembered for
+    // two minutes so a slow CDN can never put the user in an Update-now loop.
+    const UPDATE_KEY = 'fs-update-attempt';
+    function updateAttemptedRecently() {
+      try { return Date.now() - Number(sessionStorage.getItem(UPDATE_KEY) || 0) < 120000; } catch (e) { return false; }
+    }
+    function showUpdating(o) {
+      o.innerHTML = '<style>@keyframes fsspin{to{transform:rotate(360deg)}}</style>'
+        + '<div style="width:48px;height:48px;border:5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:fsspin 1s linear infinite"></div>'
+        + '<div style="font-size:22px;font-weight:700">Updating FlatSphere…</div>'
+        + '<div style="max-width:360px">Installing the latest version. This takes a few seconds and the app will restart by itself. Please do not close this screen.</div>';
+    }
+    async function applyUpdate(o) {
+      if (o.dataset.updating) return;
+      o.dataset.updating = '1';
+      showUpdating(o);
+      try { sessionStorage.setItem(UPDATE_KEY, String(Date.now())); } catch (e) { /* ignore */ }
+      const hardReload = async () => {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        } catch (e) { /* reload anyway */ }
+        const u = new URL(location.href);
+        u.searchParams.set('v', String(Date.now()));
+        location.replace(u.toString());
+      };
+      try {
+        const current = await navigator.serviceWorker.getRegistration();
+        if (current && current.waiting) {
+          current.waiting.postMessage({ type: 'SKIP_WAITING' });
+          // controllerchange reloads the page; fall back to a hard reload if that does not happen.
+          setTimeout(hardReload, 6000);
+          return;
+        }
+      } catch (e) { /* fall through */ }
+      await hardReload();
+    }
     function showUpdateRequired() {
       if (document.getElementById('fs-update')) return;
+      if (updateAttemptedRecently()) return;
       if (window.flatsphereUpdateGuard.busy()) { window.flatsphereUpdateGuard.defer(); return; }
       const o = document.createElement('div');
       o.id = 'fs-update';
@@ -112,22 +153,8 @@
         + '<button id="fs-update-btn" style="padding:12px 28px;border:0;border-radius:24px;font:600 16px sans-serif;background:#fff;color:#0F766E;cursor:pointer">Update now</button>';
       document.body.appendChild(o);
       document.body.style.overflow = 'hidden';
-      document.getElementById('fs-update-btn').onclick = async () => {
-        try {
-          const current = await navigator.serviceWorker.getRegistration();
-          if (current && current.waiting) {
-            current.waiting.postMessage({ type: 'SKIP_WAITING' });
-            return;
-          }
-          const regs = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(regs.map((r) => r.unregister()));
-          const keys = await caches.keys();
-          await Promise.all(keys.map((k) => caches.delete(k)));
-        } catch (e) { /* reload anyway */ }
-        location.reload();
-      };
-    }
-    async function checkForUpdate() {
+      document.getElementById('fs-update-btn').onclick = () => applyUpdate(o);
+    }    async function checkForUpdate() {
       if (BUILD_ID.startsWith('__')) return;
       try {
         const r = await fetch('build-id.txt', { cache: 'no-store' });
