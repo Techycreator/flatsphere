@@ -127,10 +127,20 @@ class MyDuesScreen extends ConsumerWidget {
                     contentPadding: EdgeInsets.zero,
                     title: Text('${p.receiptNo} · ${inr.format(p.amount)}'),
                     subtitle: Text('${dateFmt.format(p.paidOn)} · ${p.head ?? 'Advance / other'}'),
-                    trailing: IconButton(
-                      tooltip: 'Download receipt (PDF)',
-                      icon: const Icon(Icons.download_outlined),
-                      onPressed: () => downloadReceipt(p, s.user.association?.name ?? 'Association'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'View receipt',
+                          icon: const Icon(Icons.visibility_outlined),
+                          onPressed: () => viewReceipt(context, p, s.user.association?.name ?? 'Association'),
+                        ),
+                        IconButton(
+                          tooltip: 'Download receipt (PDF)',
+                          icon: const Icon(Icons.download_outlined),
+                          onPressed: () => downloadReceipt(p, s.user.association?.name ?? 'Association'),
+                        ),
+                      ],
                     ),
                   ),
               ],

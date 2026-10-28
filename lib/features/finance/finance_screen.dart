@@ -414,6 +414,15 @@ class _DuesTab extends ConsumerWidget {
                       children: [
                         Text(inr.format(p.amount), style: const TextStyle(fontWeight: FontWeight.w600)),
                         IconButton(
+                          tooltip: 'View receipt',
+                          icon: const Icon(Icons.visibility_outlined),
+                          onPressed: () => viewReceipt(
+                            context,
+                            p,
+                            ref.read(sessionProvider)!.user.association?.name ?? associationName,
+                          ),
+                        ),
+                        IconButton(
                           tooltip: 'Download receipt (PDF)',
                           icon: const Icon(Icons.download_outlined),
                           onPressed: () =>
