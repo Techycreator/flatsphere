@@ -58,8 +58,7 @@ class DemoUser {
   final Map<Role, List<String>> flatsByRole;
 
   /// Flats held under [role]; falls back to the primary flat for demo users.
-  List<String> flatsFor(Role role) =>
-      flatsByRole[role] ?? (flatNumber != null && (role == Role.owner || role == Role.resident) ? [flatNumber!] : const []);
+  List<String> flatsFor(Role role) => flatsByRole[role] ?? (flatNumber != null ? [flatNumber!] : const []);
   final List<String> monitorCategories;
   final List<String> designations;
   final DateTime? monitorUntil;
