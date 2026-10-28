@@ -343,6 +343,8 @@ class _ProfileMenu extends ConsumerWidget {
             ref.read(localeProvider.notifier).set(Locale(v));
           case 'audit':
             context.go('/audit');
+          case 'datatools':
+            context.go('/data-tools');
           case 'help':
             showGlossary(context);
           case 'setpin':
@@ -368,6 +370,15 @@ class _ProfileMenu extends ConsumerWidget {
           const PopupMenuItem(value: 'en', child: Text('English')),
           const PopupMenuItem(value: 'ml', child: Text('മലയാളം')),
         ],
+        if (const {Role.admin, Role.president, Role.secretary}.contains(session.activeRole))
+          const PopupMenuItem(
+            value: 'datatools',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.import_export),
+              title: Text('Data import & export'),
+            ),
+          ),
         if (const {Role.admin, Role.president, Role.secretary}.contains(session.activeRole))
           const PopupMenuItem(
             value: 'audit',

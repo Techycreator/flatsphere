@@ -30,6 +30,7 @@ import '../features/shell/app_shell.dart';
 import '../features/shell/association_settings_screen.dart';
 import '../features/shell/workflow_admin_screen.dart';
 import '../features/shell/audit_export_screen.dart';
+import '../features/shell/data_tools_screen.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
 import 'nav.dart';
@@ -45,6 +46,7 @@ bool canAccess(Role role, String location, {bool membershipDesk = false}) {
   final allowed = [
     ...navFor(role, membershipDesk: membershipDesk).map((i) => i.path),
     if (role == Role.owner) '/approvals',
+    if (const {Role.admin, Role.president, Role.secretary}.contains(role)) ...['/audit', '/data-tools'],
   ];
   return allowed.any((p) => location == p || location.startsWith('$p/'));
 }
@@ -114,6 +116,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/association-settings', pageBuilder: (_, _) => _page(const AssociationSettingsScreen())),
           GoRoute(path: '/workflows', pageBuilder: (_, _) => _page(const WorkflowAdminScreen())),
           GoRoute(path: '/audit', pageBuilder: (_, _) => _page(const AuditExportScreen())),
+          GoRoute(path: '/data-tools', pageBuilder: (_, _) => _page(const DataToolsScreen())),
           GoRoute(path: '/amenities', pageBuilder: (_, _) => _page(const AmenitiesScreen())),
           GoRoute(
             path: '/community',

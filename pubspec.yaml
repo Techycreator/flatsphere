@@ -51,6 +51,7 @@ dependencies:
   local_auth: ^3.0.2
   image_picker: ^1.2.4
   record: ^7.1.2
+  archive: ^4.5.2
 
 dev_dependencies:
   flutter_test:
