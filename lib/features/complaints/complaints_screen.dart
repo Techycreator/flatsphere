@@ -11,7 +11,8 @@ import '../../widgets/common.dart';
 import 'complaint_tile.dart';
 
 class ComplaintsScreen extends ConsumerStatefulWidget {
-  const ComplaintsScreen({super.key});
+  const ComplaintsScreen({super.key, this.initialFilter});
+  final String? initialFilter;
 
   @override
   ConsumerState<ComplaintsScreen> createState() => _ComplaintsScreenState();
@@ -19,7 +20,7 @@ class ComplaintsScreen extends ConsumerStatefulWidget {
 
 class _ComplaintsScreenState extends ConsumerState<ComplaintsScreen> {
   SlaColor? _sla;
-  String? _special;
+  late String? _special = widget.initialFilter == 'review' ? 'review' : null;
   bool _openOnly = true;
   String _query = '';
 

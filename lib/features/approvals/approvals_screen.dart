@@ -18,7 +18,7 @@ class ApprovalsScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final s = ref.watch(sessionProvider)!;
     final all = ref.watch(approvalsProvider);
-    final mine = all.where((a) => a.awaits(s.activeRole, s.user.name)).toList();
+    final mine = all.where((a) => a.needsAction(s.activeRole, s.user.name)).toList();
     final canStart = s.user.canInitiateMembership(s.activeRole);
     final raised = all.where((a) => a.initiatorName.contains(s.user.name)).toList();
     final done = all.where((a) => a.overall != Decision.pending).toList();

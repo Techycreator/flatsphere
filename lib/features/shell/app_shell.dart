@@ -37,7 +37,7 @@ class AppShell extends ConsumerWidget {
     final selected = primaryIndex >= 0 ? primaryIndex : (moreItems.isNotEmpty ? barItems.length : 0);
     final pendingForMe = ref
         .watch(approvalsProvider)
-        .where((a) => a.awaits(session.activeRole, session.user.name))
+        .where((a) => a.needsAction(session.activeRole, session.user.name))
         .length;
     final unreadCount = ref.watch(appNotificationsProvider).value?.where((n) => n.readAt == null).length ?? 0;
 
@@ -215,7 +215,7 @@ class AppShell extends ConsumerWidget {
 
   void _showNotifications(BuildContext context, WidgetRef ref) {
     final s = ref.read(sessionProvider)!;
-    final pending = ref.read(approvalsProvider).where((a) => a.awaits(s.activeRole, s.user.name)).toList();
+    final pending = ref.read(approvalsProvider).where((a) => a.needsAction(s.activeRole, s.user.name)).toList();
     showModalBottomSheet(
       context: context,
       showDragHandle: true,

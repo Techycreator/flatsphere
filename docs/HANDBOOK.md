@@ -215,6 +215,7 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 | Date | Change | Sections |
 |---|---|---|
 | 2026-10-28 | Handbook created. Bulk CSV import, ZIP export, flat retirement, association offboarding, last-holder guard, checklist notes and voice notes, invite limit raised to 400/day, fixed the Audit log menu link being redirected | All |
+| 2026-10-28 | Dashboard "Reports to review" now opens the Complaints list already filtered to "Awaiting review". EC votes now show as pending items (Dashboard count, bell, Approvals list) for EC members and office bearers, and the person who raised a request also votes: their vote counts towards the majority | 3.1 Home, Approvals, EC vote |
 | 2026-10-28 | Top bar: the association name now gets more room (wraps to two lines on phones, tighter spacing, compact role chip) so more of a long name is visible | 3.1 Navigation |
 | 2026-10-28 | Flagged-for-discussion expenses now do something: the President must give a reason; the committee is notified; the expense cannot be approved until the flag is resolved; the Secretary or President resolves it with a recorded decision note (audit-logged); open flags are pre-filled into the agenda when scheduling a meeting | 3.x Expenses, Meetings |
 | 2026-10-28 | Receipts (Recent receipts for the Treasurer, Receipts for owners) now have a **View** (eye) button that shows the receipt on screen without downloading; Download is still available there and beside it | 3.x Dues |

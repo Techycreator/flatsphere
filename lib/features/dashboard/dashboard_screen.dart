@@ -120,7 +120,7 @@ class _ApprovalsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(sessionProvider)!;
-    final mine = ref.watch(approvalsProvider).where((a) => a.awaits(s.activeRole, s.user.name)).toList();
+    final mine = ref.watch(approvalsProvider).where((a) => a.needsAction(s.activeRole, s.user.name)).toList();
     return SectionCard(
       title: 'Awaiting your approval (${mine.length})',
       action: TextButton(onPressed: () => context.go('/approvals'), child: Text(AppLocalizations.of(context).viewAll)),
@@ -235,7 +235,7 @@ class _PresidentDash extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider);
     final s = ref.watch(sessionProvider)!;
-    final pending = ref.watch(approvalsProvider).where((a) => a.awaits(s.activeRole, s.user.name)).length;
+    final pending = ref.watch(approvalsProvider).where((a) => a.needsAction(s.activeRole, s.user.name)).length;
     final red = ref.watch(complaintsProvider).where((c) => c.slaApplies && slaFor(c, now).color == SlaColor.red).length;
     final dues = ref.watch(duesProvider).lines;
     final total = dues.fold(0, (a, x) => a + x.amount);
@@ -318,7 +318,7 @@ class _SecretaryDash extends ConsumerWidget {
     final review = all.where((c) => c.inReview).toList();
     int n(SlaColor c) => open.where((x) => slaFor(x, now).color == c).length;
     final cl = ref.watch(checklistProvider);
-    final pending = ref.watch(approvalsProvider).where((a) => a.awaits(role, session.user.name)).length;
+    final pending = ref.watch(approvalsProvider).where((a) => a.needsAction(role, session.user.name)).length;
     final byCat = <String, (int, int)>{};
     for (final i in cl.items) {
       final v = byCat[i.category] ?? (0, 0);
@@ -357,7 +357,7 @@ class _SecretaryDash extends ConsumerWidget {
               icon: Icons.rate_review_outlined,
               color: Colors.purple,
               sub: 'From EC members and caretaker',
-              onTap: () => context.go('/complaints'),
+              onTap: () => context.go('/complaints?filter=review'),
             ),
           ],
         ),

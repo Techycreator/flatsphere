@@ -623,6 +623,16 @@ class ApprovalRequest {
   bool awaits(Role active, String userName) =>
       currentStep?.isEcVote != true && currentStep?.matches(active, userName) == true && !initiatorName.contains(userName);
 
+  static const _ecRoles = {
+    Role.ecMember, Role.president, Role.vicePresident, Role.secretary, Role.jointSecretary, Role.treasurer, Role.jointTreasurer,
+  };
+
+  /// The EC vote is open and this role is on the EC (the requester votes too).
+  bool awaitsVote(Role active) => currentStep?.isEcVote == true && _ecRoles.contains(active);
+
+  /// Anything this role needs to act on: an approval step or an EC vote.
+  bool needsAction(Role active, String userName) => awaits(active, userName) || awaitsVote(active);
+
   Decision get overall {
     if (steps.any((s) => s.decision == Decision.rejected)) return Decision.rejected;
     if (steps.any((s) => s.decision == Decision.sentBack)) return Decision.sentBack;

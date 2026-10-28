@@ -98,7 +98,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/home', pageBuilder: (_, _) => _page(const DashboardScreen())),
           GoRoute(
             path: '/complaints',
-            pageBuilder: (_, _) => _page(const ComplaintsScreen()),
+            pageBuilder: (_, s) => _page(ComplaintsScreen(initialFilter: s.uri.queryParameters['filter'])),
             routes: [
               GoRoute(path: 'new', builder: (_, _) => const RaiseComplaintScreen()),
               GoRoute(
