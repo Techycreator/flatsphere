@@ -1,6 +1,8 @@
 import 'package:flatsphere/backend/gate_offline.dart';
 import 'package:flatsphere/features/visitors/gate_widgets.dart';
+import 'package:flatsphere/widgets/common.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -70,6 +72,43 @@ void main() {
     await GateOffline.cacheFlats('association-b', ['B-202']);
     expect(await GateOffline.cachedFlats('association-a'), ['A-101']);
     expect(await GateOffline.cachedFlats('association-b'), ['B-202']);
+  });
+
+  test('queued gate actions are scoped to their association', () async {
+    SharedPreferences.setMockInitialValues({});
+    await GateOffline.add('association-a', {'kind': 'walkin', 'flat': 'A-101'});
+    expect(await GateOffline.queue('association-b'), isEmpty);
+    expect((await GateOffline.queue('association-a')).single['association_id'], 'association-a');
+  });
+
+  test('cached gate visitors are scoped to their association', () async {
+    SharedPreferences.setMockInitialValues({});
+    final visitor = (
+      id: 'visitor-a',
+      guest: 'Guest A',
+      phone: null,
+      flat: 'A-101',
+      status: 'expected',
+      approval: 'approved',
+      type: 'guest',
+      vehicle: null,
+      passCode: '123456',
+      arrival: DateTime(2026, 11, 3),
+      photoPath: null,
+      guardName: null,
+    );
+    await GateOffline.cache('association-a', [visitor]);
+    expect(await GateOffline.cached('association-b'), isEmpty);
+    expect((await GateOffline.cached('association-a')).single.id, 'visitor-a');
+  });
+
+  test('vehicle formatter retains the supported 24-character registration', () {
+    const registration = 'ABCDEFGHIJKLMN1234567890';
+    final formatted = VehicleNumberFormatter().formatEditUpdate(
+      TextEditingValue.empty,
+      const TextEditingValue(text: registration),
+    );
+    expect(formatted.text, registration);
   });
 
   testWidgets('call-a-flat picker fits a phone', (tester) async {

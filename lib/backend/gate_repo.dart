@@ -40,13 +40,15 @@ class GateRepo {
       'id, guest_name, guest_phone, status, approval, entry_type, vehicle_number, pass_code, expected_arrival, photo_path, guard_name, flats(number)';
 
   /// Visitors expected or at the gate from yesterday onwards.
-  static Future<List<GateVisitor>> today() async {
+  static Future<List<GateVisitor>> today({required String associationId, bool hostOnly = false}) async {
     final since = DateTime.now().subtract(const Duration(days: 1)).toUtc().toIso8601String();
-    final rows = await db
+    final query = db
         .from('visitor_requests')
         .select(_cols)
-        .gte('expected_arrival', since)
-        .order('expected_arrival');
+        .eq('association_id', associationId)
+        .gte('expected_arrival', since);
+    final scopedQuery = hostOnly ? query.eq('host_id', db.auth.currentUser!.id) : query;
+    final rows = await scopedQuery.order('expected_arrival');
     return [for (final r in rows) _row(r)];
   }
 

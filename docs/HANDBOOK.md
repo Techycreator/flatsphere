@@ -100,8 +100,8 @@ Owners and residents request family members (W30). Approved members get their ow
 
 ### 3.8 Visitors and vehicles
 - **Visitors:** residents and owners pre-register guests; the Security desk checks them in and out. Owners and residents see only the visitors they added; the six roles, Caretaker and Security see all.
-- **Gate desk (Security, Caretaker, Admin, President, Secretary):** select a guard and PIN to start a shift; check visitor pass codes, request flat approval for walk-ins, call saved owner/resident contacts, and check daily-help staff in or out. Offline gate actions queue on the device and flat suggestions use a cache for the active association; queued actions sync when the connection returns, and pass codes are checked against the last saved visitor list.
-- **Vehicle lookup:** type the number in any form. `KL07CO1074`, `KL-07-CO-1074` and `KL 07 CO 1074` all match. It searches resident vehicles and visitors.
+- **Gate desk (Security, Caretaker, Admin, President, Secretary):** select a guard and PIN to start a shift; check visitor pass codes, request flat approval for walk-ins, call saved owner/resident contacts, and check daily-help staff in or out. Offline gate caches, the on-duty guard and queued actions are scoped to the active association; queued actions sync when the connection returns, and pass codes are checked against the last saved visitor list. Owners and residents see gate alerts only for visitors they added.
+- **Vehicle lookup:** type the number in any form (up to 24 characters). `KL07CO1074`, `KL-07-CO-1074` and `KL 07 CO 1074` all match. It searches resident vehicles and visitors.
 - **Vehicle register export:** CSV for the boom-barrier system.
 
 ### 3.9 Daily checklist
@@ -234,3 +234,4 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 | 2026-10-28 | Fixed a flat appearing twice in the "Add housekeeping staff" flat dropdown when the same person is both owner and resident of it | 3.x Household staff |
 | 2026-10-28 | Fixed "stream not supported" when recording a voice note. Browsers now record compressed Opus/AAC; other devices record WAV. Same recorder for complaints and checklist notes | 3.2, 3.9 |
 | 2026-11-03 | Gate desk adds guard PIN shifts, pass-code checks, walk-in approval requests, flat calling, daily-help check-in/out, and offline action queuing with association-scoped flat suggestions. Role access is unchanged. | 3.8 |
+| 2026-11-03 | Gate offline state and queued actions are association-scoped; owner/resident gate alerts show only visitors they added; vehicle lookup retains numbers up to the supported 24 characters. Feature-branch pushes no longer deploy to the shared Pages project. | 3.8, 3.x Visitors, Technical |

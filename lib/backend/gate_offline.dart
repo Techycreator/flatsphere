@@ -19,31 +19,42 @@ bool isOffline(Object e) =>
 
 /// Gate actions saved on the phone while offline, sent in order when the network is back.
 class GateOffline {
-  static const _queueKey = 'gate_queue',
-      _cacheKey = 'gate_cache',
-      _helpKey = 'gate_help_cache',
-      guardKey = 'gate_guard_on_duty';
+  static String _queueKey(String associationId) => 'gate_queue_$associationId';
+  static String _cacheKey(String associationId) => 'gate_cache_$associationId';
+  static String _helpKey(String associationId) => 'gate_help_cache_$associationId';
+  static String guardKey(String associationId) => 'gate_guard_on_duty_$associationId';
 
-  static Future<List<Map<String, dynamic>>> queue() async {
+  static Future<List<Map<String, dynamic>>> queue(String associationId) async {
     final p = await SharedPreferences.getInstance();
-    return [for (final s in p.getStringList(_queueKey) ?? const <String>[]) jsonDecode(s) as Map<String, dynamic>];
+    return [
+      for (final s in p.getStringList(_queueKey(associationId)) ?? const <String>[])
+        jsonDecode(s) as Map<String, dynamic>,
+    ];
   }
 
-  static Future<void> _save(List<Map<String, dynamic>> q) async =>
-      (await SharedPreferences.getInstance()).setStringList(_queueKey, [for (final m in q) jsonEncode(m)]);
+  static Future<void> _save(String associationId, List<Map<String, dynamic>> q) async =>
+      (await SharedPreferences.getInstance()).setStringList(_queueKey(associationId), [
+        for (final m in q) jsonEncode(m),
+      ]);
 
-  static Future<void> add(Map<String, dynamic> action) async => _save([
-    ...await queue(),
-    {...action, 'at': DateTime.now().toIso8601String()},
+  static Future<void> add(String associationId, Map<String, dynamic> action) async => _save(associationId, [
+    ...await queue(associationId),
+    {...action, 'association_id': associationId, 'at': DateTime.now().toIso8601String()},
   ]);
 
   /// Returns how many were sent and the messages for ones the server refused. Stops at the first network error.
-  static Future<(int, List<String>)> flush() async {
-    final q = await queue();
+  static Future<(int, List<String>)> flush(String associationId) async {
+    final q = await queue(associationId);
     var sent = 0;
     final failed = <String>[];
     while (q.isNotEmpty) {
       final a = q.first;
+      if (a['association_id'] != associationId) {
+        failed.add('${a['label'] ?? 'Gate action'}: saved for a different association');
+        q.removeAt(0);
+        await _save(associationId, q);
+        continue;
+      }
       try {
         switch (a['kind']) {
           case 'walkin':
@@ -78,13 +89,14 @@ class GateOffline {
         failed.add('${a['label']}: ${friendlyError(e)}');
       }
       q.removeAt(0);
-      await _save(q);
+      await _save(associationId, q);
     }
     return (sent, failed);
   }
 
-  static Future<void> cache(List<GateVisitor> list) async => (await SharedPreferences.getInstance()).setString(
-    _cacheKey,
+  static Future<void> cache(String associationId, List<GateVisitor> list) async =>
+      (await SharedPreferences.getInstance()).setString(
+    _cacheKey(associationId),
     jsonEncode([
       for (final v in list)
         {
@@ -102,8 +114,8 @@ class GateOffline {
     ]),
   );
 
-  static Future<List<GateVisitor>> cached() async {
-    final raw = (await SharedPreferences.getInstance()).getString(_cacheKey);
+  static Future<List<GateVisitor>> cached(String associationId) async {
+    final raw = (await SharedPreferences.getInstance()).getString(_cacheKey(associationId));
     if (raw == null) return const [];
     return [
       for (final m in (jsonDecode(raw) as List).cast<Map<String, dynamic>>())
@@ -132,13 +144,14 @@ class GateOffline {
   static Future<List<String>> cachedFlats(String associationId) async =>
       (await SharedPreferences.getInstance()).getStringList(_flatsKey(associationId)) ?? const [];
 
-  static Future<void> cacheHelp(List<DailyHelp> list) async => (await SharedPreferences.getInstance()).setString(
-    _helpKey,
+  static Future<void> cacheHelp(String associationId, List<DailyHelp> list) async =>
+      (await SharedPreferences.getInstance()).setString(
+    _helpKey(associationId),
     jsonEncode([for (final h in list) DailyHelpRepo.toJson(h)]),
   );
 
-  static Future<List<DailyHelp>> cachedHelp() async {
-    final raw = (await SharedPreferences.getInstance()).getString(_helpKey);
+  static Future<List<DailyHelp>> cachedHelp(String associationId) async {
+    final raw = (await SharedPreferences.getInstance()).getString(_helpKey(associationId));
     if (raw == null) return const [];
     return [for (final m in (jsonDecode(raw) as List).cast<Map<String, dynamic>>()) DailyHelpRepo.fromJson(m)];
   }

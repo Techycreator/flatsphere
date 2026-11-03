@@ -345,7 +345,8 @@ class _VisitsDialog extends StatelessWidget {
 
 /// Gate: find a daily-help pass by code or name and check them in/out. Works offline from the last saved list.
 class DailyHelpGateDialog extends StatefulWidget {
-  const DailyHelpGateDialog({super.key, required this.onQueued});
+  const DailyHelpGateDialog({super.key, required this.associationId, required this.onQueued});
+  final String associationId;
   final VoidCallback onQueued;
 
   @override
@@ -366,7 +367,7 @@ class _DailyHelpGateDialogState extends State<DailyHelpGateDialog> {
   Future<void> _load() async {
     try {
       final list = await DailyHelpRepo.load();
-      await GateOffline.cacheHelp(list);
+      await GateOffline.cacheHelp(widget.associationId, list);
       if (mounted) {
         setState(() {
           _list = list;
@@ -377,7 +378,7 @@ class _DailyHelpGateDialogState extends State<DailyHelpGateDialog> {
       if (!isOffline(e)) {
         if (mounted) toast(context, friendlyError(e));
       }
-      final cached = await GateOffline.cachedHelp();
+      final cached = await GateOffline.cachedHelp(widget.associationId);
       if (mounted) {
         setState(() {
           _list = cached;
@@ -403,12 +404,17 @@ class _DailyHelpGateDialogState extends State<DailyHelpGateDialog> {
         if (mounted) toast(context, '${h.name} is outside allowed days/hours. Use Walk-in.');
         return;
       }
-      await GateOffline.add({'kind': 'help', 'id': h.id, 'in': checkIn, 'label': '${h.name} (daily help)'});
+      await GateOffline.add(widget.associationId, {
+        'kind': 'help',
+        'id': h.id,
+        'in': checkIn,
+        'label': '${h.name} (daily help)',
+      });
       final updated = [
         for (final x in _list)
           x.id == h.id ? DailyHelpRepo.fromJson({...DailyHelpRepo.toJson(x), 'inside': checkIn}) : x,
       ];
-      await GateOffline.cacheHelp(updated);
+      await GateOffline.cacheHelp(widget.associationId, updated);
       widget.onQueued();
       if (mounted) {
         setState(() => _list = updated);

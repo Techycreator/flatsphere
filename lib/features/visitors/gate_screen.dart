@@ -33,13 +33,11 @@ class _GateScreenState extends ConsumerState<GateScreen> {
   bool _offline = false;
   int _pending = 0;
   String? _onDuty;
+  String? _activeAssociationId;
 
   @override
   void initState() {
     super.initState();
-    SharedPreferences.getInstance().then((p) {
-      if (mounted) setState(() => _onDuty = p.getString(GateOffline.guardKey));
-    });
     _load();
     if (backendEnabled) GateRepo.purgeOldPhotos().catchError((_) {});
     _timer = Timer.periodic(const Duration(seconds: 10), (_) => _load());
@@ -53,15 +51,29 @@ class _GateScreenState extends ConsumerState<GateScreen> {
 
   Future<void> _load() async {
     if (!backendEnabled) return;
+    final associationId = ref.read(sessionProvider)?.user.associationId;
+    if (associationId == null) return;
+    if (_activeAssociationId != associationId) {
+      _activeAssociationId = associationId;
+      _list = const [];
+      _pending = 0;
+      _onDuty = null;
+      final p = await SharedPreferences.getInstance();
+      if (!mounted || _activeAssociationId != associationId) return;
+      setState(() => _onDuty = p.getString(GateOffline.guardKey(associationId)));
+    }
+    if (ref.read(sessionProvider)?.user.associationId != associationId) return;
     try {
-      final (sent, failed) = await GateOffline.flush();
+      final (sent, failed) = await GateOffline.flush(associationId);
+      if (ref.read(sessionProvider)?.user.associationId != associationId) return;
       if (mounted && sent > 0) toast(context, '$sent saved gate entr${sent == 1 ? 'y' : 'ies'} sent');
       for (final f in failed) {
         if (mounted) toast(context, 'Not accepted: $f');
       }
-      final list = await GateRepo.today();
-      await GateOffline.cache(list);
-      final pending = (await GateOffline.queue()).length;
+      final list = await GateRepo.today(associationId: associationId);
+      await GateOffline.cache(associationId, list);
+      final pending = (await GateOffline.queue(associationId)).length;
+      if (ref.read(sessionProvider)?.user.associationId != associationId) return;
       if (mounted) {
         setState(() {
           _list = list;
@@ -72,8 +84,9 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       }
     } catch (e) {
       if (isOffline(e)) {
-        final cached = _list.isEmpty ? await GateOffline.cached() : _list;
-        final pending = (await GateOffline.queue()).length;
+        final cached = _list.isEmpty ? await GateOffline.cached(associationId) : _list;
+        final pending = (await GateOffline.queue(associationId)).length;
+        if (ref.read(sessionProvider)?.user.associationId != associationId) return;
         if (mounted) {
           setState(() {
             _offline = true;
@@ -112,6 +125,8 @@ class _GateScreenState extends ConsumerState<GateScreen> {
 
   Future<void> _verify(GateVisitor v, bool checkIn) async {
     final word = checkIn ? 'in' : 'out';
+    final associationId = ref.read(sessionProvider)?.user.associationId;
+    if (associationId == null) return;
     try {
       await VisitorRepo.verify(v.id, checkIn ? VisitorStatus.checkedIn : VisitorStatus.checkedOut);
       if (mounted) toast(context, '${v.guest} checked $word');
@@ -121,7 +136,8 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         if (mounted) toast(context, friendlyError(e));
         return;
       }
-      await GateOffline.add({
+      if (ref.read(sessionProvider)?.user.associationId != associationId) return;
+      await GateOffline.add(associationId, {
         'kind': 'verify',
         'id': v.id,
         'action': checkIn ? 'check_in' : 'check_out',
@@ -141,6 +157,8 @@ class _GateScreenState extends ConsumerState<GateScreen> {
   }
 
   Future<void> _startShift() async {
+    final associationId = ref.read(sessionProvider)?.user.associationId;
+    if (associationId == null) return;
     List<({String id, String name})> guards;
     try {
       guards = await GateRepo.guards();
@@ -172,7 +190,8 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         if (mounted) toast(context, result.error ?? 'Wrong guard or PIN');
         return;
       }
-      await (await SharedPreferences.getInstance()).setString(GateOffline.guardKey, name);
+      if (ref.read(sessionProvider)?.user.associationId != associationId) return;
+      await (await SharedPreferences.getInstance()).setString(GateOffline.guardKey(associationId), name);
       if (mounted) {
         setState(() => _onDuty = name);
         toast(context, 'Shift started: $name. Entries are recorded under this name.');
@@ -222,7 +241,9 @@ class _GateScreenState extends ConsumerState<GateScreen> {
   }
 
   Future<void> _walkIn() async {
-    final flats = await loadGateFlats(ref.read(sessionProvider)?.user.associationId);
+    final associationId = ref.read(sessionProvider)?.user.associationId;
+    if (associationId == null) return;
+    final flats = await loadGateFlats(associationId);
     if (!mounted) return;
     final d = await openGatePage<WalkInData>(context, WalkInPage(flats: flats));
     if (d == null) return;
@@ -243,7 +264,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         if (mounted) toast(context, friendlyError(e));
         return;
       }
-      await GateOffline.add({
+      await GateOffline.add(associationId, {
         'kind': 'walkin',
         'flat': f,
         'name': d.name,
@@ -262,7 +283,19 @@ class _GateScreenState extends ConsumerState<GateScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(sessionProvider.select((s) => s?.user.associationId), (_, _) {
+      setState(() {
+        _list = const [];
+        _pending = 0;
+        _onDuty = null;
+        _offline = false;
+        _error = null;
+        _activeAssociationId = null;
+      });
+      _load();
+    });
     final role = ref.watch(sessionProvider)?.activeRole;
+    final associationId = ref.watch(sessionProvider)?.user.associationId;
     if (!backendEnabled) return const PageBody(children: [EmptyState('Gate mode works in the cloud version.')]);
     if (!const {Role.security, Role.caretaker, Role.admin, Role.president, Role.secretary}.contains(role)) {
       return const PageBody(children: [EmptyState('Gate mode is for security staff.')]);
@@ -299,7 +332,14 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         Icons.cleaning_services,
         'Daily help',
         const Color(0xFF00796B),
-        () => openGatePage<void>(context, DailyHelpGateDialog(onQueued: () => _load())),
+        () {
+          if (associationId != null) {
+            openGatePage<void>(
+              context,
+              DailyHelpGateDialog(associationId: associationId, onQueued: () => _load()),
+            );
+          }
+        },
       ),
       tile(Icons.call, 'Call a flat', AppColors.green, () => _callFlat()),
     ];
@@ -491,16 +531,17 @@ class _GateScreenState extends ConsumerState<GateScreen> {
 }
 
 /// Shown to residents: walk-ins waiting at the gate, plus pass codes to share with expected guests.
-class GateAlertsCard extends StatefulWidget {
+class GateAlertsCard extends ConsumerStatefulWidget {
   const GateAlertsCard({super.key});
 
   @override
-  State<GateAlertsCard> createState() => _GateAlertsCardState();
+  ConsumerState<GateAlertsCard> createState() => _GateAlertsCardState();
 }
 
-class _GateAlertsCardState extends State<GateAlertsCard> {
+class _GateAlertsCardState extends ConsumerState<GateAlertsCard> {
   List<GateVisitor> _list = const [];
   Timer? _timer;
+  (String?, bool)? _loadedScope;
 
   @override
   void initState() {
@@ -517,16 +558,39 @@ class _GateAlertsCardState extends State<GateAlertsCard> {
 
   Future<void> _load() async {
     if (!backendEnabled) return;
+    final session = ref.read(sessionProvider);
+    final associationId = session?.user.associationId;
+    if (associationId == null) return;
+    final hostOnly = session?.activeRole == Role.owner || session?.activeRole == Role.resident;
     try {
-      final list = await GateRepo.today();
-      if (mounted) setState(() => _list = list);
+      final list = await GateRepo.today(associationId: associationId, hostOnly: hostOnly);
+      final current = ref.read(sessionProvider);
+      if (mounted &&
+          current?.user.associationId == associationId &&
+          (current?.activeRole == Role.owner || current?.activeRole == Role.resident) == hostOnly) {
+        setState(() {
+          _list = list;
+          _loadedScope = (associationId, hostOnly);
+        });
+      }
     } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    final waiting = _list.where((v) => v.approval == 'awaiting').toList();
-    final codes = _list.where((v) => v.status == 'expected' && v.passCode != null).toList();
+    ref.listen(sessionProvider.select((s) => (s?.user.associationId, s?.activeRole)), (_, _) {
+      setState(() {
+        _list = const [];
+        _loadedScope = null;
+      });
+      _load();
+    });
+    final session = ref.watch(sessionProvider);
+    final hostOnly = session?.activeRole == Role.owner || session?.activeRole == Role.resident;
+    final currentScope = (session?.user.associationId, hostOnly);
+    final list = _loadedScope == currentScope ? _list : const <GateVisitor>[];
+    final waiting = list.where((v) => v.approval == 'awaiting').toList();
+    final codes = list.where((v) => v.status == 'expected' && v.passCode != null).toList();
     if (waiting.isEmpty && codes.isEmpty) return const SizedBox.shrink();
     return Card(
       margin: const EdgeInsets.only(bottom: 12),

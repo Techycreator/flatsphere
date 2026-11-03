@@ -315,7 +315,7 @@ class VehicleNumberFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     final t = newValue.text.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
-final clipped = t.length > 24 ? t.substring(0, 24) : t;
+   final clipped = t.length > 24 ? t.substring(0, 24) : t;
     return TextEditingValue(
       text: clipped,
       selection: TextSelection.collapsed(offset: clipped.length),
