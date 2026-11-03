@@ -47,14 +47,31 @@ class GateRepo {
         .select(_cols)
         .eq('association_id', associationId)
         .gte('expected_arrival', since);
-    final scopedQuery = hostOnly ? query.eq('host_id', db.auth.currentUser!.id) : query;
-    final rows = await scopedQuery.order('expected_arrival');
-    return [for (final r in rows) _row(r)];
+    final rows = await (hostOnly ? query.eq('host_id', db.auth.currentUser!.id) : query)
+        .order('expected_arrival');
+    final visitors = [for (final r in rows) _row(r)];
+    if (!hostOnly) return visitors;
+    final walkIns = await db
+        .from('visitor_requests')
+        .select(_cols)
+        .eq('association_id', associationId)
+        .eq('approval', 'awaiting')
+        .gte('expected_arrival', since)
+        .order('expected_arrival');
+    final knownIds = visitors.map((v) => v.id).toSet();
+    visitors.addAll([for (final r in walkIns) if (!knownIds.contains(r['id'])) _row(r)]);
+    visitors.sort((a, b) => a.arrival.compareTo(b.arrival));
+    return visitors;
   }
 
   /// Active flat numbers for walk-in suggestions; cached on the phone for offline use.
-  static Future<List<String>> flatNumbers() async {
-    final rows = await db.from('flats').select('number').isFilter('retired_at', null).order('number');
+  static Future<List<String>> flatNumbers({required String associationId}) async {
+    final rows = await db
+        .from('flats')
+        .select('number')
+        .eq('association_id', associationId)
+        .isFilter('retired_at', null)
+        .order('number');
     return [for (final r in rows) r['number'] as String];
   }
 

@@ -18,6 +18,7 @@ Future<void> _phone(WidgetTester tester, Widget page) async {
 void main() {
   testWidgets('pass code pad shows typed digits and enables Check in at 6', (tester) async {
     await _phone(tester, const CodePad(title: 'Visitor pass code', action: 'Check in'));
+    expect(find.bySemanticsLabel('Backspace'), findsOneWidget);
     for (final d in ['1', '2', '3', '4', '5']) {
       await tester.tap(find.widgetWithText(OutlinedButton, d));
     }
@@ -99,6 +100,20 @@ void main() {
     expect(await GateOffline.queue('association-b'), isEmpty);
   });
 
+  test('legacy queue recovery and new gate actions retain both entries', () async {
+    SharedPreferences.setMockInitialValues({
+      'gate_queue': ['{"kind":"walkin","flat":"A-101"}'],
+    });
+
+    await Future.wait([
+      GateOffline.recoverLegacyQueue('association-a'),
+      GateOffline.add('association-a', {'kind': 'verify', 'id': 'visitor-a'}),
+    ]);
+
+    expect(await GateOffline.legacyQueue(), isEmpty);
+    expect(await GateOffline.queue('association-a'), hasLength(2));
+  });
+
   test('association context operations are serialized', () async {
     final order = <String>[];
     final flush = AssociationContext.run(() async {
@@ -168,6 +183,28 @@ void main() {
       const TextEditingValue(text: registration),
     );
     expect(formatted.text, registration);
+  });
+
+  test('vehicle formatter preserves and adjusts the selection', () {
+    final formatted = VehicleNumberFormatter().formatEditUpdate(
+      TextEditingValue.empty,
+      const TextEditingValue(
+        text: 'KL 07AB1234',
+        selection: TextSelection.collapsed(offset: 5),
+      ),
+    );
+
+    expect(formatted.text, 'KL07AB1234');
+    expect(formatted.selection, const TextSelection.collapsed(offset: 4));
+
+    final clipped = VehicleNumberFormatter().formatEditUpdate(
+      TextEditingValue.empty,
+      const TextEditingValue(
+        text: 'ABCDEFGHIJKLMN1234567890',
+        selection: TextSelection.collapsed(offset: 24),
+      ),
+    );
+    expect(clipped.selection, const TextSelection.collapsed(offset: 24));
   });
 
   testWidgets('call-a-flat picker fits a phone', (tester) async {

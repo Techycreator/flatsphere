@@ -19,12 +19,13 @@ String normFlat(String v) => v.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), ''
 
 /// Flat numbers from the server, or the copy saved on this phone when offline.
 Future<List<String>> loadGateFlats(String? associationId) async {
+  if (associationId == null) return const [];
   try {
-    final f = await GateRepo.flatNumbers();
-    if (associationId != null) await GateOffline.cacheFlats(associationId, f);
+    final f = await GateRepo.flatNumbers(associationId: associationId);
+    await GateOffline.cacheFlats(associationId, f);
     return f;
   } catch (_) {
-    return associationId == null ? const [] : GateOffline.cachedFlats(associationId);
+    return GateOffline.cachedFlats(associationId);
   }
 }
 
@@ -239,7 +240,13 @@ class _CodePadState extends State<CodePad> {
                         () => setState(() => _code = ''),
                       ),
                       digit('0'),
-                      key(Icon(Icons.backspace_outlined, size: 30, color: scheme.onSurface), _back),
+                      key(
+                        Tooltip(
+                          message: 'Backspace',
+                          child: Icon(Icons.backspace_outlined, size: 30, color: scheme.onSurface),
+                        ),
+                        _back,
+                      ),
                     ],
                   ),
                 ],

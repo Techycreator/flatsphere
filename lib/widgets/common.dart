@@ -314,11 +314,23 @@ Future<String?> promptText(BuildContext context, {required String title, require
 class VehicleNumberFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    final t = newValue.text.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
-   final clipped = t.length > 24 ? t.substring(0, 24) : t;
+    String normalize(String value) => value.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    final t = normalize(newValue.text);
+    final clipped = t.length > 24 ? t.substring(0, 24) : t;
+    int adjustOffset(int offset) {
+      if (offset < 0) return offset;
+      final sourceOffset = offset.clamp(0, newValue.text.length).toInt();
+      return normalize(newValue.text.substring(0, sourceOffset)).length.clamp(0, clipped.length).toInt();
+    }
+
     return TextEditingValue(
       text: clipped,
-      selection: TextSelection.collapsed(offset: clipped.length),
+      selection: TextSelection(
+        baseOffset: adjustOffset(newValue.selection.baseOffset),
+        extentOffset: adjustOffset(newValue.selection.extentOffset),
+        affinity: newValue.selection.affinity,
+        isDirectional: newValue.selection.isDirectional,
+      ),
     );
   }
 }

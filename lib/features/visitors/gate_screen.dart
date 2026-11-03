@@ -177,30 +177,34 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     ],
   );
 
-  Future<void> _verify(GateVisitor v, bool checkIn) async {
+  Future<bool> _verify(GateVisitor v, bool checkIn) async {
     final word = checkIn ? 'in' : 'out';
     final associationId = ref.read(sessionProvider)?.user.associationId;
-    if (associationId == null) return;
+    if (associationId == null) return false;
     try {
       await VisitorRepo.verify(v.id, checkIn ? VisitorStatus.checkedIn : VisitorStatus.checkedOut);
-      if (mounted) toast(context, '${v.guest} checked $word');
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return false;
+      toast(context, '${v.guest} checked $word');
       await _load();
+      return true;
     } catch (e) {
       if (!isOffline(e)) {
         if (mounted) toast(context, friendlyError(e));
-        return;
+        return false;
       }
-      if (ref.read(sessionProvider)?.user.associationId != associationId) return;
+      if (!mounted) return false;
+      if (ref.read(sessionProvider)?.user.associationId != associationId) return false;
       await GateOffline.add(associationId, {
         'kind': 'verify',
         'id': v.id,
         'action': checkIn ? 'check_in' : 'check_out',
         'label': '${v.guest} → ${v.flat}',
       });
-      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return false;
       _setLocal(v.id, checkIn ? 'checked_in' : 'checked_out');
       setState(() => _pending++);
       toast(context, 'Offline: ${v.guest} checked $word. It will sync when the network is back.');
+      return true;
     }
   }
 
@@ -290,8 +294,9 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         }
         return;
       }
-      await _verify(match, true);
-      if (mounted) await showGateResult(context, ok: true, message: 'Let in:\n${match.guest} → ${match.flat}');
+      if (await _verify(match, true) && mounted) {
+        await showGateResult(context, ok: true, message: 'Let in:\n${match.guest} → ${match.flat}');
+      }
     }
   }
 

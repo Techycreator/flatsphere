@@ -42,7 +42,10 @@ class GateOffline {
     ];
   }
 
-  static Future<int> recoverLegacyQueue(String associationId) async {
+  static Future<int> recoverLegacyQueue(String associationId) =>
+      AssociationContext.run(() => _recoverLegacyQueue(associationId));
+
+  static Future<int> _recoverLegacyQueue(String associationId) async {
     final p = await SharedPreferences.getInstance();
     final legacy = p.getStringList(_legacyQueueKey) ?? const <String>[];
     if (legacy.isEmpty) return 0;
@@ -67,10 +70,13 @@ class GateOffline {
         for (final m in q) jsonEncode(m),
       ]);
 
-  static Future<void> add(String associationId, Map<String, dynamic> action) async => _save(associationId, [
-    ...await queue(associationId),
-    {...action, 'association_id': associationId, 'at': DateTime.now().toIso8601String()},
-  ]);
+  static Future<void> add(String associationId, Map<String, dynamic> action) =>
+      AssociationContext.run(() async {
+        await _save(associationId, [
+          ...await queue(associationId),
+          {...action, 'association_id': associationId, 'at': DateTime.now().toIso8601String()},
+        ]);
+      });
 
   /// Returns how many were sent and the messages for ones the server refused. Stops at the first network error.
   static Future<(int, List<String>)> flush(String associationId) =>
