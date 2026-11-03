@@ -36,7 +36,7 @@ class HouseholdStaffScreen extends ConsumerWidget {
             FilledButton.icon(
               onPressed: flats.hasValue && flats.value!.isNotEmpty ? () => _addWorker(context, ref, flats.value!) : null,
               icon: const Icon(Icons.person_add_alt),
-              label: const Text('Add housekeeping staff'),
+              label: const Text('Add staff'),
             ),
           ],
         ),

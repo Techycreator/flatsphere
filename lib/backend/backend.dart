@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/models.dart';
@@ -13,6 +15,24 @@ Future<void> initBackend() async {
 }
 
 SupabaseClient get db => Supabase.instance.client;
+
+class AssociationContext {
+  static Future<void> _tail = Future<void>.value();
+
+  static Future<T> run<T>(Future<T> Function() action) {
+    final previous = _tail;
+    final release = Completer<void>();
+    _tail = release.future;
+return () async {
+  try {
+    await previous;
+    return await action();
+  } finally {
+    if (!release.isCompleted) release.complete();
+  }
+}();
+  }
+}
 
 const _roleByDb = {
   'admin': Role.admin,

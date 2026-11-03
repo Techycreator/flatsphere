@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+import 'package:flutter/services.dart';
+
 import 'tr_text.dart';
+
 import 'package:intl/intl.dart';
 
 import '../app/theme.dart';
@@ -305,4 +308,29 @@ Future<String?> promptText(BuildContext context, {required String title, require
       ],
     ),
   );
+}
+
+/// Vehicle numbers: capitals and digits only, so "kl 07-ab 1234" becomes "KL07AB1234".
+class VehicleNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    String normalize(String value) => value.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    final t = normalize(newValue.text);
+    final clipped = t.length > 24 ? t.substring(0, 24) : t;
+    int adjustOffset(int offset) {
+      if (offset < 0) return offset;
+      final sourceOffset = offset.clamp(0, newValue.text.length).toInt();
+      return normalize(newValue.text.substring(0, sourceOffset)).length.clamp(0, clipped.length).toInt();
+    }
+
+    return TextEditingValue(
+      text: clipped,
+      selection: TextSelection(
+        baseOffset: adjustOffset(newValue.selection.baseOffset),
+        extentOffset: adjustOffset(newValue.selection.extentOffset),
+        affinity: newValue.selection.affinity,
+        isDirectional: newValue.selection.isDirectional,
+      ),
+    );
+  }
 }

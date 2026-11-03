@@ -62,19 +62,25 @@ class _DailyHelpSectionState extends ConsumerState<DailyHelpSection> {
 
   Future<void> _load() async {
     if (!backendEnabled) return;
+    final associationId = ref.read(sessionProvider)?.user.associationId;
+    if (associationId == null) return;
     final role = ref.read(sessionProvider)?.activeRole;
     try {
-      final list = await DailyHelpRepo.load();
-      final flats = _residents.contains(role) ? await VisitorRepo.myFlats() : const <(String, String)>[];
-      if (mounted) {
-        setState(() {
-          _list = list;
-          _flats = flats;
-          _error = null;
-        });
-      }
+      final list = await DailyHelpRepo.load(associationId: associationId);
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      final flats = _residents.contains(role)
+          ? await VisitorRepo.myFlats(associationId: associationId)
+          : const <(String, String)>[];
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      setState(() {
+        _list = list;
+        _flats = flats;
+        _error = null;
+      });
     } catch (e) {
-      if (mounted) setState(() => _error = friendlyError(e));
+      if (mounted && ref.read(sessionProvider)?.user.associationId == associationId) {
+        setState(() => _error = friendlyError(e));
+      }
     }
   }
 
@@ -345,7 +351,8 @@ class _VisitsDialog extends StatelessWidget {
 
 /// Gate: find a daily-help pass by code or name and check them in/out. Works offline from the last saved list.
 class DailyHelpGateDialog extends StatefulWidget {
-  const DailyHelpGateDialog({super.key, required this.onQueued});
+  const DailyHelpGateDialog({super.key, required this.associationId, required this.onQueued});
+  final String associationId;
   final VoidCallback onQueued;
 
   @override
@@ -365,8 +372,8 @@ class _DailyHelpGateDialogState extends State<DailyHelpGateDialog> {
 
   Future<void> _load() async {
     try {
-      final list = await DailyHelpRepo.load();
-      await GateOffline.cacheHelp(list);
+      final list = await DailyHelpRepo.load(associationId: widget.associationId);
+      await GateOffline.cacheHelp(widget.associationId, list);
       if (mounted) {
         setState(() {
           _list = list;
@@ -377,7 +384,7 @@ class _DailyHelpGateDialogState extends State<DailyHelpGateDialog> {
       if (!isOffline(e)) {
         if (mounted) toast(context, friendlyError(e));
       }
-      final cached = await GateOffline.cachedHelp();
+      final cached = await GateOffline.cachedHelp(widget.associationId);
       if (mounted) {
         setState(() {
           _list = cached;
@@ -403,12 +410,17 @@ class _DailyHelpGateDialogState extends State<DailyHelpGateDialog> {
         if (mounted) toast(context, '${h.name} is outside allowed days/hours. Use Walk-in.');
         return;
       }
-      await GateOffline.add({'kind': 'help', 'id': h.id, 'in': checkIn, 'label': '${h.name} (daily help)'});
+      await GateOffline.add(widget.associationId, {
+        'kind': 'help',
+        'id': h.id,
+        'in': checkIn,
+        'label': '${h.name} (daily help)',
+      });
       final updated = [
         for (final x in _list)
           x.id == h.id ? DailyHelpRepo.fromJson({...DailyHelpRepo.toJson(x), 'inside': checkIn}) : x,
       ];
-      await GateOffline.cacheHelp(updated);
+      await GateOffline.cacheHelp(widget.associationId, updated);
       widget.onQueued();
       if (mounted) {
         setState(() => _list = updated);
@@ -424,40 +436,109 @@ class _DailyHelpGateDialogState extends State<DailyHelpGateDialog> {
       for (final h in _list)
         if (q.isEmpty || h.code == q || h.name.toLowerCase().contains(q) || h.flats.toLowerCase().contains(q)) h,
     ]..sort((a, b) => (b.inside ? 1 : 0) - (a.inside ? 1 : 0));
-    return AlertDialog(
-      title: Text(_offline ? 'Daily help (offline)' : 'Daily help'),
-      content: SizedBox(
-        width: 480,
-        height: 460,
-        child: Column(
-          children: [
-            TextField(
-              autofocus: true,
-              decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: '6-digit code, name or flat'),
-              onChanged: (v) => setState(() => _q = v),
-            ),
-            const SizedBox(height: 8),
-            if (_loading) const LinearProgressIndicator(),
-            if (!_loading && shown.isEmpty)
-              const Padding(padding: EdgeInsets.all(16), child: Text('No matching pass.')),
-            Expanded(
-              child: ListView(
-                children: [
-                  for (final h in shown)
-                    ListTile(
-                      title: Text('${h.name} · ${_kind(h.kind)}'),
-                      subtitle: Text('${h.flats} · ${_schedule(h)}'),
-                      trailing: h.inside
-                          ? OutlinedButton(onPressed: () => _go(h), child: const Text('Out'))
-                          : FilledButton(onPressed: () => _go(h), child: const Text('In')),
-                    ),
-                ],
-              ),
-            ),
-          ],
+    return Scaffold(
+      appBar: AppBar(
+        toolbarHeight: 64,
+        leading: IconButton(
+          iconSize: 32,
+          tooltip: 'Close',
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          _offline ? 'Daily help (offline)' : 'Daily help',
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
         ),
       ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: TextField(
+                    style: const TextStyle(fontSize: 22),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search, size: 30),
+                      labelText: 'Search',
+                      hintText: 'Code, name or flat',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                    ),
+                    onChanged: (v) => setState(() => _q = v),
+                  ),
+                ),
+                if (_loading) const LinearProgressIndicator(),
+                if (!_loading && shown.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('No matching pass.', style: TextStyle(fontSize: 20)),
+                  ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      for (final h in shown)
+                        Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          color: h.inside ? AppColors.green.withValues(alpha: .10) : null,
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(h.name, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700)),
+                                      Text('${_kind(h.kind)} · ${h.flats}', style: const TextStyle(fontSize: 17)),
+                                      Text(_schedule(h), style: const TextStyle(fontSize: 15)),
+                                      if (h.inside)
+                                        const Padding(
+                                          padding: EdgeInsets.only(top: 4),
+                                          child: Pill('Inside now', color: AppColors.green),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                SizedBox(
+                                  width: 104,
+                                  height: 64,
+                                  child: h.inside
+                                      ? OutlinedButton(
+                                          onPressed: () => _go(h),
+                                          style: OutlinedButton.styleFrom(
+                                            side: const BorderSide(color: AppColors.red, width: 2),
+                                            foregroundColor: AppColors.red,
+                                          ),
+                                          child: const Text(
+                                            'OUT',
+                                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                                          ),
+                                        )
+                                      : FilledButton(
+                                          onPressed: () => _go(h),
+                                          child: const Text(
+                                            'IN',
+                                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                                          ),
+                                        ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

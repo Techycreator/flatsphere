@@ -1,8 +1,10 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException, PostgrestException, StorageException;
 
+import 'backend.dart';
 import '../models/models.dart';
 import 'daily_help_repo.dart';
 import 'directory_repo.dart' show friendlyError;
@@ -19,35 +21,153 @@ bool isOffline(Object e) =>
 
 /// Gate actions saved on the phone while offline, sent in order when the network is back.
 class GateOffline {
-  static const _queueKey = 'gate_queue',
-      _cacheKey = 'gate_cache',
-      _helpKey = 'gate_help_cache',
-      guardKey = 'gate_guard_on_duty';
+  static const _legacyQueueKey = 'gate_queue';
+  static String _queueKey(String associationId) => 'gate_queue_$associationId';
+  static String _cacheKey(String associationId) => 'gate_cache_$associationId';
+  static String _helpKey(String associationId) => 'gate_help_cache_$associationId';
+  static String guardKey(String associationId) => 'gate_guard_on_duty_$associationId';
 
-  static Future<List<Map<String, dynamic>>> queue() async {
+  static Future<List<Map<String, dynamic>>> queue(String associationId) async {
     final p = await SharedPreferences.getInstance();
-    return [for (final s in p.getStringList(_queueKey) ?? const <String>[]) jsonDecode(s) as Map<String, dynamic>];
+    return [
+      for (final s in p.getStringList(_queueKey(associationId)) ?? const <String>[])
+        jsonDecode(s) as Map<String, dynamic>,
+    ];
   }
 
-  static Future<void> _save(List<Map<String, dynamic>> q) async =>
-      (await SharedPreferences.getInstance()).setStringList(_queueKey, [for (final m in q) jsonEncode(m)]);
+  static Future<List<Map<String, dynamic>>> legacyQueue() async {
+    final p = await SharedPreferences.getInstance();
+    return [
+      for (final s in p.getStringList(_legacyQueueKey) ?? const <String>[])
+        jsonDecode(s) as Map<String, dynamic>,
+    ];
+  }
 
-  static Future<void> add(Map<String, dynamic> action) async => _save([
-    ...await queue(),
-    {...action, 'at': DateTime.now().toIso8601String()},
-  ]);
+  static Future<int> recoverLegacyQueue(String associationId) =>
+      AssociationContext.run(() => _recoverLegacyQueue(associationId, recoverUnassigned: true));
+
+  static Future<int> recoverAssignedLegacyQueue(String associationId) =>
+      AssociationContext.run(() => _recoverLegacyQueue(associationId, recoverUnassigned: false));
+
+  static Future<int> _recoverLegacyQueue(String associationId, {required bool recoverUnassigned}) async {
+    final p = await SharedPreferences.getInstance();
+    final legacy = p.getStringList(_legacyQueueKey) ?? const <String>[];
+    if (legacy.isEmpty) return 0;
+    final scoped = p.getStringList(_queueKey(associationId)) ?? const <String>[];
+    final assignments = <String>[];
+    final updatedLegacy = <String>[];
+    final deferred = <String>[];
+    var changed = false;
+    var mismatchedAssigned = false;
+    for (var index = 0; index < legacy.length; index++) {
+      final action = jsonDecode(legacy[index]) as Map<String, dynamic>;
+      final assignedAssociation = action['_legacy_recovery_association'];
+      if (assignedAssociation != null && assignedAssociation != associationId) {
+        if (recoverUnassigned) {
+          mismatchedAssigned = true;
+        }
+        deferred.add(legacy[index]);
+        updatedLegacy.add(legacy[index]);
+        continue;
+      }
+      if (assignedAssociation == null && !recoverUnassigned) {
+        deferred.add(legacy[index]);
+        updatedLegacy.add(legacy[index]);
+        continue;
+      }
+      final recoveryId =
+          action['_legacy_recovery_id'] as String? ??
+          sha256.convert(utf8.encode('$index:${legacy[index]}')).toString();
+      if (assignedAssociation == null || action['_legacy_recovery_id'] != recoveryId) {
+        changed = true;
+      }
+      final assigned = jsonEncode({
+        ...action,
+        '_legacy_recovery_association': associationId,
+        '_legacy_recovery_id': recoveryId,
+      });
+      assignments.add(assigned);
+      updatedLegacy.add(assigned);
+    }
+    if (recoverUnassigned && assignments.isEmpty && mismatchedAssigned) {
+      throw StateError('These older gate entries were already assigned to another association.');
+    }
+    if (changed && !await p.setStringList(_legacyQueueKey, updatedLegacy)) {
+      throw StateError('Could not save the legacy gate entry assignment.');
+    }
+
+    final recoveredIds = {
+      for (final s in scoped)
+        if ((jsonDecode(s) as Map<String, dynamic>)['_legacy_recovery_id'] case final String id) id,
+    };
+    final now = DateTime.now().toIso8601String();
+    final recovered = <String>[];
+    for (final s in assignments) {
+      final action = jsonDecode(s) as Map<String, dynamic>;
+      final recoveryId = action['_legacy_recovery_id'] as String;
+      if (!recoveredIds.add(recoveryId)) continue;
+      recovered.add(
+        jsonEncode({
+          ...action,
+          'association_id': associationId,
+          'at': action['at'] ?? now,
+          '_legacy_recovery_id': recoveryId,
+        }),
+      );
+    }
+    if (recovered.isNotEmpty && !await p.setStringList(_queueKey(associationId), [...scoped, ...recovered])) {
+      throw StateError('Could not save legacy gate entries.');
+    }
+    final cleared = deferred.isEmpty
+        ? await p.remove(_legacyQueueKey)
+        : await p.setStringList(_legacyQueueKey, deferred);
+    if (!cleared) {
+      throw StateError('Could not clear the recovered legacy gate entries.');
+    }
+    return recovered.length;
+  }
+
+  static Future<void> _save(String associationId, List<Map<String, dynamic>> q) async =>
+      (await SharedPreferences.getInstance()).setStringList(_queueKey(associationId), [
+        for (final m in q) jsonEncode(m),
+      ]);
+
+  static Future<void> add(String associationId, Map<String, dynamic> action) =>
+      AssociationContext.run(() async {
+        await _save(associationId, [
+          ...await queue(associationId),
+          {...action, 'association_id': associationId, 'at': DateTime.now().toIso8601String()},
+        ]);
+      });
 
   /// Returns how many were sent and the messages for ones the server refused. Stops at the first network error.
-  static Future<(int, List<String>)> flush() async {
-    final q = await queue();
+  static Future<(int, List<String>)> flush(String associationId) =>
+      AssociationContext.run(() => _flush(associationId));
+
+  static Future<(int, List<String>)> _flush(String associationId) async {
+    if (await db.rpc('my_association') != associationId) return (0, <String>[]);
+    final q = await queue(associationId);
     var sent = 0;
     final failed = <String>[];
     while (q.isNotEmpty) {
       final a = q.first;
+      if (a['association_id'] != associationId) {
+        failed.add('${a['label'] ?? 'Gate action'}: saved for a different association');
+        q.removeAt(0);
+        await _save(associationId, q);
+        continue;
+      }
       try {
         switch (a['kind']) {
           case 'walkin':
+            var requestId = a['request_id'] as String?;
+            if (requestId == null || requestId.isEmpty) {
+              requestId = GateRepo.newWalkInRequestId();
+              a['request_id'] = requestId;
+              await _save(associationId, q);
+            }
             final id = await GateRepo.walkIn(
+              requestId: requestId,
               flat: a['flat'] as String,
               name: a['name'] as String,
               phone: a['phone'] as String? ?? '',
@@ -78,13 +198,14 @@ class GateOffline {
         failed.add('${a['label']}: ${friendlyError(e)}');
       }
       q.removeAt(0);
-      await _save(q);
+      await _save(associationId, q);
     }
     return (sent, failed);
   }
 
-  static Future<void> cache(List<GateVisitor> list) async => (await SharedPreferences.getInstance()).setString(
-    _cacheKey,
+  static Future<void> cache(String associationId, List<GateVisitor> list) async =>
+      (await SharedPreferences.getInstance()).setString(
+    _cacheKey(associationId),
     jsonEncode([
       for (final v in list)
         {
@@ -102,8 +223,8 @@ class GateOffline {
     ]),
   );
 
-  static Future<List<GateVisitor>> cached() async {
-    final raw = (await SharedPreferences.getInstance()).getString(_cacheKey);
+  static Future<List<GateVisitor>> cached(String associationId) async {
+    final raw = (await SharedPreferences.getInstance()).getString(_cacheKey(associationId));
     if (raw == null) return const [];
     return [
       for (final m in (jsonDecode(raw) as List).cast<Map<String, dynamic>>())
@@ -124,13 +245,22 @@ class GateOffline {
     ];
   }
 
-  static Future<void> cacheHelp(List<DailyHelp> list) async => (await SharedPreferences.getInstance()).setString(
-    _helpKey,
+  static String _flatsKey(String associationId) => 'gate_flats_cache_$associationId';
+
+  static Future<void> cacheFlats(String associationId, List<String> flats) async =>
+      (await SharedPreferences.getInstance()).setStringList(_flatsKey(associationId), flats);
+
+  static Future<List<String>> cachedFlats(String associationId) async =>
+      (await SharedPreferences.getInstance()).getStringList(_flatsKey(associationId)) ?? const [];
+
+  static Future<void> cacheHelp(String associationId, List<DailyHelp> list) async =>
+      (await SharedPreferences.getInstance()).setString(
+    _helpKey(associationId),
     jsonEncode([for (final h in list) DailyHelpRepo.toJson(h)]),
   );
 
-  static Future<List<DailyHelp>> cachedHelp() async {
-    final raw = (await SharedPreferences.getInstance()).getString(_helpKey);
+  static Future<List<DailyHelp>> cachedHelp(String associationId) async {
+    final raw = (await SharedPreferences.getInstance()).getString(_helpKey(associationId));
     if (raw == null) return const [];
     return [for (final m in (jsonDecode(raw) as List).cast<Map<String, dynamic>>()) DailyHelpRepo.fromJson(m)];
   }

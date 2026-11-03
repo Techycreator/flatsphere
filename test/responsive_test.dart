@@ -9,7 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _SecretarySession extends SessionNotifier {
   @override
-  Session? build() => Session(user: demoUsers.firstWhere((u) => u.roles.contains(Role.secretary)), activeRole: Role.secretary);
+  Session? build() =>
+      Session(user: demoUsers.firstWhere((u) => u.roles.contains(Role.secretary)), activeRole: Role.secretary);
 }
 
 class _OwnerSession extends SessionNotifier {
@@ -19,7 +20,16 @@ class _OwnerSession extends SessionNotifier {
 
 const _sizes = {'phone': Size(360, 740), 'tablet': Size(768, 1024), 'desktop': Size(1280, 800)};
 
-const _secretaryRoutes = ['/home', '/finance', '/complaints', '/approvals', '/directory', '/community', '/meetings', '/checklist'];
+const _secretaryRoutes = [
+  '/home',
+  '/finance',
+  '/complaints',
+  '/approvals',
+  '/directory',
+  '/community',
+  '/meetings',
+  '/checklist',
+];
 const _ownerRoutes = ['/home', '/dues', '/family-accounts', '/complaints', '/community', '/notices'];
 
 void _layoutTests(String who, SessionNotifier Function() session, List<String> routes) {
@@ -44,7 +54,60 @@ void _layoutTests(String who, SessionNotifier Function() session, List<String> r
   }
 }
 
+class _RoleSession extends SessionNotifier {
+  _RoleSession(this.role);
+  final Role role;
+  @override
+  Session? build() => Session(user: demoUsers.firstWhere((u) => u.roles.contains(role)), activeRole: role);
+}
+
+const _allRoutes = [
+  '/home',
+  '/complaints',
+  '/complaints/new',
+  '/checklist',
+  '/attendance',
+  '/household-staff',
+  '/archive',
+  '/registers',
+  '/association-documents',
+  '/association-settings',
+  '/workflows',
+  '/audit',
+  '/data-tools',
+  '/amenities',
+  '/community',
+  '/approvals',
+  '/finance',
+  '/statements',
+  '/dues',
+  '/meetings',
+  '/directory',
+  '/family-accounts',
+  '/notices',
+  '/visitors',
+  '/gate',
+  '/vehicles',
+];
+
 void main() {
+  for (final role in Role.values.where((r) => demoUsers.any((u) => u.roles.contains(r)))) {
+    testWidgets('${role.name}: every screen fits a small phone', (tester) async {
+      tester.view.physicalSize = const Size(360, 740) * 2;
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+      final container = ProviderContainer(overrides: [sessionProvider.overrideWith(() => _RoleSession(role))]);
+      addTearDown(container.dispose);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const FlatSphereApp()));
+      await tester.pump(const Duration(milliseconds: 300));
+      for (final route in _allRoutes) {
+        container.read(routerProvider).go(route);
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(tester.takeException(), isNull, reason: '$route as ${role.name} on phone');
+      }
+    });
+  }
+
   _layoutTests('Secretary', _SecretarySession.new, _secretaryRoutes);
   _layoutTests('Owner', _OwnerSession.new, _ownerRoutes);
 }

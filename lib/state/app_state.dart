@@ -74,9 +74,11 @@ class SessionNotifier extends Notifier<Session?> {
 
   Future<void> switchAssociation(String associationId) async {
     if (!backendEnabled) return;
-    final user = await AuthService.loadUser(associationId: associationId);
-    if (user == null) throw StateError('No active membership in that association');
-    state = Session(user: user, activeRole: user.roles.first);
+await AssociationContext.run(() async {
+  final user = await AuthService.loadUser(associationId: associationId);
+  if (user == null) throw StateError('No active membership in that association');
+  state = Session(user: user, activeRole: user.roles.first);
+});
   }
 
   void switchRole(Role r) => state = state?.copyWith(activeRole: r);

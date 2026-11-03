@@ -18,6 +18,7 @@ import '../approvals/approval_tile.dart';
 import '../complaints/complaint_tile.dart';
 import '../community/community_screen.dart' show communityEventsProvider, marketplaceProvider;
 import '../finance/charts.dart';
+import '../visitors/gate_screen.dart' show GateAlertsCard;
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -555,6 +556,7 @@ class _OwnerDash extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const GateAlertsCard(),
         const _DueReminderBanners(),
         for (final f in rented) ...[
           Card(
@@ -655,6 +657,7 @@ class _ResidentDash extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const GateAlertsCard(),
         TwoCol(
           left: SectionCard(
             title: 'My complaints',

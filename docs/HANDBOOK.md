@@ -99,8 +99,9 @@ Owners and residents request family members (W30). Approved members get their ow
 - **Household staff:** owners and residents register their own helpers (ID proof, schedule).
 
 ### 3.8 Visitors and vehicles
-- **Visitors:** residents and owners pre-register guests; the Security desk checks them in and out. Owners and residents see only the visitors they added; the six roles, Caretaker and Security see all.
-- **Vehicle lookup:** type the number in any form. `KL07CO1074`, `KL-07-CO-1074` and `KL 07 CO 1074` all match. It searches resident vehicles and visitors.
+- **Visitors:** residents and owners pre-register guests; the Security desk checks them in and out. Owners and residents see visitors they added and walk-ins waiting for approval at their flats; the six roles, Caretaker and Security see all.
+- **Gate desk (Security, Caretaker, Admin, President, Secretary):** select a guard and PIN to start a shift; check visitor pass codes, request flat approval for walk-ins, call saved owner/resident contacts, and check daily-help staff in or out. Gate shifts, guard stamps, offline caches, daily-help passes and flat choices, and the on-duty display are scoped to the active association. Queued actions retain their originating association and sync only when that association is active. Assigned older entries are recovered into their association queue before it is sent; unassigned entries wait for an explicit association choice. Queue syncing, queue recovery and online walk-ins are serialized with association switches. Background timer refreshes skip ticks while a load is active; explicit and association-change refreshes are coalesced and load the latest active association. Retried walk-ins keep the same request ID to avoid duplicate requests; interrupted legacy-queue recovery does not duplicate entries. Pass codes are checked against the last saved visitor list.
+- **Vehicle lookup:** type the number in any form (up to 24 characters). `KL07CO1074`, `KL-07-CO-1074` and `KL 07 CO 1074` all match. It searches resident vehicles and visitors.
 - **Vehicle register export:** CSV for the boom-barrier system.
 
 ### 3.9 Daily checklist
@@ -232,3 +233,13 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 | 2026-10-28 | Amenity bookings now always follow W25 approval (previously free amenities were auto-approved and shown Waived instantly). Waived is set only after approval | 3.x Amenities |
 | 2026-10-28 | Fixed a flat appearing twice in the "Add housekeeping staff" flat dropdown when the same person is both owner and resident of it | 3.x Household staff |
 | 2026-10-28 | Fixed "stream not supported" when recording a voice note. Browsers now record compressed Opus/AAC; other devices record WAV. Same recorder for complaints and checklist notes | 3.2, 3.9 |
+| 2026-11-03 | Gate desk adds guard PIN shifts, pass-code checks, walk-in approval requests, flat calling, daily-help check-in/out, and offline action queuing with association-scoped flat suggestions. Role access is unchanged. | 3.8 |
+| 2026-11-03 | Gate offline state and queued actions are association-scoped; owner/resident gate alerts show only visitors they added; vehicle lookup retains numbers up to the supported 24 characters. Feature-branch pushes no longer deploy to the shared Pages project. | 3.8, 3.x Visitors, Technical |
+| 2026-11-03 | Gate queue entries are bound to their originating association, and stale in-memory gate state clears when switching associations. | 3.8 |
+| 2026-11-03 | Legacy gate queue entries remain available for recovery until a user assigns them to an association. | 3.8 |
+| 2026-11-03 | Gate queue syncing is serialized with association switches to prevent queued actions from running in a different association's server context. | 3.8 |
+| 2026-11-03 | Owners and residents can see walk-ins awaiting approval at their flats; gate queue recovery, sending and additions are serialized; flat suggestions, disposal handling and verification feedback are corrected. | 3.8 |
+| 2026-11-03 | Online gate walk-ins are bound to the active association; retried requests are idempotent and interrupted legacy-queue recovery is safe to repeat. | 3.8 |
+| 2026-11-03 | Gate shifts and guard stamps are association-specific; daily-help passes and flat choices, and awaiting walk-ins, are filtered to the active association and authorized flats. | 3.8 |
+| 2026-11-03 | Gate background refreshes are single-flight and coalesce pending requests while preserving refreshes after association switches. | 3.8 |
+| 2026-11-03 | Gate timer refreshes skip active loads; explicit and association-change refreshes remain coalesced. | 3.8 |
