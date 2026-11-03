@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -16,13 +18,13 @@ const _big = TextStyle(fontSize: 22);
 String normFlat(String v) => v.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
 
 /// Flat numbers from the server, or the copy saved on this phone when offline.
-Future<List<String>> loadGateFlats() async {
+Future<List<String>> loadGateFlats(String? associationId) async {
   try {
     final f = await GateRepo.flatNumbers();
-    await GateOffline.cacheFlats(f);
+    if (associationId != null) await GateOffline.cacheFlats(associationId, f);
     return f;
   } catch (_) {
-    return GateOffline.cachedFlats();
+    return associationId == null ? const [] : GateOffline.cachedFlats(associationId);
   }
 }
 
@@ -271,10 +273,17 @@ Future<void> showGateResult(BuildContext context, {required bool ok, required St
 
 /// Type a few letters; matching flats appear as big buttons to tap.
 class FlatPicker extends StatefulWidget {
-  const FlatPicker({super.key, required this.flats, required this.onChanged, this.initial});
+  const FlatPicker({
+    super.key,
+    required this.flats,
+    required this.onChanged,
+    this.initial,
+    this.onSubmitted,
+  });
   final List<String> flats;
   final ValueChanged<String?> onChanged;
   final String? initial;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   State<FlatPicker> createState() => _FlatPickerState();
@@ -334,6 +343,10 @@ class _FlatPickerState extends State<FlatPicker> {
           },
           onSubmitted: (_) {
             if (matches.length == 1) _pick(matches.first);
+            if (widget.flats.isEmpty) {
+              final flat = _c.text.trim().toUpperCase();
+              if (flat.isNotEmpty) widget.onSubmitted?.call(flat);
+            }
           },
         ),
         if (matches.isNotEmpty) ...[
@@ -564,6 +577,7 @@ class _CallFlatPageState extends State<CallFlatPage> {
       FlatPicker(
         flats: widget.flats,
         initial: widget.initial,
+        onSubmitted: _select,
         onChanged: (f) {
           if (widget.flats.isNotEmpty || f == null) _select(f);
         },

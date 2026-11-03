@@ -124,11 +124,13 @@ class GateOffline {
     ];
   }
 
-  static Future<void> cacheFlats(List<String> flats) async =>
-      (await SharedPreferences.getInstance()).setStringList('gate_flats_cache', flats);
+  static String _flatsKey(String associationId) => 'gate_flats_cache_$associationId';
 
-  static Future<List<String>> cachedFlats() async =>
-      (await SharedPreferences.getInstance()).getStringList('gate_flats_cache') ?? const [];
+  static Future<void> cacheFlats(String associationId, List<String> flats) async =>
+      (await SharedPreferences.getInstance()).setStringList(_flatsKey(associationId), flats);
+
+  static Future<List<String>> cachedFlats(String associationId) async =>
+      (await SharedPreferences.getInstance()).getStringList(_flatsKey(associationId)) ?? const [];
 
   static Future<void> cacheHelp(List<DailyHelp> list) async => (await SharedPreferences.getInstance()).setString(
     _helpKey,

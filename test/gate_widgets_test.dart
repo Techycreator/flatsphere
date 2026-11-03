@@ -1,6 +1,8 @@
+import 'package:flatsphere/backend/gate_offline.dart';
 import 'package:flatsphere/features/visitors/gate_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> _phone(WidgetTester tester, Widget page) async {
   tester.view.physicalSize = const Size(360, 740) * 2;
@@ -35,6 +37,35 @@ void main() {
     await tester.pump();
     expect(find.text('Flat A-102'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('empty flat list submits the normalized flat number once', (tester) async {
+    String? submitted;
+    var submissions = 0;
+    await _phone(
+      tester,
+      FlatPicker(
+        flats: const [],
+        onChanged: (_) {},
+        onSubmitted: (flat) {
+          submitted = flat;
+          submissions++;
+        },
+      ),
+    );
+    await tester.enterText(find.byType(TextField), ' a-101 ');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    expect(submitted, 'A-101');
+    expect(submissions, 1);
+  });
+
+  test('cached gate flats are scoped to their association', () async {
+    SharedPreferences.setMockInitialValues({});
+    await GateOffline.cacheFlats('association-a', ['A-101']);
+    await GateOffline.cacheFlats('association-b', ['B-202']);
+    expect(await GateOffline.cachedFlats('association-a'), ['A-101']);
+    expect(await GateOffline.cachedFlats('association-b'), ['B-202']);
   });
 
   testWidgets('call-a-flat picker fits a phone', (tester) async {

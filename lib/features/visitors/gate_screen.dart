@@ -135,7 +135,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
   }
 
   Future<void> _callFlat([String? flat]) async {
-    final flats = await loadGateFlats();
+    final flats = await loadGateFlats(ref.read(sessionProvider)?.user.associationId);
     if (!mounted) return;
     await openGatePage<void>(context, CallFlatPage(flats: flats, initial: flat?.trim().toUpperCase()));
   }
@@ -222,7 +222,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
   }
 
   Future<void> _walkIn() async {
-    final flats = await loadGateFlats();
+    final flats = await loadGateFlats(ref.read(sessionProvider)?.user.associationId);
     if (!mounted) return;
     final d = await openGatePage<WalkInData>(context, WalkInPage(flats: flats));
     if (d == null) return;
