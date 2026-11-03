@@ -193,22 +193,24 @@ class _CodePadState extends State<CodePad> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               for (var i = 0; i < widget.length; i++)
-                Container(
-                  width: 46,
-                  height: 60,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    color: i < _code.length ? scheme.primaryContainer : null,
-                    border: Border.all(
-                      color: i == _code.length ? scheme.primary : scheme.outline,
-                      width: i == _code.length ? 3 : 1.5,
+                Flexible(
+                  child: Container(
+                    width: 46,
+                    height: 60,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: i < _code.length ? scheme.primaryContainer : null,
+                      border: Border.all(
+                        color: i == _code.length ? scheme.primary : scheme.outline,
+                        width: i == _code.length ? 3 : 1.5,
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    i < _code.length ? (masked ? '●' : _code[i]) : '',
-                    style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+                    child: Text(
+                      i < _code.length ? (masked ? '●' : _code[i]) : '',
+                      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ),
             ],
