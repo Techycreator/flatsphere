@@ -23,14 +23,14 @@ class AssociationContext {
     final previous = _tail;
     final release = Completer<void>();
     _tail = release.future;
-    return () async {
-      await previous;
-      try {
-        return await action();
-      } finally {
-        release.complete();
-      }
-    }();
+return () async {
+  try {
+    await previous;
+    return await action();
+  } finally {
+    if (!release.isCompleted) release.complete();
+  }
+}();
   }
 }
 
