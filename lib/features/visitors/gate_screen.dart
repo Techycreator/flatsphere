@@ -32,6 +32,8 @@ class _GateScreenState extends ConsumerState<GateScreen> {
   String? _error;
   bool _offline = false;
   int _pending = 0;
+  int _legacyPending = 0;
+  bool _recoveringLegacy = false;
   String? _onDuty;
   String? _activeAssociationId;
 
@@ -63,6 +65,9 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       setState(() => _onDuty = p.getString(GateOffline.guardKey(associationId)));
     }
     if (ref.read(sessionProvider)?.user.associationId != associationId) return;
+    final legacy = await GateOffline.legacyQueue();
+    if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+    if (_legacyPending != legacy.length) setState(() => _legacyPending = legacy.length);
     try {
       final (sent, failed) = await GateOffline.flush(associationId);
       if (ref.read(sessionProvider)?.user.associationId != associationId) return;
@@ -99,6 +104,54 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       } else if (mounted) {
         setState(() => _error = friendlyError(e));
       }
+    }
+  }
+
+  Future<void> _recoverLegacyQueue() async {
+    if (_recoveringLegacy) return;
+    final user = ref.read(sessionProvider)?.user;
+    if (user == null || user.associations.isEmpty) return;
+    setState(() => _recoveringLegacy = true);
+    try {
+      final selected = await showDialog<String>(
+        context: context,
+        builder: (context) => SimpleDialog(
+          title: const Text('Recover older saved gate entries'),
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 12),
+              child: Text(
+                'These entries were saved before queues were separated by association. '
+                'Choose the association they belong to; they will stay saved until you choose.',
+              ),
+            ),
+            for (final association in user.associations)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, association.id),
+                child: Text(association.name),
+              ),
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Not now'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || selected == null) return;
+      final currentUser = ref.read(sessionProvider)?.user;
+      if (currentUser == null || !currentUser.associations.any((a) => a.id == selected)) return;
+      final recovered = await GateOffline.recoverLegacyQueue(selected);
+      if (mounted && recovered > 0) {
+        setState(() => _legacyPending = 0);
+        toast(
+          context,
+          '$recovered older gate ${recovered == 1 ? 'entry' : 'entries'} assigned to the selected association.',
+        );
+      }
+    } catch (e) {
+      if (mounted) toast(context, friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _recoveringLegacy = false);
     }
   }
 
@@ -420,6 +473,21 @@ class _GateScreenState extends ConsumerState<GateScreen> {
           )
         else if (_pending > 0)
           Padding(padding: const EdgeInsets.only(top: 8), child: Text('$_pending saved entries waiting to send…')),
+        if (_legacyPending > 0)
+          Card(
+            color: AppColors.amber.withValues(alpha: .15),
+            child: ListTile(
+              leading: const Icon(Icons.history, size: 32),
+              title: Text(
+                '$_legacyPending older saved gate ${_legacyPending == 1 ? 'entry' : 'entries'} need an association',
+              ),
+              subtitle: const Text('Choose where to recover them before they can sync.'),
+              trailing: TextButton(
+                onPressed: _recoveringLegacy ? null : _recoverLegacyQueue,
+                child: const Text('Recover'),
+              ),
+            ),
+          ),
         const SizedBox(height: 12),
         grid(tiles, narrow ? 2 : 4),
         const SizedBox(height: 20),

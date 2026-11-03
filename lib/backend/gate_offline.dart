@@ -19,6 +19,7 @@ bool isOffline(Object e) =>
 
 /// Gate actions saved on the phone while offline, sent in order when the network is back.
 class GateOffline {
+  static const _legacyQueueKey = 'gate_queue';
   static String _queueKey(String associationId) => 'gate_queue_$associationId';
   static String _cacheKey(String associationId) => 'gate_cache_$associationId';
   static String _helpKey(String associationId) => 'gate_help_cache_$associationId';
@@ -30,6 +31,34 @@ class GateOffline {
       for (final s in p.getStringList(_queueKey(associationId)) ?? const <String>[])
         jsonDecode(s) as Map<String, dynamic>,
     ];
+  }
+
+  static Future<List<Map<String, dynamic>>> legacyQueue() async {
+    final p = await SharedPreferences.getInstance();
+    return [
+      for (final s in p.getStringList(_legacyQueueKey) ?? const <String>[])
+        jsonDecode(s) as Map<String, dynamic>,
+    ];
+  }
+
+  static Future<int> recoverLegacyQueue(String associationId) async {
+    final p = await SharedPreferences.getInstance();
+    final legacy = p.getStringList(_legacyQueueKey) ?? const <String>[];
+    if (legacy.isEmpty) return 0;
+    final scoped = p.getStringList(_queueKey(associationId)) ?? const <String>[];
+    final now = DateTime.now().toIso8601String();
+    final recovered = <String>[];
+    for (final s in legacy) {
+      final action = jsonDecode(s) as Map<String, dynamic>;
+      recovered.add(
+        jsonEncode({...action, 'association_id': associationId, 'at': action['at'] ?? now}),
+      );
+    }
+    if (!await p.setStringList(_queueKey(associationId), [...scoped, ...recovered])) {
+      throw StateError('Could not save legacy gate entries.');
+    }
+    await p.remove(_legacyQueueKey);
+    return recovered.length;
   }
 
   static Future<void> _save(String associationId, List<Map<String, dynamic>> q) async =>

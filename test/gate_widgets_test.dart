@@ -81,6 +81,23 @@ void main() {
     expect((await GateOffline.queue('association-a')).single['association_id'], 'association-a');
   });
 
+  test('legacy gate queue is preserved until assigned to an association', () async {
+    SharedPreferences.setMockInitialValues({
+      'gate_queue': ['{"kind":"walkin","flat":"A-101"}'],
+      'gate_queue_association-a': ['{"kind":"verify","id":"visitor-a","association_id":"association-a"}'],
+    });
+
+    expect((await GateOffline.legacyQueue()).single['flat'], 'A-101');
+    expect(await GateOffline.recoverLegacyQueue('association-a'), 1);
+
+    final recovered = await GateOffline.queue('association-a');
+    expect(recovered, hasLength(2));
+    expect(recovered.last['association_id'], 'association-a');
+    expect(recovered.last['at'], isA<String>());
+    expect(await GateOffline.legacyQueue(), isEmpty);
+    expect(await GateOffline.queue('association-b'), isEmpty);
+  });
+
   test('cached gate visitors are scoped to their association', () async {
     SharedPreferences.setMockInitialValues({});
     final visitor = (
