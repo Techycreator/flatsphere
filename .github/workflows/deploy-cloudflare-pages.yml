@@ -4,8 +4,7 @@ name: Deploy FlatSphere PWA to Cloudflare Pages
 on:
   push:
     branches:
-      - feature/flatsphere-requirements-completion
-      - feature/mobile-gate-ux
+      - main
   workflow_dispatch:
 
 permissions:
