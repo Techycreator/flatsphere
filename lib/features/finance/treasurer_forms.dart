@@ -163,6 +163,137 @@ Future<void> showOpeningBalanceForm(BuildContext context, WidgetRef ref) async {
   });
 }
 
+Future<void> showDuesScheduleForm(BuildContext context, WidgetRef ref) async {
+  final types = {for (final f in financeFlats(ref.read(duesProvider))) f.$2}.toList()..sort();
+  Map<String, dynamic>? cur;
+  try {
+    cur = await FinanceRepo.duesSchedule();
+  } catch (e) {
+    if (context.mounted) toast(context, friendlyError(e));
+    return;
+  }
+  if (!context.mounted) return;
+  final savedRates = (cur?['rates'] as Map?) ?? const {};
+  var enabled = cur?['enabled'] as bool? ?? true;
+  var perSqft = cur?['mode'] == 'per_sqft';
+  var lateFee = cur?['late_fee_enabled'] as bool? ?? false;
+  var billDay = (cur?['bill_day'] as num?)?.toInt() ?? 1;
+  var dueDay = (cur?['due_day'] as num?)?.toInt() ?? 10;
+  final prefix = TextEditingController(text: cur?['head_prefix'] as String? ?? 'Maintenance');
+  final sqft = TextEditingController(text: cur?['rate_per_sqft']?.toString() ?? '');
+  final fee = TextEditingController(text: cur?['late_fee_amount']?.toString() ?? '');
+  final grace = TextEditingController(text: '${cur?['late_fee_grace_days'] ?? 5}');
+  final rates = {for (final t in types) t: TextEditingController(text: savedRates[t]?.toString() ?? '')};
+  Widget day(String label, int value, void Function(int) on) => DropdownButtonFormField<int>(
+    initialValue: value,
+    decoration: InputDecoration(labelText: label),
+    items: [for (var d = 1; d <= 28; d++) DropdownMenuItem(value: d, child: Text('Day $d of the month'))],
+    onChanged: (v) => on(v ?? value),
+  );
+  final ok = await _form(
+    context,
+    title: 'Automatic monthly bills',
+    action: 'Save',
+    validate: () {
+      if (prefix.text.trim().isEmpty) return 'Enter a bill name, e.g. Maintenance';
+      if (dueDay < billDay) return 'Due day must be on or after the bill day';
+      if (enabled && !perSqft && rates.values.every((c) => (int.tryParse(c.text) ?? 0) <= 0)) {
+        return 'Enter an amount for at least one flat type';
+      }
+      if (enabled && perSqft && (double.tryParse(sqft.text) ?? 0) <= 0) return 'Enter the rate per square foot';
+      if (lateFee && (int.tryParse(fee.text) ?? 0) <= 0) return 'Enter the late fee amount';
+      return null;
+    },
+    fields: (set) => [
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: enabled,
+        title: const Text('Raise maintenance bills every month'),
+        onChanged: (v) => set(() => enabled = v),
+      ),
+      TextField(
+        controller: prefix,
+        decoration: const InputDecoration(
+          labelText: 'Bill name *',
+          helperText: 'Shown as e.g. "Maintenance – Nov 2026"',
+        ),
+      ),
+      day('Raise bill on', billDay, (v) => set(() => billDay = v)),
+      day('Due by', dueDay, (v) => set(() => dueDay = v)),
+      const SizedBox(height: 8),
+      SegmentedButton<bool>(
+        segments: const [
+          ButtonSegment(value: false, label: Text('By flat type')),
+          ButtonSegment(value: true, label: Text('Per sq. ft')),
+        ],
+        selected: {perSqft},
+        onSelectionChanged: (v) => set(() => perSqft = v.first),
+      ),
+      if (perSqft)
+        TextField(
+          controller: sqft,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Rate per sq. ft', prefixText: '₹ '),
+        )
+      else
+        for (final t in types)
+          TextField(
+            controller: rates[t],
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(labelText: t, prefixText: '₹ '),
+          ),
+      const Divider(height: 24),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: lateFee,
+        title: const Text('Add a late fee if unpaid'),
+        onChanged: (v) => set(() => lateFee = v),
+      ),
+      if (lateFee) ...[
+        TextField(
+          controller: fee,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(labelText: 'Late fee amount', prefixText: '₹ '),
+        ),
+        TextField(
+          controller: grace,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(labelText: 'Days after due date before the fee is added'),
+        ),
+      ],
+      const Padding(
+        padding: EdgeInsets.only(top: 8),
+        child: Text(
+          'Runs every morning (India time). A flat never gets the same bill twice. Reminders and receipts work as usual.',
+          style: _note,
+        ),
+      ),
+    ],
+  );
+  if (ok != true || !context.mounted) return;
+  await _run(context, () async {
+    await FinanceRepo.saveDuesSchedule(
+      enabled: enabled,
+      mode: perSqft ? 'per_sqft' : 'flat_type',
+      rates: {
+        for (final e in rates.entries)
+          if ((int.tryParse(e.value.text) ?? 0) > 0) e.key: int.parse(e.value.text),
+      },
+      ratePerSqft: perSqft ? double.tryParse(sqft.text) : null,
+      headPrefix: prefix.text.trim(),
+      billDay: billDay,
+      dueDay: dueDay,
+      lateFeeEnabled: lateFee,
+      lateFeeAmount: lateFee ? int.tryParse(fee.text) : null,
+      graceDays: (int.tryParse(grace.text) ?? 5).clamp(0, 60),
+    );
+    return enabled ? 'Automatic bills on: raised on day $billDay, due on day $dueDay' : 'Automatic bills turned off';
+  });
+}
+
 Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
   final l = AppLocalizations.of(context);
   final st = ref.read(duesProvider);

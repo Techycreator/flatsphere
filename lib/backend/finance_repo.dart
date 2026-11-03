@@ -358,6 +358,35 @@ class FinanceRepo {
     ];
   }
 
+  static Future<Map<String, dynamic>?> duesSchedule() async => await db.from('dues_schedules').select().maybeSingle();
+
+  static Future<void> saveDuesSchedule({
+    required bool enabled,
+    required String mode,
+    required Map<String, int> rates,
+    double? ratePerSqft,
+    required String headPrefix,
+    required int billDay,
+    required int dueDay,
+    required bool lateFeeEnabled,
+    int? lateFeeAmount,
+    required int graceDays,
+  }) => db.rpc(
+    'save_dues_schedule',
+    params: {
+      'p_enabled': enabled,
+      'p_mode': mode,
+      'p_rates': rates,
+      'p_rate_per_sqft': ratePerSqft,
+      'p_head_prefix': headPrefix,
+      'p_bill_day': billDay,
+      'p_due_day': dueDay,
+      'p_late_fee_enabled': lateFeeEnabled,
+      'p_late_fee_amount': lateFeeAmount,
+      'p_late_fee_grace_days': graceDays,
+    },
+  );
+
   static Future<int?> pettyCashBalance() async => (await db.rpc('petty_cash_balance') as num?)?.toInt();
 
   static Future<void> addPettyCash(int amount, DateTime givenOn, String note) =>

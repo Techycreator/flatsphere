@@ -222,6 +222,12 @@ class _DuesTab extends ConsumerWidget {
                 icon: const Icon(Icons.receipt_long),
                 label: Text(l.recordPayment),
               ),
+              if (backendEnabled)
+                OutlinedButton.icon(
+                  onPressed: () => showDuesScheduleForm(context, ref),
+                  icon: const Icon(Icons.event_repeat),
+                  label: const Text('Automatic monthly bills'),
+                ),
               OutlinedButton.icon(
                 onPressed: () => showRaiseDuesForm(context, ref),
                 icon: const Icon(Icons.playlist_add),
