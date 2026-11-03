@@ -1,3 +1,4 @@
+-- Older clients can omit the request ID and use the new function's default.
 drop function if exists gate_walk_in(text, text, text, text, text);
 
 create function gate_walk_in(
