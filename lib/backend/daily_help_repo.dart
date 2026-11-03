@@ -23,41 +23,55 @@ class DailyHelpRepo {
   static String? _hm(Object? t) => t == null ? null : (t as String).substring(0, 5);
 
   /// Active passes visible to the current user (RLS: gate staff/committee see all, flats see their own).
-  static Future<List<DailyHelp>> load() async {
-    final rows = await db.from('daily_help').select().eq('active', true).order('name');
-    final since = DateTime.now().subtract(const Duration(hours: 20)).toUtc().toIso8601String();
-    final open = await db
-        .from('daily_help_log')
-        .select('help_id')
-        .isFilter('checked_out_at', null)
-        .gte('checked_in_at', since);
-    final inside = {for (final r in open) r['help_id'] as String};
-    final ids = {for (final r in rows) ...(r['flat_ids'] as List).cast<String>()};
-    final numbers = <String, String>{
-      if (ids.isNotEmpty)
-        for (final f in await db.from('flats').select('id, number').inFilter('id', ids.toList()))
-          f['id'] as String: f['number'] as String,
-    };
-    return [
-      for (final r in rows)
-        (
-          id: r['id'] as String,
-          name: r['name'] as String,
-          kind: r['kind'] as String,
-          phone: r['phone'] as String?,
-          flatIds: (r['flat_ids'] as List).cast<String>(),
-          flats: (r['flat_ids'] as List).isEmpty
-              ? 'All flats'
-              : [for (final id in (r['flat_ids'] as List).cast<String>()) numbers[id] ?? '?'].join(', '),
-          days: (r['days'] as List).cast<int>(),
-          start: _hm(r['start_time']),
-          end: _hm(r['end_time']),
-          notify: r['notify'] as bool,
-          code: r['pass_code'] as String,
-          inside: inside.contains(r['id']),
-        ),
-    ];
-  }
+  static Future<List<DailyHelp>> load({required String associationId}) =>
+      AssociationContext.run(() async {
+        if (await db.rpc('my_association') != associationId) {
+          throw StateError('The active association changed. Reload daily help to continue.');
+        }
+        final rows = await db
+            .from('daily_help')
+            .select()
+            .eq('association_id', associationId)
+            .eq('active', true)
+            .order('name');
+        final since = DateTime.now().subtract(const Duration(hours: 20)).toUtc().toIso8601String();
+        final open = await db
+            .from('daily_help_log')
+            .select('help_id')
+            .eq('association_id', associationId)
+            .isFilter('checked_out_at', null)
+            .gte('checked_in_at', since);
+        final inside = {for (final r in open) r['help_id'] as String};
+        final ids = {for (final r in rows) ...(r['flat_ids'] as List).cast<String>()};
+        final numbers = <String, String>{
+          if (ids.isNotEmpty)
+            for (final f in await db
+                .from('flats')
+                .select('id, number')
+                .eq('association_id', associationId)
+                .inFilter('id', ids.toList()))
+              f['id'] as String: f['number'] as String,
+        };
+        return [
+          for (final r in rows)
+            (
+              id: r['id'] as String,
+              name: r['name'] as String,
+              kind: r['kind'] as String,
+              phone: r['phone'] as String?,
+              flatIds: (r['flat_ids'] as List).cast<String>(),
+              flats: (r['flat_ids'] as List).isEmpty
+                  ? 'All flats'
+                  : [for (final id in (r['flat_ids'] as List).cast<String>()) numbers[id] ?? '?'].join(', '),
+              days: (r['days'] as List).cast<int>(),
+              start: _hm(r['start_time']),
+              end: _hm(r['end_time']),
+              notify: r['notify'] as bool,
+              code: r['pass_code'] as String,
+              inside: inside.contains(r['id']),
+            ),
+        ];
+      });
 
   static Future<List<DailyHelpVisit>> visits(String id) async {
     final rows = await db

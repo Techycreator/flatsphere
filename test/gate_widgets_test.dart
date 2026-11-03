@@ -104,6 +104,38 @@ void main() {
     expect(await GateOffline.queue('association-b'), isEmpty);
   });
 
+  test('explicit legacy recovery preserves entries assigned to other associations', () async {
+    SharedPreferences.setMockInitialValues({
+      'gate_queue': [
+        '{"kind":"walkin","flat":"A-101","_legacy_recovery_association":"association-a"}',
+        '{"kind":"walkin","flat":"B-202","_legacy_recovery_association":"association-b"}',
+        '{"kind":"verify","id":"unassigned"}',
+      ],
+    });
+
+    expect(await GateOffline.recoverLegacyQueue('association-a'), 2);
+    expect((await GateOffline.queue('association-a')).map((entry) => entry['flat'] ?? entry['id']), [
+      'A-101',
+      'unassigned',
+    ]);
+    expect((await GateOffline.legacyQueue()).single['flat'], 'B-202');
+  });
+
+  test('assigned legacy entries recover before their association queue is flushed', () async {
+    const legacy = '{"kind":"walkin","flat":"A-101","_legacy_recovery_association":"association-a"}';
+    const otherAssociation = '{"kind":"walkin","flat":"B-202","_legacy_recovery_association":"association-b"}';
+    SharedPreferences.setMockInitialValues({
+      'gate_queue': [legacy, otherAssociation, '{"kind":"verify","id":"unassigned"}'],
+    });
+
+    expect(await GateOffline.recoverAssignedLegacyQueue('association-a'), 1);
+    expect((await GateOffline.queue('association-a')).single['flat'], 'A-101');
+    expect((await GateOffline.legacyQueue()).map((entry) => entry['flat'] ?? entry['id']), [
+      'B-202',
+      'unassigned',
+    ]);
+  });
+
   test('legacy gate queue recovery is safe to repeat after a partial save', () async {
     const legacy = '{"kind":"walkin","flat":"A-101"}';
     final recoveryId = sha256.convert(utf8.encode('0:$legacy')).toString();

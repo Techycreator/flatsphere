@@ -44,20 +44,36 @@ class GateOffline {
   }
 
   static Future<int> recoverLegacyQueue(String associationId) =>
-      AssociationContext.run(() => _recoverLegacyQueue(associationId));
+      AssociationContext.run(() => _recoverLegacyQueue(associationId, recoverUnassigned: true));
 
-  static Future<int> _recoverLegacyQueue(String associationId) async {
+  static Future<int> recoverAssignedLegacyQueue(String associationId) =>
+      AssociationContext.run(() => _recoverLegacyQueue(associationId, recoverUnassigned: false));
+
+  static Future<int> _recoverLegacyQueue(String associationId, {required bool recoverUnassigned}) async {
     final p = await SharedPreferences.getInstance();
     final legacy = p.getStringList(_legacyQueueKey) ?? const <String>[];
     if (legacy.isEmpty) return 0;
     final scoped = p.getStringList(_queueKey(associationId)) ?? const <String>[];
     final assignments = <String>[];
+    final updatedLegacy = <String>[];
+    final deferred = <String>[];
     var changed = false;
+    var mismatchedAssigned = false;
     for (var index = 0; index < legacy.length; index++) {
       final action = jsonDecode(legacy[index]) as Map<String, dynamic>;
       final assignedAssociation = action['_legacy_recovery_association'];
       if (assignedAssociation != null && assignedAssociation != associationId) {
-        throw StateError('These older gate entries were already assigned to another association.');
+        if (recoverUnassigned) {
+          mismatchedAssigned = true;
+        }
+        deferred.add(legacy[index]);
+        updatedLegacy.add(legacy[index]);
+        continue;
+      }
+      if (assignedAssociation == null && !recoverUnassigned) {
+        deferred.add(legacy[index]);
+        updatedLegacy.add(legacy[index]);
+        continue;
       }
       final recoveryId =
           action['_legacy_recovery_id'] as String? ??
@@ -65,15 +81,18 @@ class GateOffline {
       if (assignedAssociation == null || action['_legacy_recovery_id'] != recoveryId) {
         changed = true;
       }
-      assignments.add(
-        jsonEncode({
-          ...action,
-          '_legacy_recovery_association': associationId,
-          '_legacy_recovery_id': recoveryId,
-        }),
-      );
+      final assigned = jsonEncode({
+        ...action,
+        '_legacy_recovery_association': associationId,
+        '_legacy_recovery_id': recoveryId,
+      });
+      assignments.add(assigned);
+      updatedLegacy.add(assigned);
     }
-    if (changed && !await p.setStringList(_legacyQueueKey, assignments)) {
+    if (recoverUnassigned && assignments.isEmpty && mismatchedAssigned) {
+      throw StateError('These older gate entries were already assigned to another association.');
+    }
+    if (changed && !await p.setStringList(_legacyQueueKey, updatedLegacy)) {
       throw StateError('Could not save the legacy gate entry assignment.');
     }
 
@@ -99,7 +118,10 @@ class GateOffline {
     if (recovered.isNotEmpty && !await p.setStringList(_queueKey(associationId), [...scoped, ...recovered])) {
       throw StateError('Could not save legacy gate entries.');
     }
-    if (!await p.remove(_legacyQueueKey)) {
+    final cleared = deferred.isEmpty
+        ? await p.remove(_legacyQueueKey)
+        : await p.setStringList(_legacyQueueKey, deferred);
+    if (!cleared) {
       throw StateError('Could not clear the recovered legacy gate entries.');
     }
     return recovered.length;

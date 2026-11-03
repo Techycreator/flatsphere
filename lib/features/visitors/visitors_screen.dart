@@ -25,9 +25,11 @@ final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>
   final role = ref.watch(sessionProvider.select((s) => s?.activeRole));
   return VisitorRepo.load(hostOnly: role == Role.owner || role == Role.resident);
 });
-final visitorFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>(
-  (ref) => VisitorRepo.myFlats(),
-);
+final visitorFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>((ref) async {
+  final associationId = ref.watch(sessionProvider.select((s) => s?.user.associationId));
+  if (associationId == null) return const [];
+  return VisitorRepo.myFlats(associationId: associationId);
+});
 final vehicleSearchProvider = FutureProvider.autoDispose.family<List<VehicleContact>, String>(
   (ref, registration) => DirectoryRepo.searchVehicle(registration),
 );

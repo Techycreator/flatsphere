@@ -69,6 +69,23 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
     if (_legacyPending != legacy.length) setState(() => _legacyPending = legacy.length);
     try {
+      await GateOffline.recoverAssignedLegacyQueue(associationId);
+      final remainingLegacy = await GateOffline.legacyQueue();
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      if (_legacyPending != remainingLegacy.length) {
+        setState(() => _legacyPending = remainingLegacy.length);
+      }
+      final onDuty = await GateRepo.currentShift(associationId);
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      final preferences = await SharedPreferences.getInstance();
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      if (onDuty == null) {
+        await preferences.remove(GateOffline.guardKey(associationId));
+      } else {
+        await preferences.setString(GateOffline.guardKey(associationId), onDuty);
+      }
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      setState(() => _onDuty = onDuty);
       final (sent, failed) = await GateOffline.flush(associationId);
       if (ref.read(sessionProvider)?.user.associationId != associationId) return;
       if (mounted && sent > 0) toast(context, '$sent saved gate entr${sent == 1 ? 'y' : 'ies'} sent');
@@ -141,8 +158,9 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       final currentUser = ref.read(sessionProvider)?.user;
       if (currentUser == null || !currentUser.associations.any((a) => a.id == selected)) return;
       final recovered = await GateOffline.recoverLegacyQueue(selected);
+      final remaining = await GateOffline.legacyQueue();
       if (mounted) {
-        setState(() => _legacyPending = 0);
+        setState(() => _legacyPending = remaining.length);
         if (recovered > 0) {
           toast(
             context,
@@ -244,7 +262,12 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     if (pin == null) return;
     final gid = g.id;
     try {
-      final result = await GateRepo.startShift(gid, pin);
+      final result = await AssociationContext.run(() async {
+        if (await db.rpc('my_association') != associationId) {
+          throw StateError('The active association changed. Reopen the gate action and try again.');
+        }
+        return GateRepo.startShift(gid, pin);
+      });
       final name = result.name;
       if (name == null) {
         if (mounted) toast(context, result.error ?? 'Wrong guard or PIN');

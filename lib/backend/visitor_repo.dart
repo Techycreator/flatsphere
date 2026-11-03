@@ -2,10 +2,11 @@ import '../models/models.dart';
 import 'backend.dart';
 
 class VisitorRepo {
-  static Future<List<(String id, String number)>> myFlats() async {
+  static Future<List<(String id, String number)>> myFlats({required String associationId}) async {
     final rows = await db
         .from('memberships')
         .select('flat_id, flats(number)')
+        .eq('association_id', associationId)
         .eq('user_id', db.auth.currentUser!.id)
         .isFilter('ended_at', null)
         .inFilter('role', ['owner', 'resident']);

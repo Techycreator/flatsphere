@@ -62,19 +62,25 @@ class _DailyHelpSectionState extends ConsumerState<DailyHelpSection> {
 
   Future<void> _load() async {
     if (!backendEnabled) return;
+    final associationId = ref.read(sessionProvider)?.user.associationId;
+    if (associationId == null) return;
     final role = ref.read(sessionProvider)?.activeRole;
     try {
-      final list = await DailyHelpRepo.load();
-      final flats = _residents.contains(role) ? await VisitorRepo.myFlats() : const <(String, String)>[];
-      if (mounted) {
-        setState(() {
-          _list = list;
-          _flats = flats;
-          _error = null;
-        });
-      }
+      final list = await DailyHelpRepo.load(associationId: associationId);
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      final flats = _residents.contains(role)
+          ? await VisitorRepo.myFlats(associationId: associationId)
+          : const <(String, String)>[];
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      setState(() {
+        _list = list;
+        _flats = flats;
+        _error = null;
+      });
     } catch (e) {
-      if (mounted) setState(() => _error = friendlyError(e));
+      if (mounted && ref.read(sessionProvider)?.user.associationId == associationId) {
+        setState(() => _error = friendlyError(e));
+      }
     }
   }
 
@@ -366,7 +372,7 @@ class _DailyHelpGateDialogState extends State<DailyHelpGateDialog> {
 
   Future<void> _load() async {
     try {
-      final list = await DailyHelpRepo.load();
+      final list = await DailyHelpRepo.load(associationId: widget.associationId);
       await GateOffline.cacheHelp(widget.associationId, list);
       if (mounted) {
         setState(() {

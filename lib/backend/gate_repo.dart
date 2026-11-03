@@ -63,13 +63,27 @@ class GateRepo {
         .order('expected_arrival');
     final visitors = [for (final r in rows) _row(r)];
     if (!hostOnly) return visitors;
-    final walkIns = await db
-        .from('visitor_requests')
-        .select(_cols)
+    final flatRows = await db
+        .from('memberships')
+        .select('flat_id')
         .eq('association_id', associationId)
-        .eq('approval', 'awaiting')
-        .gte('expected_arrival', since)
-        .order('expected_arrival');
+        .eq('user_id', db.auth.currentUser!.id)
+        .isFilter('ended_at', null)
+        .inFilter('role', ['owner', 'resident']);
+    final flatIds = {
+      for (final r in flatRows)
+        if (r['flat_id'] case final String id) id,
+    };
+    final walkIns = flatIds.isEmpty
+        ? const <Map<String, dynamic>>[]
+        : await db
+              .from('visitor_requests')
+              .select(_cols)
+              .eq('association_id', associationId)
+              .inFilter('flat_id', flatIds.toList())
+              .eq('approval', 'awaiting')
+              .gte('expected_arrival', since)
+              .order('expected_arrival');
     final knownIds = visitors.map((v) => v.id).toSet();
     visitors.addAll([for (final r in walkIns) if (!knownIds.contains(r['id'])) _row(r)]);
     visitors.sort((a, b) => a.arrival.compareTo(b.arrival));
@@ -159,6 +173,14 @@ class GateRepo {
     final r = await db.rpc('gate_start_shift', params: {'p_guard': id, 'p_pin': pin}) as Map;
     return r['ok'] == true ? (name: r['name'] as String, error: null) : (name: null, error: r['error'] as String?);
   }
+
+  static Future<String?> currentShift(String associationId) =>
+      AssociationContext.run(() async {
+        if (await db.rpc('my_association') != associationId) {
+          throw StateError('The active association changed. Reload the gate to continue.');
+        }
+        return await db.rpc('gate_current_shift') as String?;
+      });
 
   /// Deletes visitor photos older than 60 days (runs when the Gate screen opens).
   static Future<void> purgeOldPhotos() async {
