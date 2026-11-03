@@ -165,11 +165,10 @@
       } catch (e) { /* fall through */ }
       await hardReload();
     }
-    // While the app is just opening (or reopened after a long break) nothing can be lost, so a newer version is installed
-    // straight away with only the short "Updating" screen; the "Update available" prompt is kept for open sessions.
+    // While the app is just opening nothing can be lost, so a newer version is installed straight away; open and resumed
+    // sessions get the "Update available" prompt.
     const OPENED_AT = Date.now();
-    let hiddenAt = 0;
-    const justOpened = () => Date.now() - OPENED_AT < 30000 || (hiddenAt && Date.now() - hiddenAt > 30 * 60 * 1000);
+    const justOpened = () => Date.now() - OPENED_AT < 30000;
     function newOverlay() {
       const o = document.createElement('div');
       o.id = 'fs-update';
@@ -202,8 +201,7 @@
     checkForUpdate();
     setInterval(checkForUpdate, 5 * 60 * 1000);
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) { hiddenAt = Date.now(); return; }
-      checkForUpdate().finally(() => { hiddenAt = 0; });
+      if (!document.hidden) checkForUpdate();
     });
     window.addEventListener('flutter-first-frame', () => document.getElementById('splash')?.remove());
   </script>

@@ -556,8 +556,18 @@ Future<void> _sos(BuildContext context) async {
 }
 
 Future<void> _editMyProfile(BuildContext context, Session session) async {
-  final name = TextEditingController(text: session.user.name);
-  final mobile = TextEditingController(text: session.user.mobile);
+  Map<String, dynamic>? profile;
+  if (backendEnabled) {
+    try {
+      profile = await db.from('profiles').select('full_name, mobile').eq('id', session.user.id).maybeSingle();
+    } catch (e) {
+      if (context.mounted) toast(context, friendlyError(e));
+      return;
+    }
+  }
+  if (!context.mounted) return;
+  final name = TextEditingController(text: profile?['full_name'] as String? ?? session.user.name);
+  final mobile = TextEditingController(text: profile?['mobile'] as String? ?? session.user.mobile);
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(

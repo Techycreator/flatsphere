@@ -541,7 +541,7 @@ class _ExpensesTab extends ConsumerWidget {
               ),
           ],
         ),
-        if (const {Role.treasurer, Role.jointTreasurer, Role.admin}.contains(role)) ...[
+        if (backendEnabled && const {Role.treasurer, Role.jointTreasurer, Role.admin}.contains(role)) ...[
           const SizedBox(height: 8),
           Wrap(
             spacing: 12,

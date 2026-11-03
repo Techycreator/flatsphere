@@ -54,7 +54,7 @@ Future<bool?> _form(
   BuildContext context, {
   required String title,
   required String action,
-  required List<Widget> Function(StateSetter set) fields,
+  required List<Widget> Function(StateSetter set, BuildContext dialogContext) fields,
   required String? Function() validate,
 }) {
   String? error;
@@ -70,7 +70,7 @@ Future<bool?> _form(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final w in fields(set)) Padding(padding: const EdgeInsets.only(bottom: 12), child: w),
+                for (final w in fields(set, ctx)) Padding(padding: const EdgeInsets.only(bottom: 12), child: w),
                 if (error != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -118,7 +118,7 @@ Future<void> showOpeningBalanceForm(BuildContext context, WidgetRef ref) async {
     title: l.openingBalance,
     action: l.save,
     validate: () => int.tryParse(amount.text.trim()) == null ? 'Enter the balance in rupees' : null,
-    fields: (set) => [
+    fields: (set, _) => [
       TextField(
         controller: account,
         decoration: InputDecoration(labelText: l.account, hintText: 'e.g. SBI current a/c ••••4521'),
@@ -205,7 +205,7 @@ Future<void> showDuesScheduleForm(BuildContext context, WidgetRef ref) async {
       if (lateFee && (int.tryParse(fee.text) ?? 0) <= 0) return 'Enter the late fee amount';
       return null;
     },
-    fields: (set) => [
+    fields: (set, _) => [
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         value: enabled,
@@ -319,7 +319,7 @@ Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
       if (types.every((t) => rate(t) <= 0)) return 'Enter an amount for at least one flat type';
       return null;
     },
-    fields: (set) => [
+    fields: (set, _) => [
       TextField(
         controller: head,
         decoration: const InputDecoration(
@@ -381,7 +381,7 @@ Future<void> showRaiseDuesPerSqftForm(BuildContext context, WidgetRef ref) async
       if (rate == null || rate <= 0) return 'Enter a positive rate per square foot';
       return null;
     },
-    fields: (set) => [
+    fields: (set, _) => [
       TextField(
         controller: head,
         decoration: InputDecoration(labelText: '${l.duesName} *'),
@@ -428,7 +428,7 @@ Future<void> showFixedLateFeeForm(BuildContext context, WidgetRef ref) async {
       if ((int.tryParse(amount.text.trim()) ?? 0) <= 0) return 'Enter a positive fixed amount';
       return null;
     },
-    fields: (set) => [
+    fields: (set, _) => [
       TextField(
         controller: feeName,
         decoration: InputDecoration(labelText: '${l.duesName} *'),
@@ -479,7 +479,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
     title: l.recordPaymentReceived,
     action: l.saveReceipt,
     validate: () => (int.tryParse(amount.text) ?? 0) <= 0 ? 'Enter the amount received' : null,
-    fields: (set) => [
+    fields: (set, _) => [
       DropdownButtonFormField<String>(
         initialValue: number,
         isExpanded: true,
@@ -556,9 +556,11 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
   });
 }
 
-final pettyCashBalanceProvider = FutureProvider.autoDispose<int?>(
-  (ref) async => backendEnabled ? FinanceRepo.pettyCashBalance() : null,
-);
+final pettyCashBalanceProvider = FutureProvider.autoDispose<int?>((ref) async {
+  ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId)));
+  ref.watch(expensesProvider);
+  return backendEnabled ? FinanceRepo.pettyCashBalance() : null;
+});
 
 Future<void> showPettyCashForm(BuildContext context, WidgetRef ref) async {
   final amount = TextEditingController();
@@ -569,7 +571,7 @@ Future<void> showPettyCashForm(BuildContext context, WidgetRef ref) async {
     title: 'Give petty cash to caretaker',
     action: 'Save',
     validate: () => (int.tryParse(amount.text) ?? 0) <= 0 ? 'Enter the amount' : null,
-    fields: (set) => [
+    fields: (set, _) => [
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,
@@ -624,7 +626,7 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref, {bool pettyCas
       if ((int.tryParse(amount.text) ?? 0) <= 0) return 'Enter the amount';
       return null;
     },
-    fields: (set) => [
+    fields: (set, dialogContext) => [
       FilledButton.tonalIcon(
         icon: reading
             ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
@@ -639,7 +641,7 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref, {bool pettyCas
             ? null
             : () async {
                 final b = await pickBill(context);
-                if (b == null) return;
+                if (!dialogContext.mounted || b == null) return;
                 set(() {
                   bill = b;
                   readNote = null;
@@ -647,6 +649,7 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref, {bool pettyCas
                 if (!const {'jpg', 'jpeg', 'png', 'webp'}.contains(b.ext.toLowerCase())) return;
                 set(() => reading = true);
                 final text = await readBillText(b.bytes);
+                if (!dialogContext.mounted) return;
                 final g = text == null ? const BillGuess() : parseBill(text);
                 set(() {
                   reading = false;
