@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException, PostgrestException, StorageException;
 
@@ -50,18 +51,57 @@ class GateOffline {
     final legacy = p.getStringList(_legacyQueueKey) ?? const <String>[];
     if (legacy.isEmpty) return 0;
     final scoped = p.getStringList(_queueKey(associationId)) ?? const <String>[];
-    final now = DateTime.now().toIso8601String();
-    final recovered = <String>[];
-    for (final s in legacy) {
-      final action = jsonDecode(s) as Map<String, dynamic>;
-      recovered.add(
-        jsonEncode({...action, 'association_id': associationId, 'at': action['at'] ?? now}),
+    final assignments = <String>[];
+    var changed = false;
+    for (var index = 0; index < legacy.length; index++) {
+      final action = jsonDecode(legacy[index]) as Map<String, dynamic>;
+      final assignedAssociation = action['_legacy_recovery_association'];
+      if (assignedAssociation != null && assignedAssociation != associationId) {
+        throw StateError('These older gate entries were already assigned to another association.');
+      }
+      final recoveryId =
+          action['_legacy_recovery_id'] as String? ??
+          sha256.convert(utf8.encode('$index:${legacy[index]}')).toString();
+      if (assignedAssociation == null || action['_legacy_recovery_id'] != recoveryId) {
+        changed = true;
+      }
+      assignments.add(
+        jsonEncode({
+          ...action,
+          '_legacy_recovery_association': associationId,
+          '_legacy_recovery_id': recoveryId,
+        }),
       );
     }
-    if (!await p.setStringList(_queueKey(associationId), [...scoped, ...recovered])) {
+    if (changed && !await p.setStringList(_legacyQueueKey, assignments)) {
+      throw StateError('Could not save the legacy gate entry assignment.');
+    }
+
+    final recoveredIds = {
+      for (final s in scoped)
+        if ((jsonDecode(s) as Map<String, dynamic>)['_legacy_recovery_id'] case final String id) id,
+    };
+    final now = DateTime.now().toIso8601String();
+    final recovered = <String>[];
+    for (final s in assignments) {
+      final action = jsonDecode(s) as Map<String, dynamic>;
+      final recoveryId = action['_legacy_recovery_id'] as String;
+      if (!recoveredIds.add(recoveryId)) continue;
+      recovered.add(
+        jsonEncode({
+          ...action,
+          'association_id': associationId,
+          'at': action['at'] ?? now,
+          '_legacy_recovery_id': recoveryId,
+        }),
+      );
+    }
+    if (recovered.isNotEmpty && !await p.setStringList(_queueKey(associationId), [...scoped, ...recovered])) {
       throw StateError('Could not save legacy gate entries.');
     }
-    await p.remove(_legacyQueueKey);
+    if (!await p.remove(_legacyQueueKey)) {
+      throw StateError('Could not clear the recovered legacy gate entries.');
+    }
     return recovered.length;
   }
 
@@ -98,7 +138,14 @@ class GateOffline {
       try {
         switch (a['kind']) {
           case 'walkin':
+            var requestId = a['request_id'] as String?;
+            if (requestId == null || requestId.isEmpty) {
+              requestId = GateRepo.newWalkInRequestId();
+              a['request_id'] = requestId;
+              await _save(associationId, q);
+            }
             final id = await GateRepo.walkIn(
+              requestId: requestId,
               flat: a['flat'] as String,
               name: a['name'] as String,
               phone: a['phone'] as String? ?? '',

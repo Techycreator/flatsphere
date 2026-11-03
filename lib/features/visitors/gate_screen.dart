@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/theme.dart';
-import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/backend.dart' show AssociationContext, backendEnabled, db;
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../backend/gate_offline.dart';
 import '../../backend/gate_repo.dart';
@@ -141,12 +141,14 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       final currentUser = ref.read(sessionProvider)?.user;
       if (currentUser == null || !currentUser.associations.any((a) => a.id == selected)) return;
       final recovered = await GateOffline.recoverLegacyQueue(selected);
-      if (mounted && recovered > 0) {
+      if (mounted) {
         setState(() => _legacyPending = 0);
-        toast(
-          context,
-          '$recovered older gate ${recovered == 1 ? 'entry' : 'entries'} assigned to the selected association.',
-        );
+        if (recovered > 0) {
+          toast(
+            context,
+            '$recovered older gate ${recovered == 1 ? 'entry' : 'entries'} assigned to the selected association.',
+          );
+        }
       }
     } catch (e) {
       if (mounted) toast(context, friendlyError(e));
@@ -308,15 +310,30 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     final d = await openGatePage<WalkInData>(context, WalkInPage(flats: flats));
     if (d == null) return;
     final f = d.flat, pic = d.photo;
+    final requestId = GateRepo.newWalkInRequestId();
+    var photoFailed = false;
     try {
-      final id = await GateRepo.walkIn(flat: f, name: d.name, phone: d.phone, type: d.type, vehicle: d.vehicle);
-      if (pic != null) {
-        try {
-          await GateRepo.attachPhoto(id, pic);
-        } catch (_) {
-          if (mounted) toast(context, 'Visitor sent, but the photo could not be uploaded.');
+      await AssociationContext.run(() async {
+        if (await db.rpc('my_association') != associationId) {
+          throw StateError('The active association changed. Reopen the gate action and try again.');
         }
-      }
+        final id = await GateRepo.walkIn(
+          requestId: requestId,
+          flat: f,
+          name: d.name,
+          phone: d.phone,
+          type: d.type,
+          vehicle: d.vehicle,
+        );
+        if (pic != null) {
+          try {
+            await GateRepo.attachPhoto(id, pic);
+          } catch (_) {
+            photoFailed = true;
+          }
+        }
+      });
+      if (photoFailed && mounted) toast(context, 'Visitor sent, but the photo could not be uploaded.');
       if (mounted) toast(context, 'Sent to flat $f. Wait for Approved before letting them in.');
       await _load();
     } catch (e) {
@@ -332,6 +349,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         'type': d.type,
         'vehicle': d.vehicle,
         'photo': pic == null ? null : base64Encode(pic),
+        'request_id': requestId,
         'label': '${d.name} → $f',
       });
       if (mounted && ref.read(sessionProvider)?.user.associationId == associationId) {

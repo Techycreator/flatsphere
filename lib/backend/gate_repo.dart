@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart' show FileOptions;
@@ -21,6 +22,17 @@ typedef GateVisitor = ({
 });
 
 class GateRepo {
+  static final _requestIdRandom = Random.secure();
+
+  static String newWalkInRequestId() {
+    final bytes = List<int>.generate(16, (_) => _requestIdRandom.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-'
+        '${hex.substring(16, 20)}-${hex.substring(20)}';
+  }
+
   static GateVisitor _row(Map<String, dynamic> r) => (
     id: r['id'] as String,
     guest: r['guest_name'] as String,
@@ -94,6 +106,7 @@ class GateRepo {
   }
 
   static Future<String> walkIn({
+    required String requestId,
     required String flat,
     required String name,
     String phone = '',
@@ -101,7 +114,14 @@ class GateRepo {
     String vehicle = '',
   }) async => await db.rpc(
     'gate_walk_in',
-    params: {'p_flat': flat, 'p_name': name, 'p_phone': phone, 'p_type': type, 'p_vehicle': vehicle},
+    params: {
+      'p_flat': flat,
+      'p_name': name,
+      'p_phone': phone,
+      'p_type': type,
+      'p_vehicle': vehicle,
+      'p_request_id': requestId,
+    },
   ) as String;
 
   static Future<void> attachPhoto(String id, Uint8List bytes) async {

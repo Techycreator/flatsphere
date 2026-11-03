@@ -1,5 +1,9 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flatsphere/backend/backend.dart' show AssociationContext;
 import 'package:flatsphere/backend/gate_offline.dart';
+import 'package:flatsphere/backend/gate_repo.dart';
 import 'package:flatsphere/features/visitors/gate_widgets.dart';
 import 'package:flatsphere/widgets/common.dart';
 import 'package:flutter/material.dart';
@@ -100,6 +104,47 @@ void main() {
     expect(await GateOffline.queue('association-b'), isEmpty);
   });
 
+  test('legacy gate queue recovery is safe to repeat after a partial save', () async {
+    const legacy = '{"kind":"walkin","flat":"A-101"}';
+    final recoveryId = sha256.convert(utf8.encode('0:$legacy')).toString();
+    final assignedLegacy = jsonEncode({
+      'kind': 'walkin',
+      'flat': 'A-101',
+      '_legacy_recovery_association': 'association-a',
+      '_legacy_recovery_id': recoveryId,
+    });
+    SharedPreferences.setMockInitialValues({
+      'gate_queue': [assignedLegacy],
+      'gate_queue_association-a': [
+        jsonEncode({'kind': 'walkin', 'flat': 'A-101', '_legacy_recovery_id': recoveryId}),
+      ],
+    });
+
+    expect(await GateOffline.recoverLegacyQueue('association-a'), 0);
+    expect(await GateOffline.legacyQueue(), isEmpty);
+    expect(await GateOffline.queue('association-a'), hasLength(1));
+  });
+
+  test('legacy recovery cannot reassign entries after an interrupted recovery', () async {
+    const legacy = '{"kind":"walkin","flat":"A-101"}';
+    final recoveryId = sha256.convert(utf8.encode('0:$legacy')).toString();
+    SharedPreferences.setMockInitialValues({
+      'gate_queue': [
+        jsonEncode({
+          'kind': 'walkin',
+          'flat': 'A-101',
+          '_legacy_recovery_association': 'association-a',
+          '_legacy_recovery_id': recoveryId,
+        }),
+      ],
+    });
+
+    await expectLater(GateOffline.recoverLegacyQueue('association-b'), throwsA(isA<StateError>()));
+    expect(await GateOffline.queue('association-b'), isEmpty);
+    expect(await GateOffline.recoverLegacyQueue('association-a'), 1);
+    expect((await GateOffline.queue('association-a')).single['association_id'], 'association-a');
+  });
+
   test('legacy queue recovery and new gate actions retain both entries', () async {
     SharedPreferences.setMockInitialValues({
       'gate_queue': ['{"kind":"walkin","flat":"A-101"}'],
@@ -127,6 +172,13 @@ void main() {
 
     await Future.wait([flush, switchAssociation]);
     expect(order, ['flush-start', 'flush-end', 'switch']);
+  });
+
+  test('walk-in request IDs are UUID v4 values', () {
+    expect(
+      GateRepo.newWalkInRequestId(),
+      matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')),
+    );
   });
 
   test('cached gate visitors are scoped to their association', () async {
