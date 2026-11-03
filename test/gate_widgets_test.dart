@@ -102,6 +102,32 @@ void main() {
     expect((await GateOffline.cached('association-a')).single.id, 'visitor-a');
   });
 
+  test('daily-help cache and guard status are scoped to their association', () async {
+    SharedPreferences.setMockInitialValues({});
+    final help = (
+      id: 'help-a',
+      name: 'Helper A',
+      kind: 'maid',
+      phone: null,
+      flatIds: <String>['flat-a'],
+      flats: 'A-101',
+      days: <int>[1],
+      start: null,
+      end: null,
+      notify: false,
+      code: 'A123',
+      inside: false,
+    );
+    await GateOffline.cacheHelp('association-a', [help]);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(GateOffline.guardKey('association-a'), 'Guard A');
+
+    expect(await GateOffline.cachedHelp('association-b'), isEmpty);
+    expect((await GateOffline.cachedHelp('association-a')).single.id, 'help-a');
+    expect(prefs.getString(GateOffline.guardKey('association-b')), isNull);
+    expect(prefs.getString(GateOffline.guardKey('association-a')), 'Guard A');
+  });
+
   test('vehicle formatter retains the supported 24-character registration', () {
     const registration = 'ABCDEFGHIJKLMN1234567890';
     final formatted = VehicleNumberFormatter().formatEditUpdate(

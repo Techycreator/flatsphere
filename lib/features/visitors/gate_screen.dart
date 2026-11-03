@@ -71,9 +71,10 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         if (mounted) toast(context, 'Not accepted: $f');
       }
       final list = await GateRepo.today(associationId: associationId);
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
       await GateOffline.cache(associationId, list);
       final pending = (await GateOffline.queue(associationId)).length;
-      if (ref.read(sessionProvider)?.user.associationId != associationId) return;
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
       if (mounted) {
         setState(() {
           _list = list;
@@ -86,7 +87,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       if (isOffline(e)) {
         final cached = _list.isEmpty ? await GateOffline.cached(associationId) : _list;
         final pending = (await GateOffline.queue(associationId)).length;
-        if (ref.read(sessionProvider)?.user.associationId != associationId) return;
+        if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
         if (mounted) {
           setState(() {
             _offline = true;
@@ -143,7 +144,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         'action': checkIn ? 'check_in' : 'check_out',
         'label': '${v.guest} → ${v.flat}',
       });
-      if (!mounted) return;
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
       _setLocal(v.id, checkIn ? 'checked_in' : 'checked_out');
       setState(() => _pending++);
       toast(context, 'Offline: ${v.guest} checked $word. It will sync when the network is back.');
@@ -192,6 +193,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       }
       if (ref.read(sessionProvider)?.user.associationId != associationId) return;
       await (await SharedPreferences.getInstance()).setString(GateOffline.guardKey(associationId), name);
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
       if (mounted) {
         setState(() => _onDuty = name);
         toast(context, 'Shift started: $name. Entries are recorded under this name.');
@@ -274,7 +276,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         'photo': pic == null ? null : base64Encode(pic),
         'label': '${d.name} → $f',
       });
-      if (mounted) {
+      if (mounted && ref.read(sessionProvider)?.user.associationId == associationId) {
         setState(() => _pending++);
         toast(context, 'Offline: saved. It goes to flat $f when the network is back. Call the flat meanwhile.');
       }
