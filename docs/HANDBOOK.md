@@ -100,7 +100,7 @@ Owners and residents request family members (W30). Approved members get their ow
 
 ### 3.8 Visitors and vehicles
 - **Visitors:** residents and owners pre-register guests; the Security desk checks them in and out. Owners and residents see only the visitors they added; the six roles, Caretaker and Security see all.
-- **Gate desk (Security, Caretaker, Admin, President, Secretary):** select a guard and PIN to start a shift; check visitor pass codes, request flat approval for walk-ins, call saved owner/resident contacts, and check daily-help staff in or out. Offline gate caches and the on-duty guard are scoped to the active association; queued actions retain their originating association and sync only when that association is active. Older queued actions without an association stay on the device until a user chooses which association should receive them. Pass codes are checked against the last saved visitor list. Owners and residents see gate alerts only for visitors they added.
+- **Gate desk (Security, Caretaker, Admin, President, Secretary):** select a guard and PIN to start a shift; check visitor pass codes, request flat approval for walk-ins, call saved owner/resident contacts, and check daily-help staff in or out. Offline gate caches and the on-duty guard are scoped to the active association; queued actions retain their originating association and sync only when that association is active. Queue syncing is serialized with association switches so saved actions cannot be sent in the wrong association. Pass codes are checked against the last saved visitor list. Owners and residents see gate alerts only for visitors they added.
 - **Vehicle lookup:** type the number in any form (up to 24 characters). `KL07CO1074`, `KL-07-CO-1074` and `KL 07 CO 1074` all match. It searches resident vehicles and visitors.
 - **Vehicle register export:** CSV for the boom-barrier system.
 
@@ -237,3 +237,4 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 | 2026-11-03 | Gate offline state and queued actions are association-scoped; owner/resident gate alerts show only visitors they added; vehicle lookup retains numbers up to the supported 24 characters. Feature-branch pushes no longer deploy to the shared Pages project. | 3.8, 3.x Visitors, Technical |
 | 2026-11-03 | Gate queue entries are bound to their originating association, and stale in-memory gate state clears when switching associations. | 3.8 |
 | 2026-11-03 | Legacy gate queue entries remain available for recovery until a user assigns them to an association. | 3.8 |
+| 2026-11-03 | Gate queue syncing is serialized with association switches to prevent queued actions from running in a different association's server context. | 3.8 |

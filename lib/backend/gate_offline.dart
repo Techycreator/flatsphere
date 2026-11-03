@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException, PostgrestException, StorageException;
 
+import 'backend.dart';
 import '../models/models.dart';
 import 'daily_help_repo.dart';
 import 'directory_repo.dart' show friendlyError;
@@ -72,7 +73,11 @@ class GateOffline {
   ]);
 
   /// Returns how many were sent and the messages for ones the server refused. Stops at the first network error.
-  static Future<(int, List<String>)> flush(String associationId) async {
+  static Future<(int, List<String>)> flush(String associationId) =>
+      AssociationContext.run(() => _flush(associationId));
+
+  static Future<(int, List<String>)> _flush(String associationId) async {
+    if (await db.rpc('my_association') != associationId) return (0, <String>[]);
     final q = await queue(associationId);
     var sent = 0;
     final failed = <String>[];

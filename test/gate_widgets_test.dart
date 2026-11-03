@@ -1,3 +1,4 @@
+import 'package:flatsphere/backend/backend.dart' show AssociationContext;
 import 'package:flatsphere/backend/gate_offline.dart';
 import 'package:flatsphere/features/visitors/gate_widgets.dart';
 import 'package:flatsphere/widgets/common.dart';
@@ -96,6 +97,21 @@ void main() {
     expect(recovered.last['at'], isA<String>());
     expect(await GateOffline.legacyQueue(), isEmpty);
     expect(await GateOffline.queue('association-b'), isEmpty);
+  });
+
+  test('association context operations are serialized', () async {
+    final order = <String>[];
+    final flush = AssociationContext.run(() async {
+      order.add('flush-start');
+      await Future<void>.delayed(Duration.zero);
+      order.add('flush-end');
+    });
+    final switchAssociation = AssociationContext.run(() async {
+      order.add('switch');
+    });
+
+    await Future.wait([flush, switchAssociation]);
+    expect(order, ['flush-start', 'flush-end', 'switch']);
   });
 
   test('cached gate visitors are scoped to their association', () async {
