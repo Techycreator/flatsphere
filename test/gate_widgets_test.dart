@@ -172,6 +172,7 @@ void main() {
     });
 
     await expectLater(GateOffline.recoverLegacyQueue('association-b'), throwsA(isA<StateError>()));
+    expect((await GateOffline.legacyQueue()).single['_legacy_recovery_association'], 'association-a');
     expect(await GateOffline.queue('association-b'), isEmpty);
     expect(await GateOffline.recoverLegacyQueue('association-a'), 1);
     expect((await GateOffline.queue('association-a')).single['association_id'], 'association-a');
