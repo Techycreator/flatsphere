@@ -285,13 +285,7 @@ Future<void> showGateResult(BuildContext context, {required bool ok, required St
 
 /// Type a few letters; matching flats appear as big buttons to tap.
 class FlatPicker extends StatefulWidget {
-  const FlatPicker({
-    super.key,
-    required this.flats,
-    required this.onChanged,
-    this.initial,
-    this.onSubmitted,
-  });
+  const FlatPicker({super.key, required this.flats, required this.onChanged, this.initial, this.onSubmitted});
   final List<String> flats;
   final ValueChanged<String?> onChanged;
   final String? initial;
@@ -389,6 +383,42 @@ class _FlatPickerState extends State<FlatPicker> {
   }
 }
 
+/// Common companies in India, shown as one-tap buttons so the guard need not type.
+const walkInCompanies = {
+  'delivery': [
+    'Amazon',
+    'Flipkart',
+    'Swiggy',
+    'Zomato',
+    'Zepto',
+    'Blinkit',
+    'BigBasket',
+    'Swiggy Instamart',
+    'Myntra',
+    'Meesho',
+    'JioMart',
+    'Ekart',
+    'Delhivery',
+    'Blue Dart',
+    'DTDC',
+    'India Post',
+    'Shadowfax',
+    'Courier',
+  ],
+  'cab': ['Uber', 'Ola', 'Rapido', 'Namma Yatri', 'Auto', 'Taxi'],
+  'service': [
+    'Urban Company',
+    'Electrician',
+    'Plumber',
+    'Carpenter',
+    'AC repair',
+    'Internet / Cable',
+    'Gas cylinder',
+    'Water can',
+    'Pest control',
+  ],
+};
+
 typedef WalkInData = ({String flat, String name, String phone, String type, String vehicle, Uint8List? photo});
 
 class WalkInPage extends StatefulWidget {
@@ -444,7 +474,10 @@ class _WalkInPageState extends State<WalkInPage> {
           child: SizedBox(
             height: 88,
             child: (on ? FilledButton.new : OutlinedButton.new)(
-              onPressed: () => setState(() => _type = value),
+              onPressed: () => setState(() {
+                if (_type != value && (walkInCompanies[_type]?.contains(_name.text) ?? false)) _name.clear();
+                _type = value;
+              }),
               style: ButtonStyle(
                 padding: const WidgetStatePropertyAll(EdgeInsets.all(4)),
                 shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
@@ -482,6 +515,27 @@ class _WalkInPageState extends State<WalkInPage> {
             typeTile('service', Icons.handyman, 'Service'),
           ],
         ),
+        if (walkInCompanies[_type] case final companies?) ...[
+          _label(_type == 'delivery' ? 'Which company? (tap one)' : 'Tap one or type below'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final c in companies)
+                SizedBox(
+                  height: 52,
+                  child: (_name.text == c ? FilledButton.new : OutlinedButton.new)(
+                    onPressed: () => setState(() => _name.text = c),
+                    style: ButtonStyle(
+                      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
+                      shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    ),
+                    child: Text(c, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+            ],
+          ),
+        ],
         _label('2. Which flat?'),
         FlatPicker(flats: widget.flats, onChanged: (f) => setState(() => _flat = f)),
         _label('3. Visitor details'),
