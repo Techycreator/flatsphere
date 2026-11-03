@@ -243,7 +243,10 @@ class _CodePadState extends State<CodePad> {
                       key(
                         Tooltip(
                           message: 'Backspace',
-                          child: Icon(Icons.backspace_outlined, size: 30, color: scheme.onSurface),
+                          child: Semantics(
+                            label: 'Backspace',
+                            child: Icon(Icons.backspace_outlined, size: 30, color: scheme.onSurface),
+                          ),
                         ),
                         _back,
                       ),
