@@ -44,7 +44,9 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     super.initState();
     _load();
     if (backendEnabled) GateRepo.purgeOldPhotos().catchError((_) {});
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _load());
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (_loading == null) _load();
+    });
   }
 
   @override
@@ -760,6 +762,7 @@ class _GateAlertsCardState extends ConsumerState<GateAlertsCard> {
                       } catch (e) {
                         if (context.mounted) toast(context, friendlyError(e));
                       }
+                      if (!mounted) return;
                       _load();
                     },
                     child: const Text('Deny'),
@@ -773,6 +776,7 @@ class _GateAlertsCardState extends ConsumerState<GateAlertsCard> {
                       } catch (e) {
                         if (context.mounted) toast(context, friendlyError(e));
                       }
+                      if (!mounted) return;
                       _load();
                     },
                     child: const Text('Approve'),
