@@ -395,18 +395,18 @@ class _ProfileMenu extends ConsumerWidget {
               }
             }();
           case 'setpin':
-            context.go('/set-pin');
+            context.go('/biometric-setup');
           case 'removepin':
             final uid = session.user.id;
             showDialog<bool>(
               context: context,
               builder: (ctx) => AlertDialog(
-                title: const Text('Turn off PIN on this device?'),
+                title: const Text('Turn off fingerprint / face unlock?'),
                 content: const Text(
-                  'FlatSphere will stop asking for your PIN or fingerprint/Face ID when it opens on this device. '
+                  'FlatSphere will stop asking for your fingerprint or face when it opens on this device. '
                   'Anyone holding this unlocked phone or computer could open the app as you until you log out.\n\n'
-                  'Your account, roles and data are not changed, other devices are not affected, and you can set a '
-                  'PIN again anytime from this menu.',
+                  'Your account, roles and data are not changed, other devices are not affected, and you can turn '
+                  'it on again anytime from this menu.',
                 ),
                 actions: [
                   TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
@@ -418,11 +418,9 @@ class _ProfileMenu extends ConsumerWidget {
               await DeviceLock.clear();
               await DeviceLock.skip(uid);
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('PIN turned off on this device. You can set it again from the profile menu.'),
-                  ),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Fingerprint / face unlock turned off on this device.')));
               }
             });
           case 'logout':
@@ -483,8 +481,8 @@ class _ProfileMenu extends ConsumerWidget {
             value: 'setpin',
             child: ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.pin_outlined),
-              title: Text('Set or change PIN'),
+              leading: Icon(Icons.fingerprint),
+              title: Text('Turn on fingerprint / face unlock'),
             ),
           ),
           const PopupMenuItem(
@@ -492,7 +490,7 @@ class _ProfileMenu extends ConsumerWidget {
             child: ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.lock_open_outlined),
-              title: Text('Turn off PIN'),
+              title: Text('Turn off fingerprint / face unlock'),
             ),
           ),
           const PopupMenuDivider(),

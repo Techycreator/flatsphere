@@ -152,21 +152,32 @@
       } catch (e) { /* fall through */ }
       await hardReload();
     }
-    function showUpdateRequired() {
-      if (document.getElementById('fs-update')) return;
-      if (updateAttemptedRecently()) return;
-      if (window.flatsphereUpdateGuard.busy()) { window.flatsphereUpdateGuard.defer(); return; }
+    // While the app is just opening (or reopened after a long break) nothing can be lost, so a newer version is installed
+    // straight away with only the short "Updating" screen; the "Update available" prompt is kept for open sessions.
+    const OPENED_AT = Date.now();
+    let hiddenAt = 0;
+    const justOpened = () => Date.now() - OPENED_AT < 30000 || (hiddenAt && Date.now() - hiddenAt > 30 * 60 * 1000);
+    function newOverlay() {
       const o = document.createElement('div');
       o.id = 'fs-update';
       o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#0F766E;color:#fff;display:flex;'
         + 'flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;font:16px sans-serif';
+      document.body.appendChild(o);
+      document.body.style.overflow = 'hidden';
+      return o;
+    }
+    function showUpdateRequired() {
+      if (document.getElementById('fs-update')) return;
+      if (updateAttemptedRecently()) return;
+      if (window.flatsphereUpdateGuard.busy()) { window.flatsphereUpdateGuard.defer(); return; }
+      if (justOpened()) { applyUpdate(newOverlay()); return; }
+      const o = newOverlay();
       o.innerHTML = '<div style="font-size:22px;font-weight:700">Update available</div>'
         + '<div style="max-width:360px">A new version of FlatSphere is available. Please update to continue.</div>'
         + '<button id="fs-update-btn" style="padding:12px 28px;border:0;border-radius:24px;font:600 16px sans-serif;background:#fff;color:#0F766E;cursor:pointer">Update now</button>';
-      document.body.appendChild(o);
-      document.body.style.overflow = 'hidden';
       document.getElementById('fs-update-btn').onclick = () => applyUpdate(o);
-    }    async function checkForUpdate() {
+    }
+    async function checkForUpdate() {
       if (BUILD_ID.startsWith('__')) return;
       try {
         const r = await fetch('build-id.txt', { cache: 'no-store' });
@@ -177,7 +188,10 @@
     }
     checkForUpdate();
     setInterval(checkForUpdate, 5 * 60 * 1000);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { hiddenAt = Date.now(); return; }
+      checkForUpdate().finally(() => { hiddenAt = 0; });
+    });
     window.addEventListener('flutter-first-frame', () => document.getElementById('splash')?.remove());
   </script>
   <script src="flutter_bootstrap.js" async></script>

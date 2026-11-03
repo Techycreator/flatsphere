@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -74,8 +76,8 @@ List<Complaint> visibleComplaints(WidgetRef ref) {
   final s = ref.watch(sessionProvider)!;
   final all = ref.watch(complaintsProvider);
   return switch (s.activeRole) {
-    Role.owner ||
-    Role.resident => all.where((c) => c.flatNumber == s.user.flatNumber || c.raisedBy == s.user.name).toList(),
+    Role.owner || Role.resident =>
+      all.where((c) => c.raisedById != null ? c.raisedById == s.user.id : c.raisedBy == s.user.name).toList(),
     _ => all,
   };
 }
