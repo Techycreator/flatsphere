@@ -36,6 +36,8 @@ class _GateScreenState extends ConsumerState<GateScreen> {
   bool _recoveringLegacy = false;
   String? _onDuty;
   String? _activeAssociationId;
+  Future<void>? _loading;
+  bool _loadAgain = false;
 
   @override
   void initState() {
@@ -51,7 +53,30 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load() {
+    if (!backendEnabled) return Future<void>.value();
+    final loading = _loading;
+    if (loading != null) {
+      _loadAgain = true;
+      return loading;
+    }
+    final next = _drainLoads();
+    _loading = next;
+    return next;
+  }
+
+  Future<void> _drainLoads() async {
+    try {
+      do {
+        _loadAgain = false;
+        await _loadOnce();
+      } while (_loadAgain && mounted);
+    } finally {
+      _loading = null;
+    }
+  }
+
+  Future<void> _loadOnce() async {
     if (!backendEnabled) return;
     final associationId = ref.read(sessionProvider)?.user.associationId;
     if (associationId == null) return;
