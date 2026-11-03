@@ -54,11 +54,15 @@ void main() {
     await tester.ensureVisible(find.text('Flipkart'));
     await tester.tap(find.text('Flipkart'));
     await tester.pump();
-    expect(find.widgetWithText(TextField, 'Flipkart'), findsOneWidget);
+    final name = find.byWidgetPredicate((w) => w is TextField && w.controller?.text == 'Flipkart');
+    await tester.scrollUntilVisible(name, 200, scrollable: find.byType(Scrollable).first);
+    final controller = tester.widget<TextField>(name).controller!;
+    await tester.scrollUntilVisible(find.text('Cab'), -200, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Cab'));
     await tester.pump();
     expect(find.text('Rapido'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Flipkart'), findsNothing);
+    expect(find.text('Flipkart'), findsNothing);
+    expect(controller.text, isEmpty);
     expect(tester.takeException(), isNull);
   });
 
