@@ -44,13 +44,17 @@ void main() {
     var submissions = 0;
     await _phone(
       tester,
-      FlatPicker(
-        flats: const [],
-        onChanged: (_) {},
-        onSubmitted: (flat) {
-          submitted = flat;
-          submissions++;
-        },
+      Scaffold(
+        body: SingleChildScrollView(
+          child: FlatPicker(
+            flats: const [],
+            onChanged: (_) {},
+            onSubmitted: (flat) {
+              submitted = flat;
+              submissions++;
+            },
+          ),
+        ),
       ),
     );
     await tester.enterText(find.byType(TextField), ' a-101 ');
