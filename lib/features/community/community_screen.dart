@@ -320,17 +320,20 @@ Future<void> _addContact(BuildContext context, WidgetRef ref) async {
         maxLength: 100,
         decoration: const InputDecoration(labelText: 'Service / label *'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: name,
         maxLength: 120,
         decoration: const InputDecoration(labelText: 'Contact name *'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: phone,
         keyboardType: TextInputType.phone,
         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
         decoration: const InputDecoration(labelText: 'Phone *'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: notes,
         maxLength: 500,

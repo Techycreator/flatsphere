@@ -846,6 +846,7 @@ Future<_FundRequestDraft?> _fundRequestDialog(BuildContext context) async {
                   maxLength: 120,
                   decoration: const InputDecoration(labelText: 'Request name *'),
                 ),
+                const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: type,
                   decoration: const InputDecoration(labelText: 'Type'),
@@ -855,12 +856,14 @@ Future<_FundRequestDraft?> _fundRequestDialog(BuildContext context) async {
                   ],
                   onChanged: (value) => set(() => type = value ?? type),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: amount,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(labelText: 'Amount (optional)', prefixText: '₹ '),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: basis,
                   maxLength: 300,
@@ -872,6 +875,7 @@ Future<_FundRequestDraft?> _fundRequestDialog(BuildContext context) async {
                     maxLength: 120,
                     decoration: const InputDecoration(labelText: 'Due day / schedule *'),
                   ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: momRef,
                   maxLength: 120,
@@ -1222,6 +1226,7 @@ Future<_AnnualBudgetDraft?> _annualBudgetDialog(BuildContext context, WidgetRef 
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: InputDecoration(labelText: entry.key, prefixText: '₹ '),
                   ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: resolutionRef,
                   decoration: InputDecoration(labelText: '${l.annualBudgetReference} *'),

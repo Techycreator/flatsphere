@@ -255,6 +255,7 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
               controller: confirm,
               decoration: const InputDecoration(labelText: 'Type the association name to confirm'),
             ),
+            const SizedBox(height: 12),
             TextField(
               controller: reason,
               maxLength: 300,
@@ -368,6 +369,7 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
                   helperText: '1 = January, 4 = April',
                 ),
               ),
+              const SizedBox(height: 12),
               TextField(
                 controller: _dueDay,
                 keyboardType: TextInputType.number,
@@ -391,6 +393,7 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
                   helperText: 'Age on the birthday; choose 1 to 21',
                 ),
               ),
+              const SizedBox(height: 12),
               TextField(
                 controller: _familyMemberLimit,
                 keyboardType: TextInputType.number,

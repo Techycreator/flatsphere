@@ -123,6 +123,7 @@ Future<void> showOpeningBalanceForm(BuildContext context, WidgetRef ref) async {
         controller: account,
         decoration: InputDecoration(labelText: l.account, hintText: 'e.g. SBI current a/c ••••4521'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,
@@ -257,6 +258,7 @@ Future<void> showDuesScheduleForm(BuildContext context, WidgetRef ref) async {
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: const InputDecoration(labelText: 'Late fee amount', prefixText: '₹ '),
         ),
+        const SizedBox(height: 12),
         TextField(
           controller: grace,
           keyboardType: TextInputType.number,
@@ -384,6 +386,7 @@ Future<void> showRaiseDuesPerSqftForm(BuildContext context, WidgetRef ref) async
         controller: head,
         decoration: InputDecoration(labelText: '${l.duesName} *'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: rateController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -430,6 +433,7 @@ Future<void> showFixedLateFeeForm(BuildContext context, WidgetRef ref) async {
         controller: feeName,
         decoration: InputDecoration(labelText: '${l.duesName} *'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,
@@ -487,6 +491,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
           amount.text = due?.pending.toString() ?? '';
         }),
       ),
+      const SizedBox(height: 12),
       DropdownButtonFormField<DueLine?>(
         key: ValueKey(number),
         initialValue: due,
@@ -502,12 +507,14 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
           if (v != null) amount.text = v.pending.toString();
         }),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         decoration: InputDecoration(labelText: '${l.paymentReceived} *', prefixText: '₹ '),
       ),
+      const SizedBox(height: 12),
       DropdownButtonFormField<String>(
         initialValue: mode,
         decoration: InputDecoration(labelText: l.paymentMode),
@@ -517,6 +524,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
         ],
         onChanged: (v) => set(() => mode = v ?? mode),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: reference,
         decoration: InputDecoration(labelText: l.paymentReference, hintText: 'UPI ref, cheque no. or bank txn id'),
@@ -693,14 +701,17 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref, {bool pettyCas
           ],
           onChanged: (value) => set(() => eventId = value),
         ),
+      const SizedBox(height: 12),
       TextField(
         controller: vendor,
         decoration: const InputDecoration(labelText: 'Vendor / payee *'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: description,
         decoration: const InputDecoration(labelText: 'Description'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,

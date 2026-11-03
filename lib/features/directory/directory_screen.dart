@@ -742,11 +742,13 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                     controller: name,
                     decoration: const InputDecoration(labelText: 'Full name *'),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: mobile,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(labelText: 'Mobile number'),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: email,
                     enabled: p.invited,
@@ -1193,6 +1195,7 @@ class _PersonDialogState extends ConsumerState<_PersonDialog> {
                   items: [for (final t in idDocTypes) DropdownMenuItem(value: t, child: Text(t))],
                   onChanged: (v) => set(() => type = v ?? type),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: last4,
                   maxLength: 4,

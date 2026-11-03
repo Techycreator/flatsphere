@@ -487,12 +487,14 @@ Future<void> _addItem(BuildContext context, WidgetRef ref, List<ChecklistItem> i
               controller: title,
               decoration: const InputDecoration(labelText: 'Task *', hintText: 'e.g. Fire extinguisher pressure check'),
             ),
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: category,
               decoration: const InputDecoration(labelText: 'Category (monitors see their categories)'),
               items: [for (final c in categories) DropdownMenuItem(value: c, child: Text(c))],
               onChanged: (v) => setState(() => category = v ?? category),
             ),
+            const SizedBox(height: 12),
             TextField(
               controller: window,
               decoration: const InputDecoration(labelText: 'When', hintText: 'e.g. Before 9:00 AM'),

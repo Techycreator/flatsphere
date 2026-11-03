@@ -60,7 +60,7 @@ class StatCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           child: Row(
             children: [
               CircleAvatar(
@@ -79,8 +79,21 @@ class StatCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-                    if (sub != null) Text(sub!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: c)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        value,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    if (sub != null)
+                      Text(
+                        sub!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: c),
+                      ),
                   ],
                 ),
               ),
@@ -101,13 +114,18 @@ class StatGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, c) {
-        final cols = c.maxWidth > 900 ? 4 : (c.maxWidth > 520 ? 2 : 1);
+        final max = c.maxWidth > 900 ? 4 : (c.maxWidth >= 340 ? 2 : 1);
+        final cols = children.isEmpty ? 1 : (children.length < max ? children.length : max);
         const gap = 12.0;
         final w = (c.maxWidth - gap * (cols - 1)) / cols;
+        final lone = children.length % cols == 1 && cols == 2;
         return Wrap(
           spacing: gap,
           runSpacing: gap,
-          children: [for (final ch in children) SizedBox(width: w, child: ch)],
+          children: [
+            for (var i = 0; i < children.length; i++)
+              SizedBox(width: lone && i == children.length - 1 ? c.maxWidth : w, child: children[i]),
+          ],
         );
       },
     );

@@ -224,6 +224,7 @@ Future<_RegisterDraft?> _recordDialog(BuildContext context) async {
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(labelText: 'Expected life in years'),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: replacementCost,
                     keyboardType: TextInputType.number,

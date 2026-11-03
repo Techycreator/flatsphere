@@ -882,6 +882,7 @@ class _GuardsDialogState extends State<_GuardsDialog> {
               controller: _name,
               decoration: const InputDecoration(labelText: 'Guard name'),
             ),
+            const SizedBox(height: 12),
             TextField(
               controller: _pin,
               obscureText: true,

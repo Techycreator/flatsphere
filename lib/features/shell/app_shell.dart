@@ -571,6 +571,7 @@ Future<void> _editMyProfile(BuildContext context, Session session) async {
               controller: name,
               decoration: const InputDecoration(labelText: 'Full name *'),
             ),
+            const SizedBox(height: 12),
             TextField(
               controller: mobile,
               keyboardType: TextInputType.phone,
