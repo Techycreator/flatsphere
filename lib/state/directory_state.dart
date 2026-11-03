@@ -171,6 +171,38 @@ class DirectoryNotifier extends Notifier<DirectoryState> {
     );
   }
 
+  Future<void> updateContact(Person person, String name, String mobile, String email) async {
+    if (backendEnabled) {
+      await DirectoryRepo.updateContact(person, name, mobile, email);
+      return refresh();
+    }
+    _set(
+      people: [
+        for (final c in state.people)
+          if (c.id == person.id)
+            Person(
+              id: c.id,
+              name: name,
+              email: c.invited ? email : c.email,
+              mobile: mobile.isEmpty ? null : mobile,
+              role: c.role,
+              flatNumber: c.flatNumber,
+              birthDate: c.birthDate,
+              invited: c.invited,
+              designations: c.designations,
+              monitorCategories: c.monitorCategories,
+              monitorFrom: c.monitorFrom,
+              monitorUntil: c.monitorUntil,
+              assignedBy: c.assignedBy,
+              since: c.since,
+              supportFlags: c.supportFlags,
+            )
+          else
+            c,
+      ],
+    );
+  }
+
   Future<void> setBirthDate(Person person, DateTime birthDate) async {
     if (backendEnabled) {
       await DirectoryRepo.setBirthDate(person, birthDate);

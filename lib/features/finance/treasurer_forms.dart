@@ -1,11 +1,16 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../backend/backend.dart';
+import '../../backend/bill_parser.dart';
+import '../../backend/bill_reader.dart';
+import '../../backend/finance_repo.dart';
 import '../../backend/community_repo.dart';
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../backend/upload_preparation.dart' show maxSourceUploadBytes;
@@ -412,7 +417,49 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
   });
 }
 
-Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
+final pettyCashBalanceProvider = FutureProvider.autoDispose<int?>(
+  (ref) async => backendEnabled ? FinanceRepo.pettyCashBalance() : null,
+);
+
+Future<void> showPettyCashForm(BuildContext context, WidgetRef ref) async {
+  final amount = TextEditingController();
+  final note = TextEditingController();
+  var date = DateUtils.dateOnly(DateTime.now());
+  final ok = await _form(
+    context,
+    title: 'Give petty cash to caretaker',
+    action: 'Save',
+    validate: () => (int.tryParse(amount.text) ?? 0) <= 0 ? 'Enter the amount' : null,
+    fields: (set) => [
+      TextField(
+        controller: amount,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: const InputDecoration(labelText: 'Amount *', prefixText: '₹ '),
+      ),
+      OutlinedButton.icon(
+        icon: const Icon(Icons.event),
+        label: Text('Given on ${dateFmt.format(date)}'),
+        onPressed: () async {
+          final d = await _pickDate(context, date);
+          if (d != null) set(() => date = d);
+        },
+      ),
+      TextField(
+        controller: note,
+        decoration: const InputDecoration(labelText: 'Note (e.g. cash from office)'),
+      ),
+    ],
+  );
+  if (ok != true || !context.mounted) return;
+  await _run(context, () async {
+    await FinanceRepo.addPettyCash(int.parse(amount.text), date, note.text.trim());
+    ref.invalidate(pettyCashBalanceProvider);
+    return 'Petty cash recorded';
+  });
+}
+
+Future<void> showExpenseForm(BuildContext context, WidgetRef ref, {bool pettyCash = false}) async {
   final s = ref.read(sessionProvider)!;
   var events = <CommunityEvent>[];
   if (backendEnabled) {
@@ -427,9 +474,11 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
   final description = TextEditingController();
   final amount = TextEditingController();
   PickedFile? bill;
+  var reading = false;
+  String? readNote;
   final ok = await _form(
     context,
-    title: 'Add expense',
+    title: pettyCash ? 'Petty cash expense' : 'Add expense',
     action: 'Submit for verification',
     validate: () {
       if (vendor.text.trim().isEmpty) return 'Enter the vendor or payee';
@@ -437,6 +486,53 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
       return null;
     },
     fields: (set) => [
+      FilledButton.tonalIcon(
+        icon: reading
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            : Icon(bill == null ? Icons.document_scanner_outlined : Icons.check_circle),
+        label: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Text(
+            reading ? 'Reading the bill…' : (bill == null ? 'Add bill photo first (fills the form)' : bill!.name),
+          ),
+        ),
+        onPressed: reading
+            ? null
+            : () async {
+                final b = await pickBill(context);
+                if (b == null) return;
+                set(() {
+                  bill = b;
+                  readNote = null;
+                });
+                if (!const {'jpg', 'jpeg', 'png', 'webp'}.contains(b.ext.toLowerCase())) return;
+                set(() => reading = true);
+                final text = await readBillText(b.bytes);
+                final g = text == null ? const BillGuess() : parseBill(text);
+                set(() {
+                  reading = false;
+                  if (g.isEmpty) {
+                    readNote = 'Could not read details from this photo. Please fill them in.';
+                    return;
+                  }
+                  if (g.vendor != null && vendor.text.trim().isEmpty) vendor.text = g.vendor!;
+                  if (g.amount != null) amount.text = '${g.amount}';
+                  if (g.date != null) date = g.date!;
+                  final extra = [
+                    if (g.invoiceNo != null) 'Invoice ${g.invoiceNo}',
+                    if (g.gstin != null) 'GSTIN ${g.gstin}',
+                  ].join(' · ');
+                  if (extra.isNotEmpty && description.text.trim().isEmpty) description.text = extra;
+                  readNote = 'Filled from the bill. Please check every field before submitting.';
+                });
+              },
+      ),
+      if (readNote != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(readNote!, style: _note),
+        ),
+      const SizedBox(height: 8),
       OutlinedButton.icon(
         icon: const Icon(Icons.event),
         label: Text('Spent on ${dateFmt.format(date)}'),
@@ -480,15 +576,6 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         decoration: const InputDecoration(labelText: 'Amount *', prefixText: '₹ '),
       ),
-      const SizedBox(height: 12),
-      OutlinedButton.icon(
-        icon: Icon(bill == null ? Icons.add_a_photo_outlined : Icons.check_circle),
-        label: Text(bill == null ? 'Attach bill photo or PDF' : bill!.name),
-        onPressed: () async {
-          final b = await pickBill(context);
-          if (b != null) set(() => bill = b);
-        },
-      ),
       const Padding(
         padding: EdgeInsets.only(top: 8),
         child: Text(
@@ -513,7 +600,9 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
           bill: bill?.bytes,
           ext: bill?.ext,
           eventId: eventId,
+          paidFrom: pettyCash ? 'petty_cash' : 'association',
         );
+    ref.invalidate(pettyCashBalanceProvider);
     return 'Expense submitted to the Treasurer';
   });
 }

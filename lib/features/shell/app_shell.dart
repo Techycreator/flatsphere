@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/nav.dart';
 import '../../backend/backend.dart' show backendEnabled, db;
-import '../../backend/directory_repo.dart' show friendlyError;
+import '../../backend/directory_repo.dart' show DirectoryRepo, friendlyError;
 import '../../security/device_lock.dart';
 import '../../security/web_push.dart';
 import '../../backend/notifications_repo.dart';
@@ -372,6 +372,8 @@ class _ProfileMenu extends ConsumerWidget {
             context.go('/audit');
           case 'datatools':
             context.go('/data-tools');
+          case 'profile':
+            _editMyProfile(context, session);
           case 'help':
             showGlossary(context);
           case 'push':
@@ -460,6 +462,15 @@ class _ProfileMenu extends ConsumerWidget {
             ),
           ),
         const PopupMenuDivider(),
+        if (backendEnabled)
+          const PopupMenuItem(
+            value: 'profile',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.person_outline),
+              title: Text('My profile'),
+            ),
+          ),
         const PopupMenuItem(
           value: 'help',
           child: ListTile(
@@ -539,6 +550,51 @@ Future<void> _sos(BuildContext context) async {
     final n = await db.rpc('raise_sos', params: {'p_note': note}) as int;
     if (context.mounted)
       toast(context, n == 0 ? 'SOS sent, but no security or committee member is set up.' : 'SOS sent to $n people.');
+  } catch (e) {
+    if (context.mounted) toast(context, friendlyError(e));
+  }
+}
+
+Future<void> _editMyProfile(BuildContext context, Session session) async {
+  final name = TextEditingController(text: session.user.name);
+  final mobile = TextEditingController(text: session.user.mobile);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('My profile'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: 'Full name *'),
+            ),
+            TextField(
+              controller: mobile,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Mobile number'),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your login email can only be changed by the Secretary or President.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  if (name.text.trim().isEmpty) return toast(context, 'Enter your name');
+  try {
+    await DirectoryRepo.updateMyProfile(name.text.trim(), mobile.text.trim());
+    if (context.mounted) toast(context, 'Profile saved. It shows everywhere after you next open the app.');
   } catch (e) {
     if (context.mounted) toast(context, friendlyError(e));
   }

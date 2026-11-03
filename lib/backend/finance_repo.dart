@@ -332,7 +332,7 @@ class FinanceRepo {
     final rows = await db
         .from('expenses')
         .select(
-          'id, ref_no, spent_on, category, vendor, description, amount, status, bill_paths, entered_by_name, flagged, flag_reason, flag_resolution, comment, event_id',
+          'id, ref_no, spent_on, category, vendor, description, amount, status, bill_paths, entered_by_name, flagged, flag_reason, flag_resolution, comment, event_id, paid_from',
         )
         .order('created_at', ascending: false);
     return [
@@ -353,9 +353,15 @@ class FinanceRepo {
           flagReason: r['flag_reason'] as String?,
           flagResolution: r['flag_resolution'] as String?,
           eventId: r['event_id'] as String?,
+          paidFrom: r['paid_from'] as String? ?? 'association',
         ),
     ];
   }
+
+  static Future<int?> pettyCashBalance() async => (await db.rpc('petty_cash_balance') as num?)?.toInt();
+
+  static Future<void> addPettyCash(int amount, DateTime givenOn, String note) =>
+      db.from('petty_cash_topups').insert({'amount': amount, 'given_on': _date(givenOn), 'note': note});
 
   static Future<String> _upload(Uint8List bytes, String ext) async {
     final prepared = await prepareUpload(bytes, ext);
@@ -376,6 +382,7 @@ class FinanceRepo {
     Uint8List? bill,
     String? ext,
     String? eventId,
+    String paidFrom = 'association',
   }) async {
     final paths = [if (bill != null) await _upload(bill, ext ?? 'jpg')];
     await db.from('expenses').insert({
@@ -386,6 +393,7 @@ class FinanceRepo {
       'amount': amount,
       'bill_paths': paths,
       'event_id': eventId,
+      'paid_from': paidFrom,
     });
   }
 

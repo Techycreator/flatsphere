@@ -1,10 +1,13 @@
 import 'bank_account_card.dart';
+
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -160,10 +163,11 @@ class _Overview extends ConsumerWidget {
               'EC view: summary level. Detailed ledgers are visible to office bearers as configured by the Secretary.',
             ),
           ),
-        if (!backendEnabled) const TwoCol(
-          left: SectionCard(title: 'Income vs expenditure (May – Oct 2026)', child: IncomeExpenseChart()),
-          right: SectionCard(title: 'Expenditure by category – Sep 2026 (last closed month)', child: ExpensePie()),
-        ),
+        if (!backendEnabled)
+          const TwoCol(
+            left: SectionCard(title: 'Income vs expenditure (May – Oct 2026)', child: IncomeExpenseChart()),
+            right: SectionCard(title: 'Expenditure by category – Sep 2026 (last closed month)', child: ExpensePie()),
+          ),
         const SizedBox(height: 16),
         SectionCard(
           title: 'Income by category – $currentFyLabel to date',
@@ -475,7 +479,8 @@ class _ExpensesTab extends ConsumerWidget {
       );
       if (c != null && c.trim().isNotEmpty) {
         await act(e, 'flag', c);
-        if (context.mounted) toast(context, 'Flagged. The committee is notified and it is offered for the next EC agenda.');
+        if (context.mounted)
+          toast(context, 'Flagged. The committee is notified and it is offered for the next EC agenda.');
       }
     }
 
@@ -530,6 +535,26 @@ class _ExpensesTab extends ConsumerWidget {
               ),
           ],
         ),
+        if (const {Role.treasurer, Role.jointTreasurer, Role.admin}.contains(role)) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                'Petty cash with caretaker: ${switch (ref.watch(pettyCashBalanceProvider).value) {
+                  final b? => inr.format(b),
+                  null => '—',
+                }}',
+              ),
+              OutlinedButton.icon(
+                onPressed: () => showPettyCashForm(context, ref),
+                icon: const Icon(Icons.payments_outlined),
+                label: const Text('Give petty cash'),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 12),
         if (list.isEmpty) const EmptyState('No expenses recorded yet.', icon: Icons.receipt_long_outlined),
         for (final e in list) ...[
@@ -556,6 +581,11 @@ class _ExpensesTab extends ConsumerWidget {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 8),
+                  if (e.fromPettyCash)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 6),
+                      child: Pill('Paid from petty cash', color: AppColors.amber),
+                    ),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
@@ -582,7 +612,11 @@ class _ExpensesTab extends ConsumerWidget {
                       else
                         Pill('${e.documents} document(s)', color: Colors.blueGrey, icon: Icons.attach_file),
                       if (e.flagged)
-                        Pill('Flagged for discussion${e.flagReason == null ? '' : ': ${e.flagReason}'}', color: AppColors.amber, icon: Icons.flag)
+                        Pill(
+                          'Flagged for discussion${e.flagReason == null ? '' : ': ${e.flagReason}'}',
+                          color: AppColors.amber,
+                          icon: Icons.flag,
+                        )
                       else if (e.flagResolution != null)
                         Pill('Flag resolved: ${e.flagResolution}', color: AppColors.green, icon: Icons.check),
                       if (e.comment != null)
@@ -1027,8 +1061,16 @@ class StatementsScreen extends ConsumerWidget {
                         runSpacing: 8,
                         children: [
                           _statementFigure(context, l.incomeTotal, (totals['income'] as num?)?.toInt() ?? 0),
-                          _statementFigure(context, l.approvedExpenses, (totals['approved_expenses'] as num?)?.toInt() ?? 0),
-                          _statementFigure(context, l.paymentsReceived, (totals['payments_received'] as num?)?.toInt() ?? 0),
+                          _statementFigure(
+                            context,
+                            l.approvedExpenses,
+                            (totals['approved_expenses'] as num?)?.toInt() ?? 0,
+                          ),
+                          _statementFigure(
+                            context,
+                            l.paymentsReceived,
+                            (totals['payments_received'] as num?)?.toInt() ?? 0,
+                          ),
                         ],
                       ),
                     ],

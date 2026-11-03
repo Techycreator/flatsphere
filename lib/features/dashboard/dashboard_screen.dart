@@ -18,6 +18,7 @@ import '../approvals/approval_tile.dart';
 import '../complaints/complaint_tile.dart';
 import '../community/community_screen.dart' show communityEventsProvider, marketplaceProvider;
 import '../finance/charts.dart';
+import '../finance/treasurer_forms.dart' show pettyCashBalanceProvider, showExpenseForm;
 import '../visitors/gate_screen.dart' show GateAlertsCard;
 
 class DashboardScreen extends ConsumerWidget {
@@ -227,8 +228,6 @@ class _PresidentDash extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider);
-    final s = ref.watch(sessionProvider)!;
-    final pending = ref.watch(approvalsProvider).where((a) => a.needsAction(s.activeRole, s.user.name)).length;
     final red = ref.watch(complaintsProvider).where((c) => c.slaApplies && slaFor(c, now).color == SlaColor.red).length;
     final dues = ref.watch(duesProvider).lines;
     final total = dues.fold(0, (a, x) => a + x.amount);
@@ -240,12 +239,6 @@ class _PresidentDash extends ConsumerWidget {
       children: [
         StatGrid(
           children: [
-            StatCard(
-              label: 'Pending approvals',
-              value: '$pending',
-              icon: Icons.verified_outlined,
-              onTap: () => context.go('/approvals'),
-            ),
             StatCard(
               label: 'Red complaints',
               value: '$red',
@@ -311,7 +304,6 @@ class _SecretaryDash extends ConsumerWidget {
     final review = all.where((c) => c.inReview).toList();
     int n(SlaColor c) => open.where((x) => slaFor(x, now).color == c).length;
     final cl = ref.watch(checklistProvider);
-    final pending = ref.watch(approvalsProvider).where((a) => a.needsAction(role, session.user.name)).length;
     final byCat = <String, (int, int)>{};
     for (final i in cl.items) {
       final v = byCat[i.category] ?? (0, 0);
@@ -322,12 +314,6 @@ class _SecretaryDash extends ConsumerWidget {
       children: [
         StatGrid(
           children: [
-            StatCard(
-              label: 'Pending approvals',
-              value: '$pending',
-              icon: Icons.verified_outlined,
-              onTap: () => context.go('/approvals'),
-            ),
             StatCard(
               label: 'Open complaints',
               value: '${open.length}',
@@ -731,6 +717,10 @@ class _CaretakerDash extends ConsumerWidget {
             ),
           ),
         ),
+        if (backendEnabled && ref.watch(sessionProvider)!.activeRole == Role.caretaker) ...[
+          const SizedBox(height: 16),
+          const _PettyCashCard(),
+        ],
         const SizedBox(height: 16),
         SectionCard(
           title: 'Open complaints (most urgent first)',
@@ -859,3 +849,37 @@ class _AuditorDash extends StatelessWidget {
 }
 
 String _balance(int? v) => v == null ? 'Not set' : inr.format(v);
+
+class _PettyCashCard extends ConsumerWidget {
+  const _PettyCashCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final balance = ref.watch(pettyCashBalanceProvider).value;
+    final mine = ref.watch(expensesProvider).where((e) => e.fromPettyCash).take(5).toList();
+    return SectionCard(
+      title: 'Petty cash',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            balance == null ? 'Balance: —' : 'Balance with you: ${inr.format(balance)}',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () => showExpenseForm(context, ref, pettyCash: true),
+            icon: const Icon(Icons.add_a_photo_outlined),
+            label: const Padding(padding: EdgeInsets.all(10), child: Text('Add petty cash expense')),
+          ),
+          for (final e in mine)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('${e.vendor} · ${inr.format(e.amount)}'),
+              subtitle: Text('${dateFmt.format(e.date)} · ${e.status.label}'),
+            ),
+        ],
+      ),
+    );
+  }
+}

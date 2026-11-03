@@ -58,6 +58,19 @@
         } catch (e) { return false; }
       },
     };
+    // Reads text from a bill photo in this browser; the OCR library is downloaded only the first time it is used.
+    window.flatsphereOcr = async (bytes) => {
+      if (!window.Tesseract) {
+        await new Promise((ok, fail) => {
+          const sc = document.createElement('script');
+          sc.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+          sc.onload = ok; sc.onerror = fail;
+          document.head.appendChild(sc);
+        });
+      }
+      const r = await window.Tesseract.recognize(new Blob([bytes]), 'eng');
+      return r.data.text;
+    };
     window.flatspherePush = {
       async subscribe(key) {
         if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return null;
