@@ -243,12 +243,23 @@ void main() {
       vehicle: null,
       passCode: '123456',
       arrival: DateTime(2026, 11, 3),
+      note: 'Interview',
       photoPath: null,
       guardName: null,
     );
     await GateOffline.cache('association-a', [visitor]);
     expect(await GateOffline.cached('association-b'), isEmpty);
     expect((await GateOffline.cached('association-a')).single.id, 'visitor-a');
+    expect((await GateOffline.cached('association-a')).single.note, 'Interview');
+  });
+
+  test('cached staff contacts retain recipient IDs and stay association-scoped', () async {
+    SharedPreferences.setMockInitialValues({});
+    const staff = [(id: 'staff-a', name: 'Ravi', role: 'caretaker', mobile: '9999999999')];
+    await GateOffline.cacheStaff('association-a', staff);
+
+    expect(await GateOffline.cachedStaff('association-b'), isEmpty);
+    expect((await GateOffline.cachedStaff('association-a')).single.id, 'staff-a');
   });
 
   test('daily-help cache and guard status are scoped to their association', () async {
@@ -360,7 +371,10 @@ void main() {
   testWidgets('walk-in for staff needs a staff member and an Other purpose', (tester) async {
     final result = await openWalkIn(
       tester,
-      const WalkInPage(flats: ['A-101'], staff: [(name: 'Ravi', role: 'caretaker', mobile: '9999999999')]),
+      const WalkInPage(
+        flats: ['A-101'],
+        staff: [(id: 'staff-a', name: 'Ravi', role: 'caretaker', mobile: '9999999999')],
+      ),
     );
     await tester.tap(find.text('Other'));
     await tester.pump();
@@ -381,8 +395,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(result()?.mode, 'staff');
     expect(result()?.meet, 'Ravi');
+    expect(result()?.staffId, 'staff-a');
     expect(result()?.note, 'Interview');
     expect(result()?.type, 'other');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('walk-in restores the selected flat after switching to staff and back', (tester) async {
+    await _phone(tester, const WalkInPage(flats: ['A-101']));
+    final flatField = find.byWidgetPredicate((w) => w is TextField && w.decoration?.labelText == 'Flat number');
+    await tester.enterText(flatField, 'a101');
+    await tester.pump();
+    final flatButton = find.widgetWithText(FilledButton, 'A-101');
+    await tester.ensureVisible(flatButton);
+    await tester.tap(flatButton);
+    await tester.pump();
+
+    final staffToggle = find.text('Caretaker / staff');
+    await tester.ensureVisible(staffToggle);
+    await tester.tap(staffToggle);
+    await tester.pump();
+    final flatToggle = find.text('A flat');
+    await tester.ensureVisible(flatToggle);
+    await tester.tap(flatToggle);
+    await tester.pump();
+
+    expect(find.text('Flat A-101'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

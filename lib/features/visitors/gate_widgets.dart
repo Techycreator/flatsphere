@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
+import '../../backend/backend.dart' show AssociationContext;
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../backend/gate_offline.dart';
 import '../../backend/gate_repo.dart';
@@ -30,12 +31,14 @@ Future<List<String>> loadGateFlats(String? associationId) async {
 }
 
 /// Staff the guard can call, cached per association so it also works offline.
-Future<List<({String name, String role, String mobile})>> loadGateStaff(String? associationId) async {
+Future<List<({String id, String name, String role, String mobile})>> loadGateStaff(String? associationId) async {
   if (associationId == null) return const [];
   try {
-    final s = await GateRepo.staffContacts();
-    await GateOffline.cacheStaff(associationId, s);
-    return s;
+    return await AssociationContext.run(() async {
+      final staff = await GateRepo.staffContacts(associationId: associationId);
+      await GateOffline.cacheStaff(associationId, staff);
+      return staff;
+    });
   } catch (_) {
     return GateOffline.cachedStaff(associationId);
   }
@@ -487,12 +490,13 @@ typedef WalkInData = ({
   String mode,
   String note,
   String meet,
+  String? staffId,
 });
 
 class WalkInPage extends StatefulWidget {
   const WalkInPage({super.key, required this.flats, this.staff = const []});
   final List<String> flats;
-  final List<({String name, String role, String mobile})> staff;
+  final List<({String id, String name, String role, String mobile})> staff;
 
   @override
   State<WalkInPage> createState() => _WalkInPageState();
@@ -507,6 +511,7 @@ class _WalkInPageState extends State<WalkInPage> {
   Uint8List? _photo;
   bool _forStaff = false;
   String? _staff;
+  String? _staffId;
 
   @override
   void dispose() {
@@ -546,6 +551,7 @@ class _WalkInPageState extends State<WalkInPage> {
       mode: mode,
       note: _note.text.trim(),
       meet: mode == 'staff' ? _meet : '',
+      staffId: mode == 'staff' && _otherStaff.text.trim().isEmpty ? _staffId : null,
     ));
   }
 
@@ -687,24 +693,25 @@ class _WalkInPageState extends State<WalkInPage> {
         ),
         const SizedBox(height: 8),
         if (!_forStaff)
-          FlatPicker(flats: widget.flats, onChanged: (f) => setState(() => _flat = f))
+          FlatPicker(flats: widget.flats, initial: _flat, onChanged: (f) => setState(() => _flat = f))
         else ...[
           const Text('Call them to confirm, then tap their name.', style: TextStyle(fontSize: 17)),
           const SizedBox(height: 8),
           for (final s in widget.staff)
             Card(
               margin: const EdgeInsets.only(bottom: 8),
-              color: _staff == s.name && _otherStaff.text.trim().isEmpty
+              color: _staffId == s.id && _otherStaff.text.trim().isEmpty
                   ? AppColors.green.withValues(alpha: .15)
                   : null,
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 onTap: () => setState(() {
                   _staff = s.name;
+                  _staffId = s.id.isEmpty ? null : s.id;
                   _otherStaff.clear();
                 }),
                 leading: Icon(
-                  _staff == s.name && _otherStaff.text.trim().isEmpty ? Icons.check_circle : Icons.person_outline,
+                  _staffId == s.id && _otherStaff.text.trim().isEmpty ? Icons.check_circle : Icons.person_outline,
                   size: 32,
                   color: AppColors.green,
                 ),

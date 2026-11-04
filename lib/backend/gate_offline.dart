@@ -176,6 +176,8 @@ class GateOffline {
               mode: a['mode'] as String? ?? 'ask',
               note: a['note'] as String? ?? '',
               meet: a['meet'] as String? ?? '',
+              staffId: a['staff_id'] as String?,
+              occurredAt: a['at'] is String ? DateTime.tryParse(a['at'] as String) : null,
             );
             final photo = a['photo'] as String?;
             if (photo != null) {
@@ -184,7 +186,10 @@ class GateOffline {
               } catch (_) {}
             }
           case 'lobby':
-            await GateRepo.lobbyDrop(a['id'] as String);
+            await GateRepo.lobbyDrop(
+              a['id'] as String,
+              occurredAt: a['at'] is String ? DateTime.tryParse(a['at'] as String) : null,
+            );
           case 'help':
             await DailyHelpRepo.entry(
               a['id'] as String,
@@ -221,6 +226,7 @@ class GateOffline {
           'status': v.status,
           'approval': v.approval,
           'type': v.type,
+          'note': v.note,
           'vehicle': v.vehicle,
           'pass': v.passCode,
           'arrival': v.arrival.toIso8601String(),
@@ -241,6 +247,7 @@ class GateOffline {
           status: m['status'] as String,
           approval: m['approval'] as String,
           type: m['type'] as String,
+          note: m['note'] as String? ?? '',
           vehicle: m['vehicle'] as String?,
           passCode: m['pass'] as String?,
           arrival: DateTime.parse(m['arrival'] as String),
@@ -256,18 +263,23 @@ class GateOffline {
 
   static Future<void> cacheStaff(
     String associationId,
-    List<({String name, String role, String mobile})> staff,
+    List<({String id, String name, String role, String mobile})> staff,
   ) async => (await SharedPreferences.getInstance()).setString(
     _staffKey(associationId),
-    jsonEncode([for (final s in staff) {'name': s.name, 'role': s.role, 'mobile': s.mobile}]),
+    jsonEncode([for (final s in staff) {'id': s.id, 'name': s.name, 'role': s.role, 'mobile': s.mobile}]),
   );
 
-  static Future<List<({String name, String role, String mobile})>> cachedStaff(String associationId) async {
+  static Future<List<({String id, String name, String role, String mobile})>> cachedStaff(String associationId) async {
     final raw = (await SharedPreferences.getInstance()).getString(_staffKey(associationId));
     if (raw == null) return const [];
     return [
       for (final m in (jsonDecode(raw) as List).cast<Map<String, dynamic>>())
-        (name: m['name'] as String, role: m['role'] as String, mobile: m['mobile'] as String),
+        (
+          id: m['id'] as String? ?? '',
+          name: m['name'] as String,
+          role: m['role'] as String,
+          mobile: m['mobile'] as String,
+        ),
     ];
   }
 

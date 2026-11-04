@@ -214,6 +214,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
                 vehicle: v.vehicle,
                 passCode: v.passCode,
                 arrival: v.arrival,
+                note: v.note,
                 photoPath: v.photoPath,
                 guardName: v.guardName,
               )
@@ -276,6 +277,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       await GateOffline.add(associationId, {'kind': 'lobby', 'id': v.id, 'label': '${v.guest} → ${v.flat} (lobby)'});
       if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
       _setLocal(v.id, 'checked_in', approval: 'lobby');
+      await GateOffline.cache(associationId, _list);
       setState(() => _pending++);
       toast(context, 'Offline: ${v.guest} left at the lobby. It will sync when the network is back.');
     }
@@ -404,6 +406,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
           mode: d.mode,
           note: d.note,
           meet: d.meet,
+          staffId: d.staffId,
         );
         if (pic != null) {
           try {
@@ -433,6 +436,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         'mode': d.mode,
         'note': d.note,
         'meet': d.meet,
+        'staff_id': d.staffId,
         'label': '${d.name} → ${d.mode == 'staff' ? d.meet : f}',
       });
       if (mounted && ref.read(sessionProvider)?.user.associationId == associationId) {
@@ -451,6 +455,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
           vehicle: d.vehicle.isEmpty ? null : d.vehicle,
           passCode: null,
           arrival: DateTime.now(),
+          note: d.note,
           photoPath: null,
           guardName: null,
         );
@@ -680,6 +685,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
               if (v.approval == 'staff_confirmed') 'confirmed by staff',
               if (v.vehicle != null) v.vehicle!,
               if (v.phone != null) v.phone!,
+              if (v.note.isNotEmpty) 'Purpose: ${v.note}',
               dateTimeFmt.format(v.arrival),
               if (v.guardName != null) 'by ${v.guardName}',
             ].join(' · '),
@@ -816,7 +822,11 @@ class _GateAlertsCardState extends ConsumerState<GateAlertsCard> {
                     ? const Icon(Icons.doorbell_outlined, color: AppColors.amber)
                     : VisitorPhoto(path: v.photoPath!),
                 title: Text('${v.guest} is at the gate for ${v.flat}'),
-                subtitle: Text([v.type, if (v.vehicle != null) v.vehicle!].join(' · ')),
+                subtitle: Text([
+                  v.type,
+                  if (v.note.isNotEmpty) 'Purpose: ${v.note}',
+                  if (v.vehicle != null) v.vehicle!,
+                ].join(' · ')),
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,

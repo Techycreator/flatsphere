@@ -17,6 +17,7 @@ typedef GateVisitor = ({
   String? vehicle,
   String? passCode,
   DateTime arrival,
+  String note,
   String? photoPath,
   String? guardName,
 });
@@ -47,12 +48,13 @@ class GateRepo {
     vehicle: r['vehicle_number'] as String?,
     passCode: r['pass_code'] as String?,
     arrival: DateTime.parse(r['expected_arrival'] as String).toLocal(),
+    note: r['note'] as String? ?? '',
     photoPath: r['photo_path'] as String?,
     guardName: r['guard_name'] as String?,
   );
 
   static const _cols =
-      'id, guest_name, guest_count, guest_phone, meet_staff, status, approval, entry_type, vehicle_number, pass_code, expected_arrival, photo_path, guard_name, flats(number)';
+      'id, guest_name, guest_count, guest_phone, meet_staff, note, status, approval, entry_type, vehicle_number, pass_code, expected_arrival, photo_path, guard_name, flats(number)';
 
   /// Visitors expected or at the gate from yesterday onwards.
   static Future<List<GateVisitor>> today({required String associationId, bool hostOnly = false}) async {
@@ -134,6 +136,8 @@ class GateRepo {
     String mode = 'ask',
     String note = '',
     String meet = '',
+    String? staffId,
+    DateTime? occurredAt,
   }) async => await db.rpc(
     'gate_walk_in',
     params: {
@@ -146,18 +150,34 @@ class GateRepo {
       'p_mode': mode,
       'p_note': note,
       'p_meet': meet.trim().isEmpty ? null : meet.trim(),
+      'p_staff_id': staffId,
+      'p_occurred_at': occurredAt?.toUtc().toIso8601String(),
     },
   ) as String;
 
   /// The flat could not be reached: a waiting delivery is left at the lobby and counted as inside.
-  static Future<void> lobbyDrop(String id) => db.rpc('gate_lobby_drop', params: {'p_request': id});
+  static Future<void> lobbyDrop(String id, {DateTime? occurredAt}) =>
+      db.rpc('gate_lobby_drop', params: {
+        'p_request': id,
+        'p_occurred_at': occurredAt?.toUtc().toIso8601String(),
+      });
 
   /// Caretaker, security and office bearers the guard can call to confirm a visitor for them.
-  static Future<List<({String name, String role, String mobile})>> staffContacts() async {
+  static Future<List<({String id, String name, String role, String mobile})>> staffContacts({
+    required String associationId,
+  }) async {
+    if (await db.rpc('my_association') != associationId) {
+      throw StateError('The active association changed. Reload staff contacts to continue.');
+    }
     final rows = await db.rpc('gate_staff_contacts') as List;
     return [
       for (final r in rows.cast<Map>())
-        (name: r['name'] as String, role: r['role'] as String, mobile: r['mobile'] as String),
+        (
+          id: r['id'] as String,
+          name: r['name'] as String,
+          role: r['role'] as String,
+          mobile: r['mobile'] as String,
+        ),
     ];
   }
 
