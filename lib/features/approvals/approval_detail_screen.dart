@@ -569,8 +569,8 @@ Future<void> _recordMeetingVotes(BuildContext context, WidgetRef ref, ApprovalRe
     return;
   }
   if (!context.mounted) return;
-  final moms = approvedMomOptions(context);
-  var mom = request.momRef ?? (moms.isEmpty ? null : moms.first);
+  final moms = approvedEcMeetings(context);
+  var mom = request.momRef ?? (moms.isEmpty ? null : moms.first.id);
   final votes = <String, String>{};
   final ok = await showDialog<bool>(
     context: context,
@@ -596,8 +596,8 @@ Future<void> _recordMeetingVotes(BuildContext context, WidgetRef ref, ApprovalRe
                     items: [
                       for (final m in moms)
                         DropdownMenuItem(
-                          value: m,
-                          child: Text(m, overflow: TextOverflow.ellipsis),
+                          value: m.id,
+                          child: Text(momLabel(m), overflow: TextOverflow.ellipsis),
                         ),
                     ],
                     onChanged: (v) => set(() => mom = v),

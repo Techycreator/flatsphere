@@ -966,17 +966,19 @@ Future<_FundRequestDraft?> _fundRequestDialog(BuildContext context) async {
                     decoration: const InputDecoration(labelText: 'Due day / schedule *'),
                   ),
                 const SizedBox(height: 12),
-                if (approvedMomOptions(context) case final moms when moms.isNotEmpty || !backendEnabled)
+                if (approvedEcMeetings(context) case final meetings when meetings.isNotEmpty || !backendEnabled)
                   DropdownButtonFormField<String>(
                     initialValue: momRef.text.isEmpty ? null : momRef.text,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Approved EC meeting minutes (MOM) *'),
                     items: [
-                      for (final m in moms.isEmpty ? const ['Demo MOM'] : moms)
+                      for (final m in meetings)
                         DropdownMenuItem(
-                          value: m,
-                          child: Text(m, overflow: TextOverflow.ellipsis),
+                          value: m.id,
+                          child: Text(momLabel(m), overflow: TextOverflow.ellipsis),
                         ),
+                      if (meetings.isEmpty && !backendEnabled)
+                        const DropdownMenuItem(value: 'Demo MOM', child: Text('Demo MOM')),
                     ],
                     onChanged: (v) => set(() => momRef.text = v ?? ''),
                   )

@@ -625,7 +625,11 @@ class DuesNotifier extends Notifier<DuesState> {
 
 /// Cash handed to the caretaker as petty cash: (amount, date given).
 final pettyCashTopupsProvider = FutureProvider.autoDispose<List<(int, DateTime)>>(
-  (ref) async => backendEnabled ? FinanceRepo.pettyCashTopups() : const [],
+  (ref) async {
+    final member = ref.watch(sessionProvider.select((session) => (session?.user.id, session?.user.associationId)));
+    if (!backendEnabled || member.$1 == null || member.$2 == null) return const [];
+    return FinanceRepo.pettyCashTopups();
+  },
 );
 
 /// Association funds excluding petty cash with the caretaker, since the opening date; null until it is set:

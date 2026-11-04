@@ -599,6 +599,7 @@ Future<void> showPettyCashForm(BuildContext context, WidgetRef ref) async {
   await _run(context, () async {
     await FinanceRepo.addPettyCash(int.parse(amount.text), date, note.text.trim());
     ref.invalidate(pettyCashBalanceProvider);
+    ref.invalidate(pettyCashTopupsProvider);
     return 'Petty cash recorded';
   });
 }

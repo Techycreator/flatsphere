@@ -15,6 +15,11 @@ List<String> approvedMomOptions(BuildContext context) => [
     if (_approved(m)) momLabel(m),
 ];
 
+List<Meeting> approvedEcMeetings(BuildContext context) => [
+  for (final m in ProviderScope.containerOf(context, listen: false).read(meetingsProvider))
+    if (_approved(m) && m.type == 'Executive Committee') m,
+];
+
 /// Approved AGM / General Body minutes, required to remove an office bearer.
 List<String> approvedAgmOptions(BuildContext context) => [
   for (final m in ProviderScope.containerOf(context, listen: false).read(meetingsProvider))
@@ -24,7 +29,7 @@ List<String> approvedAgmOptions(BuildContext context) => [
 Future<void> openMom(BuildContext context, String? ref) async {
   final meeting = ProviderScope.containerOf(context, listen: false)
       .read(meetingsProvider)
-      .where((m) => ref != null && _approved(m) && (momLabel(m) == ref || ref.contains(m.title)))
+      .where((m) => ref != null && _approved(m) && (m.id == ref || momLabel(m) == ref || ref.contains(m.title)))
       .firstOrNull;
   if (meeting == null || (meeting.minutesText ?? '').trim().isEmpty) {
     return toast(
