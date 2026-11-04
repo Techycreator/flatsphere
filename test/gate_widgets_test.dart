@@ -442,11 +442,12 @@ void main() {
     await tester.pump();
 
     final staffToggle = find.text('Caretaker / staff');
-    await tester.scrollUntilVisible(staffToggle, 200, scrollable: find.byType(Scrollable).first);
+    // Picking the flat collapses the suggestions, leaving the toggles above the viewport.
+    await tester.scrollUntilVisible(staffToggle, -200, scrollable: find.byType(Scrollable).first);
     await tester.tap(staffToggle);
     await tester.pump();
     final flatToggle = find.text('A flat');
-    await tester.scrollUntilVisible(flatToggle, 200, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(flatToggle, -200, scrollable: find.byType(Scrollable).first);
     await tester.tap(flatToggle);
     await tester.pump();
 
