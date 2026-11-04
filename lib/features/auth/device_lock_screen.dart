@@ -122,7 +122,6 @@ class _DeviceLockScreenState extends ConsumerState<DeviceLockScreen> {
                       onPressed: _busy
                           ? null
                           : () async {
-                              if (!widget.setup) await DeviceLock.clear();
                               ref.read(sessionProvider.notifier).logout();
                             },
                       child: const Text('Sign out'),

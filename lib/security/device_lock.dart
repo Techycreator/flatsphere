@@ -34,6 +34,9 @@ class DeviceLock {
 
   static Future<String?> owner() => _store.read(key: 'pin_owner');
 
+  static Future<bool> hasLegacyPin() async =>
+      await _store.read(key: 'pin_hash') != null || await _store.read(key: 'pin_salt') != null;
+
   static Future<bool> enrollBiometric(String label) => kIsWeb
       ? web_bio.webBiometricRegister(label)
       : authenticateBiometric('Confirm to turn on fingerprint / face unlock');
@@ -51,9 +54,8 @@ class DeviceLock {
 
   static Future<void> skip(String uid) => _store.write(key: 'pin_skip_owner', value: uid);
 
-  /// Also removes the PIN data saved by older versions of the app.
   static Future<void> clear() async {
-    for (final key in const ['pin_hash', 'pin_salt', 'pin_fails', 'bio_enabled', 'pin_owner']) {
+    for (final key in const ['bio_enabled', 'pin_owner']) {
       await _store.delete(key: key);
     }
   }
@@ -89,7 +91,12 @@ class LockNotifier extends Notifier<LockStatus> {
   Future<void> _resolve({bool fresh = false}) async {
     final uid = ref.read(sessionProvider)?.user.id;
     if (uid == null) return;
-    await DeviceLock.removeLegacyPin();
+    if (fresh) {
+      await DeviceLock.removeLegacyPin();
+    } else if (await DeviceLock.hasLegacyPin()) {
+      state = LockStatus.locked;
+      return;
+    }
     final owner = await DeviceLock.owner();
     if (owner != null && owner != uid) await DeviceLock.clear();
     if (await DeviceLock.biometricEnabled()) {

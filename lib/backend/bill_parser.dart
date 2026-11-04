@@ -16,6 +16,10 @@ final _totalWord = RegExp(
   r'grand\s*total|net\s*(amount|payable|total)|amount\s*payable|total\s*amount|bill\s*amount|\btotal\b',
   caseSensitive: false,
 );
+final _finalTotalWord = RegExp(
+  r'\b(?:grand\s*total|net\s*(?:amount|payable|total)|amount\s*payable|payable\s*amount)\b',
+  caseSensitive: false,
+);
 final _numericDate = RegExp(r'\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})\b');
 final _textDate = RegExp(
   r'\b(\d{1,2})[\s-]*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s,-]*(\d{2,4})\b',
@@ -39,16 +43,24 @@ BillGuess parseBill(String text, {DateTime? today}) {
 
   int? amount;
   double best = 0;
-  for (final l in lines.where(
-    (l) => _totalWord.hasMatch(l) && !RegExp('sub\\s*total', caseSensitive: false).hasMatch(l),
-  )) {
+  final nonSubtotalLines = lines.where((l) => !RegExp('sub\\s*total', caseSensitive: false).hasMatch(l));
+  for (final l in nonSubtotalLines.where(_finalTotalWord.hasMatch)) {
     for (final m in _num.allMatches(l)) {
       final v = _value(m.group(1)!) ?? 0;
       if (v > best && v < 10000000) best = v;
     }
   }
   if (best == 0) {
-    for (final m in _num.allMatches(text)) {
+    for (final l in nonSubtotalLines.where(_totalWord.hasMatch)) {
+      for (final m in _num.allMatches(l)) {
+        final v = _value(m.group(1)!) ?? 0;
+        if (v > best && v < 10000000) best = v;
+      }
+    }
+  }
+  if (best == 0) {
+    final withoutDates = text.replaceAll(_numericDate, ' ').replaceAll(_textDate, ' ');
+    for (final m in _num.allMatches(withoutDates)) {
       final raw = m.group(1)!;
       if (!raw.contains('.') && !raw.contains(',')) continue;
       final v = _value(raw) ?? 0;
@@ -62,6 +74,7 @@ BillGuess parseBill(String text, {DateTime? today}) {
     if (y < 100) y += 2000;
     if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
     final dt = DateTime(y, mo, d);
+    if (dt.year != y || dt.month != mo || dt.day != d) return null;
     return dt.isAfter(now.add(const Duration(days: 1))) || dt.year < now.year - 2 ? null : dt;
   }
 

@@ -15,4 +15,22 @@ void main() {
   });
 
   test('empty text gives nothing', () => expect(parseBill('').isEmpty, isTrue));
+
+  test('prefers a final payable amount over a higher generic total', () {
+    final g = parseBill(
+      'Total: 1,200.00\nDiscount: 200.00\nNet payable: 1,000.00',
+      today: DateTime(2026, 10, 20),
+    );
+    expect(g.amount, 1000);
+  });
+
+  test('ignores dotted dates when finding an unlabeled amount', () {
+    final g = parseBill('Date: 31.10.2026\nAmount due: 10.00', today: DateTime(2026, 10, 20));
+    expect(g.amount, 10);
+  });
+
+  test('skips invalid calendar dates and continues to the next date', () {
+    final g = parseBill('Date: 31/02/2025\nDate: 12/10/2026', today: DateTime(2026, 10, 20));
+    expect(g.date, DateTime(2026, 10, 12));
+  });
 }
