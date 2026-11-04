@@ -210,11 +210,19 @@ class _Overview extends ConsumerWidget {
   }
 }
 
-class _DuesTab extends ConsumerWidget {
+class _DuesTab extends ConsumerStatefulWidget {
   const _DuesTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DuesTab> createState() => _DuesTabState();
+}
+
+class _DuesTabState extends ConsumerState<_DuesTab> {
+  String _month = 'All';
+  String _type = 'All';
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final st = ref.watch(duesProvider);
     final n = ref.read(duesProvider.notifier);
@@ -229,6 +237,28 @@ class _DuesTab extends ConsumerWidget {
     };
     final o = st.opening;
     final recent = st.payments.reversed.take(10).toList();
+
+    // Month and type filters over the dues table.
+    final monthFmt = DateFormat('MMM yyyy');
+    final monthDates = <DateTime>{for (final x in st.lines) DateTime(x.dueDate.year, x.dueDate.month)}.toList()
+      ..sort((a, b) => b.compareTo(a));
+    final months = [for (final m in monthDates) monthFmt.format(m)];
+    if (_month != 'All' && !months.contains(_month)) _month = 'All';
+    final types = <String>{for (final x in st.lines) duesCategory(x.head)}.toList()..sort();
+    if (_type != 'All' && !types.contains(_type)) _type = 'All';
+    final filterOn = _month != 'All' || _type != 'All';
+    final visibleLines = [
+      for (final x in st.lines)
+        if ((_month == 'All' || monthFmt.format(x.dueDate) == _month) &&
+            (_type == 'All' || duesCategory(x.head) == _type))
+          x,
+    ];
+    final shownFlats = filterOn
+        ? [
+            for (final f in flats)
+              if (visibleLines.any((x) => x.flatNumber == f.$1)) f,
+          ]
+        : flats;
 
     return PhoneActionPage(
       label: canRecord ? l.recordPayment : null,
@@ -247,6 +277,12 @@ class _DuesTab extends ConsumerWidget {
                     icon: const Icon(Icons.receipt_long),
                     label: Text(l.recordPayment),
                   ),
+                if (!isPhone(context))
+                  FilledButton.tonalIcon(
+                    onPressed: () => showBulkReceiveForm(context, ref),
+                    icon: const Icon(Icons.library_add_check_outlined),
+                    label: const Text('Bulk receive'),
+                  ),
                 if (o == null)
                   OutlinedButton.icon(
                     onPressed: () => showOpeningBalanceForm(context, ref),
@@ -257,6 +293,13 @@ class _DuesTab extends ConsumerWidget {
                   tooltip: 'More dues actions',
                   onSelected: (action) => action(),
                   itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: () => showBulkReceiveForm(context, ref),
+                      child: const ListTile(
+                        leading: Icon(Icons.library_add_check_outlined),
+                        title: Text('Bulk receive dues'),
+                      ),
+                    ),
                     if (backendEnabled)
                       PopupMenuItem(
                         value: () => showDuesScheduleForm(context, ref),
@@ -344,6 +387,52 @@ class _DuesTab extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
+          if (st.lines.isNotEmpty) ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: 170,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _month,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Month', isDense: true),
+                    items: [
+                      const DropdownMenuItem(value: 'All', child: Text('All months')),
+                      for (final m in months) DropdownMenuItem(value: m, child: Text(m)),
+                    ],
+                    onChanged: (v) => setState(() => _month = v ?? 'All'),
+                  ),
+                ),
+                SizedBox(
+                  width: 190,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _type,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Type', isDense: true),
+                    items: [
+                      const DropdownMenuItem(value: 'All', child: Text('All types')),
+                      for (final t in types) DropdownMenuItem(value: t, child: Text(t)),
+                    ],
+                    onChanged: (v) => setState(() => _type = v ?? 'All'),
+                  ),
+                ),
+                if (filterOn)
+                  () {
+                    final charged = visibleLines.fold(0, (s, x) => s + x.amount);
+                    final collected = visibleLines.fold(0, (s, x) => s + x.paid);
+                    final unpaid = visibleLines.where((x) => !x.isPaid).length;
+                    return Pill(
+                      'Collected ${inr.format(collected)} of ${inr.format(charged)} · $unpaid due open',
+                      color: unpaid == 0 ? AppColors.green : AppColors.amber,
+                    );
+                  }(),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
           if (flats.isEmpty)
             const EmptyState('No flats yet. Add them in Flats & people.', icon: Icons.apartment_outlined)
           else if (backendEnabled && st.lines.isEmpty)
@@ -374,12 +463,12 @@ class _DuesTab extends ConsumerWidget {
                     const DataColumn(label: Text('Actions')),
                   ],
                   rows: [
-                    for (final (number, type) in flats)
+                    for (final (number, type) in shownFlats)
                       () {
-                        final lines = st.lines.where((l) => l.flatNumber == number).toList();
+                        final lines = visibleLines.where((l) => l.flatNumber == number).toList();
                         final charged = lines.fold(0, (s, l) => s + l.amount);
                         final paid = lines.fold(0, (s, l) => s + l.paid);
-                        final pending = st.pendingFor(number);
+                        final pending = filterOn ? lines.fold(0, (s, l) => s + l.pending) : st.pendingFor(number);
                         final open = lines.where((l) => !l.isPaid).length;
                         return DataRow(
                           cells: [

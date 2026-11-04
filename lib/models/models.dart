@@ -737,6 +737,15 @@ class DueLine {
       DueLine(flatNumber: flatNumber, head: head, amount: amount, paid: amount, dueDate: dueDate, receiptNo: receipt);
 }
 
+/// The category part of a dues head, e.g. 'Maintenance' from 'Maintenance – Nov 2026'.
+String duesCategory(String head) {
+  for (final sep in const [' – ', ' - ']) {
+    final cut = head.indexOf(sep);
+    if (cut > 0) return head.substring(0, cut).trim();
+  }
+  return head.trim();
+}
+
 enum ExpenseStatus {
   awaitingTreasurer('Awaiting Treasurer'),
   awaitingPresident('Awaiting President'),
