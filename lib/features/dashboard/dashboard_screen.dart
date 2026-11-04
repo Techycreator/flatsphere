@@ -547,6 +547,33 @@ class _OwnerDash extends ConsumerWidget {
       children: [
         const GateAlertsCard(),
         const _DueReminderBanners(),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Start a change for your flat', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.tonal(
+                      onPressed: () => context.go('/approvals/new/owner'),
+                      child: const Text('Owner change (sale / transfer)'),
+                    ),
+                    FilledButton.tonal(
+                      onPressed: () => context.go('/approvals/new/resident'),
+                      child: const Text('Tenant / resident change'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         for (final f in rented) ...[
           Card(
             child: ListTile(
@@ -672,6 +699,18 @@ class _ResidentDash extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const GateAlertsCard(),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.swap_horiz_outlined),
+            title: const Text('Moving out or changing tenancy?'),
+            subtitle: const Text('Start a tenant / resident change request'),
+            trailing: FilledButton.tonal(
+              onPressed: () => context.go('/approvals/new/resident'),
+              child: const Text('Start'),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         TwoCol(
           left: SectionCard(
             title: 'My complaints',

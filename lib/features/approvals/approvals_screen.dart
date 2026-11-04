@@ -22,6 +22,14 @@ class ApprovalsScreen extends ConsumerWidget {
     final all = ref.watch(approvalsProvider);
     final mine = all.where((a) => a.needsAction(s.activeRole, s.user.name)).toList();
     final canStart = s.user.canInitiateMembership(s.activeRole);
+    // Owners and residents may self-start the changes that concern their own flat (W20/W21).
+    final startTypes = canStart
+        ? MembershipRequestType.values
+        : switch (s.activeRole) {
+            Role.owner => const [MembershipRequestType.owner, MembershipRequestType.resident],
+            Role.resident => const [MembershipRequestType.resident],
+            _ => const <MembershipRequestType>[],
+          };
     final raised = all.where((a) => a.initiatorName.contains(s.user.name)).toList();
     final done = all.where((a) => a.overall != Decision.pending).toList();
 
@@ -60,11 +68,11 @@ class ApprovalsScreen extends ConsumerWidget {
                     Row(
                       children: [
                         Expanded(child: Text(l.pendingApprovals, style: Theme.of(context).textTheme.titleLarge)),
-                        if (canStart)
+                        if (startTypes.isNotEmpty)
                           PopupMenuButton<MembershipRequestType>(
                             onSelected: (t) => context.go('/approvals/new/${t.name}'),
                             itemBuilder: (_) => [
-                              for (final t in MembershipRequestType.values)
+                              for (final t in startTypes)
                                 PopupMenuItem(
                                   value: t,
                                   child: ListTile(

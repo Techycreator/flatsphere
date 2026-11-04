@@ -42,11 +42,12 @@ import '../security/device_lock.dart';
 Page<void> _page(Widget child) => NoTransitionPage(child: child);
 
 /// Route guard: a role may only open sections in its own menu (deep links included).
-/// Owners may also open approvals that need their consent (W21); Membership-desk EC members raise W20–W22.
+/// Owners and residents may also open approvals: consents, their own requests,
+/// and self-service owner/tenant changes (W20/W21); Membership-desk EC members raise W20–W22.
 bool canAccess(Role role, String location, {bool membershipDesk = false}) {
   final allowed = [
     ...navFor(role, membershipDesk: membershipDesk).map((i) => i.path),
-    if (role == Role.owner) '/approvals',
+    if (role == Role.owner || role == Role.resident) '/approvals',
     '/notices',
     if (const {Role.admin, Role.president, Role.secretary}.contains(role)) ...['/audit', '/data-tools'],
     if (const {Role.admin, Role.president, Role.secretary}.contains(role)) '/gate',

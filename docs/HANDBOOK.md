@@ -21,7 +21,7 @@ The menu shows only what your role may use. Anything not listed for your role is
 | Menu | Admin | President | Secretary | Treasurer | Jt. Treasurer | Vice Pres. | Jt. Secretary | EC member | Monitor | Owner | Resident | Caretaker | Security | Auditor |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Home | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y |
-| Approvals | Y | Y | Y | Y | Y | Y | Y | desk* | | consent only | | | | |
+| Approvals | Y | Y | Y | Y | Y | Y | Y | desk* | | own flat + consent | own flat | | | |
 | Complaints | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | | |
 | Finance | Y | Y | Y | Y | Y | Y | Y | Y | Y | | | | | Y |
 | My dues / Statements | | | | | | | | | | Y | | | | |
@@ -73,6 +73,8 @@ Money and membership decisions run through approval workflows. Each request show
 | W30 | Family member addition | Configured; raised by owner or resident |
 
 The Admin sets who approves each configurable workflow in **Approval workflows**. When a new workflow appears, it is listed there and in this table.
+
+**Who starts a change:** the President, Secretary, Admin or a Membership-desk EC member starts any of W20–W22 from Approvals → *New request*. Owners can also start an owner change (sale / transfer) or a tenant change for their own flat, and residents a tenant change for theirs — from the dashboard shortcut or Approvals; the request is limited to their own flats. Committee changes (W22) remain desk-only and need approved EC minutes. A Caretaker (or Security, Auditor) change is not a workflow: the new person is added in *Flats and people*, and the outgoing role is removed there with a reason, which needs President approval before access ends.
 
 Owner-consent steps are tied to a flat. An owner who holds several flats sees and signs the consent for whichever of their flats a request concerns, not just their first-listed flat.
 
@@ -259,3 +261,4 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 | 2026-11-04 | Owners with several flats see all their flats in the profile menu, and owner-consent approval steps are matched against every flat they own rather than only the first-listed one. | 1, 3.3 |
 | 2026-11-04 | The Flats tab in Flats and people gains a search box that filters by flat number or block; the search box clears when switching tabs. | 3.5 |
 | 2026-11-04 | Visitor lists and the gate history are filtered to the active association, so requests from one association no longer appear for approval or review while another association is open. | 3.8 |
+| 2026-11-04 | Owners and residents can now actually start their own flat's owner/tenant change: dashboard shortcuts added, residents may open Approvals, and the New request menu offers each role only the request types it may raise. | 2, 3.1, 3.3 |
