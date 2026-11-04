@@ -217,6 +217,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           SizedBox(
+            key: const ValueKey(_Tab.flats),
             width: 260,
             child: TextField(
               decoration: const InputDecoration(
@@ -439,6 +440,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           SizedBox(
+            key: const ValueKey(_Tab.people),
             width: 260,
             child: TextField(
               decoration: const InputDecoration(

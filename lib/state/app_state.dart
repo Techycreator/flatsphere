@@ -630,18 +630,21 @@ class DuesNotifier extends Notifier<DuesState> {
     required DateTime paidOn,
   }) async {
     if (backendEnabled) {
-      for (final due in dues) {
-        final r = await FinanceRepo.recordPayment(
-          flatId: due.flatId!,
-          dueId: due.id,
-          amount: due.pending,
-          mode: mode,
-          reference: reference,
-          paidOn: paidOn,
-        );
-        FinanceRepo.emailReceipt(r).ignore();
+      try {
+        for (final due in dues) {
+          final r = await FinanceRepo.recordPayment(
+            flatId: due.flatId!,
+            dueId: due.id,
+            amount: due.pending,
+            mode: mode,
+            reference: reference,
+            paidOn: paidOn,
+          );
+          FinanceRepo.emailReceipt(r).ignore();
+        }
+      } finally {
+        await refresh();
       }
-      await refresh();
       return dues.length;
     }
     var next = 5001 + state.payments.length;
