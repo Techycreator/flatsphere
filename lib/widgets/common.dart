@@ -404,3 +404,24 @@ class _ChoiceOrOtherFieldState extends State<ChoiceOrOtherField> {
     );
   }
 }
+
+bool isPhone(BuildContext context) => MediaQuery.sizeOf(context).width < 600;
+
+/// On phones, shows the screen's main action as a large floating button instead of an inline one.
+class PhoneActionPage extends StatelessWidget {
+  const PhoneActionPage({super.key, required this.child, this.label, this.icon = Icons.add, this.onPressed});
+  final Widget child;
+  final String? label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    if (label == null || !isPhone(context)) return child;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: child,
+      floatingActionButton: FloatingActionButton.extended(onPressed: onPressed, icon: Icon(icon), label: Text(label!)),
+    );
+  }
+}

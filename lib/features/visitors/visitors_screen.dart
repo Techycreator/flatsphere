@@ -66,67 +66,72 @@ class VisitorsScreen extends ConsumerWidget {
       }
     }
 
-    return PageBody(
-      maxWidth: 1000,
-      children: [
-        const GateAlertsCard(),
-        const DailyHelpSection(),
-        const SizedBox(height: 12),
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            Text(l.visitorRegister, style: Theme.of(context).textTheme.headlineSmall),
-            if (canHost)
-              FilledButton.icon(
-                onPressed: flats == null || flats.isLoading || flats.value?.isEmpty == true ? null : addRequest,
-                icon: const Icon(Icons.person_add_alt),
-                label: Text(l.preregisterVisitor),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(canHost ? l.visitorHostIntro : l.visitorRoleIntro, style: Theme.of(context).textTheme.bodySmall),
-        if (flats?.hasError == true)
-          Card(
-            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${flats!.error}')),
+    return PhoneActionPage(
+      label: canHost ? l.preregisterVisitor : null,
+      icon: Icons.person_add_alt,
+      onPressed: addRequest,
+      child: PageBody(
+        maxWidth: 1000,
+        children: [
+          const GateAlertsCard(),
+          const DailyHelpSection(),
+          const SizedBox(height: 12),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              Text(l.visitorRegister, style: Theme.of(context).textTheme.headlineSmall),
+              if (canHost && !isPhone(context))
+                FilledButton.icon(
+                  onPressed: flats == null || flats.isLoading || flats.value?.isEmpty == true ? null : addRequest,
+                  icon: const Icon(Icons.person_add_alt),
+                  label: Text(l.preregisterVisitor),
+                ),
+            ],
           ),
-        const SizedBox(height: 12),
-        if (requests.isLoading) const LinearProgressIndicator(),
-        if (requests.hasError)
-          Card(
-            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${requests.error}')),
-          ),
-        if (requests.hasValue && requests.value!.isEmpty)
-          EmptyState(l.noVisitorRequests, icon: Icons.directions_walk_outlined),
-        if (requests.hasValue)
-          for (final request in requests.value!)
+          const SizedBox(height: 8),
+          Text(canHost ? l.visitorHostIntro : l.visitorRoleIntro, style: Theme.of(context).textTheme.bodySmall),
+          if (flats?.hasError == true)
             Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                isThreeLine: true,
-                leading: CircleAvatar(
-                  backgroundColor: _statusColor(request.status).withValues(alpha: 0.14),
-                  child: Icon(_statusIcon(request.status), color: _statusColor(request.status)),
-                ),
-                title: Text(
-                  '${request.guestName}${request.guestCount > 1 ? ' (group of ${request.guestCount})' : ''} · ${request.hostFlat}',
-                ),
-                subtitle: Text(
-                  '${request.status == VisitorStatus.expected && request.passCode != null ? 'Pass code ${request.passCode} · ' : ''}'
-                  '${l.expectedArrival} ${dateTimeFmt.format(request.expectedAt)} · ${l.visitorHost}: ${request.hostName}'
-                  '${request.guestPhone == null ? '' : ' · ${request.guestPhone}'}'
-                  '${request.vehicleNumber == null ? '' : '\n${l.visitorVehicle}: ${request.vehicleNumber}'}'
-                  '${request.flatCarNumber == null && request.flatBikeNumber == null ? '' : '\n${l.registeredVehicles}: ${[request.flatCarNumber, request.flatBikeNumber].whereType<String>().join(' · ')}'}'
-                  '${request.parkingSlot == null ? '' : ' · ${l.slot} ${request.parkingSlot}'}'
-                  '${request.note.isEmpty ? '' : '\n${request.note}'}',
-                ),
-                trailing: Pill(request.status.label, color: _statusColor(request.status)),
-              ),
+              child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${flats!.error}')),
             ),
-      ],
+          const SizedBox(height: 12),
+          if (requests.isLoading) const LinearProgressIndicator(),
+          if (requests.hasError)
+            Card(
+              child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${requests.error}')),
+            ),
+          if (requests.hasValue && requests.value!.isEmpty)
+            EmptyState(l.noVisitorRequests, icon: Icons.directions_walk_outlined),
+          if (requests.hasValue)
+            for (final request in requests.value!)
+              Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  isThreeLine: true,
+                  leading: CircleAvatar(
+                    backgroundColor: _statusColor(request.status).withValues(alpha: 0.14),
+                    child: Icon(_statusIcon(request.status), color: _statusColor(request.status)),
+                  ),
+                  title: Text(
+                    '${request.guestName}${request.guestCount > 1 ? ' (group of ${request.guestCount})' : ''} · ${request.hostFlat}',
+                  ),
+                  subtitle: Text(
+                    '${request.status == VisitorStatus.expected && request.passCode != null ? 'Pass code ${request.passCode} · ' : ''}'
+                    '${l.expectedArrival} ${dateTimeFmt.format(request.expectedAt)} · ${l.visitorHost}: ${request.hostName}'
+                    '${request.guestPhone == null ? '' : ' · ${request.guestPhone}'}'
+                    '${request.vehicleNumber == null ? '' : '\n${l.visitorVehicle}: ${request.vehicleNumber}'}'
+                    '${request.flatCarNumber == null && request.flatBikeNumber == null ? '' : '\n${l.registeredVehicles}: ${[request.flatCarNumber, request.flatBikeNumber].whereType<String>().join(' · ')}'}'
+                    '${request.parkingSlot == null ? '' : ' · ${l.slot} ${request.parkingSlot}'}'
+                    '${request.note.isEmpty ? '' : '\n${request.note}'}',
+                  ),
+                  trailing: Pill(request.status.label, color: _statusColor(request.status)),
+                ),
+              ),
+        ],
+      ),
     );
   }
 }

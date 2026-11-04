@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:url_launcher/url_launcher.dart';
@@ -28,32 +30,37 @@ class MeetingsScreen extends ConsumerWidget {
     final past = visible.where((meeting) => !meeting.at.isAfter(now)).toList();
     final canManage = role == Role.admin || role == Role.secretary || role == Role.president;
 
-    return PageBody(
-      children: [
-        Row(
-          children: [
-            Expanded(child: Text(l.meetings, style: Theme.of(context).textTheme.headlineSmall)),
-            if (canManage)
-              FilledButton.icon(
-                onPressed: () => _schedule(context, ref),
-                icon: const Icon(Icons.event),
-                label: Text(l.scheduleMeeting),
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(l.meetingsUpcoming, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        if (upcoming.isEmpty) EmptyState(l.noUpcomingMeetings, icon: Icons.event_outlined),
-        for (final meeting in upcoming)
-          _MeetingCard(meeting: meeting, canManage: canManage, canApproveMinutes: role == Role.president),
-        const SizedBox(height: 16),
-        Text(l.meetingsPast, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        if (past.isEmpty) EmptyState(l.noPastMeetings, icon: Icons.history),
-        for (final meeting in past)
-          _MeetingCard(meeting: meeting, canManage: canManage, canApproveMinutes: role == Role.president),
-      ],
+    return PhoneActionPage(
+      label: canManage ? l.scheduleMeeting : null,
+      icon: Icons.event,
+      onPressed: () => _schedule(context, ref),
+      child: PageBody(
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(l.meetings, style: Theme.of(context).textTheme.headlineSmall)),
+              if (canManage && !isPhone(context))
+                FilledButton.icon(
+                  onPressed: () => _schedule(context, ref),
+                  icon: const Icon(Icons.event),
+                  label: Text(l.scheduleMeeting),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(l.meetingsUpcoming, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          if (upcoming.isEmpty) EmptyState(l.noUpcomingMeetings, icon: Icons.event_outlined),
+          for (final meeting in upcoming)
+            _MeetingCard(meeting: meeting, canManage: canManage, canApproveMinutes: role == Role.president),
+          const SizedBox(height: 16),
+          Text(l.meetingsPast, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          if (past.isEmpty) EmptyState(l.noPastMeetings, icon: Icons.history),
+          for (final meeting in past)
+            _MeetingCard(meeting: meeting, canManage: canManage, canApproveMinutes: role == Role.president),
+        ],
+      ),
     );
   }
 

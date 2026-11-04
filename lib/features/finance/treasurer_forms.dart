@@ -462,6 +462,8 @@ Future<void> showFixedLateFeeForm(BuildContext context, WidgetRef ref) async {
   });
 }
 
+String _lastPaymentMode = 'upi';
+
 Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}) async {
   final l = AppLocalizations.of(context);
   final st = ref.read(duesProvider);
@@ -472,7 +474,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
   var due = open(number).firstOrNull;
   final amount = TextEditingController(text: due?.pending.toString() ?? '');
   final reference = TextEditingController();
-  var mode = 'upi';
+  var mode = _lastPaymentMode;
   var paidOn = DateUtils.dateOnly(DateTime.now());
   final ok = await _form(
     context,
@@ -541,6 +543,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
     ],
   );
   if (ok != true || !context.mounted) return;
+  _lastPaymentMode = mode;
   await _run(context, () async {
     final r = await ref
         .read(duesProvider.notifier)
