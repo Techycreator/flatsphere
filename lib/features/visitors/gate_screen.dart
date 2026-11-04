@@ -645,7 +645,14 @@ class _GateScreenState extends ConsumerState<GateScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextButton.icon(
-                  onPressed: () => showDialog<void>(context: context, builder: (_) => const _GateHistoryDialog()),
+                  onPressed: () {
+                    final associationId = ref.read(sessionProvider)?.user.associationId;
+                    if (associationId == null) return;
+                    showDialog<void>(
+                      context: context,
+                      builder: (_) => _GateHistoryDialog(associationId: associationId),
+                    );
+                  },
                   icon: const Icon(Icons.history, size: 26),
                   label: const Text('History', style: TextStyle(fontSize: 17)),
                 ),
@@ -1025,7 +1032,9 @@ class _VisitorPhotoState extends State<VisitorPhoto> {
 }
 
 class _GateHistoryDialog extends StatelessWidget {
-  const _GateHistoryDialog();
+  const _GateHistoryDialog({required this.associationId});
+
+  final String associationId;
 
   static String _when(DateTime d) {
     final t = d.toLocal();
@@ -1050,7 +1059,7 @@ class _GateHistoryDialog extends StatelessWidget {
     content: SizedBox(
       width: 520,
       child: FutureBuilder<List<GateVisitor>>(
-        future: GateRepo.history(),
+        future: GateRepo.history(associationId: associationId),
         builder: (context, snap) {
           if (snap.hasError) return Text(friendlyError(snap.error!));
           if (!snap.hasData) return const LinearProgressIndicator();
