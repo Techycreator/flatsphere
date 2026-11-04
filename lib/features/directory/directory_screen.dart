@@ -311,9 +311,10 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                     decoration: const InputDecoration(labelText: 'Block / tower'),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  ChoiceOrOtherField(
                     controller: type,
-                    decoration: const InputDecoration(labelText: 'Type', hintText: '1BHK, 2BHK, 3BHK…'),
+                    label: 'Type',
+                    options: const ['1BHK', '2BHK', '3BHK', '4BHK', 'Studio', 'Villa', 'Penthouse', 'Shop'],
                   ),
                   const SizedBox(height: 12),
                   TextField(

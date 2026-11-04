@@ -705,9 +705,10 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref, {bool pettyCas
           onChanged: (value) => set(() => eventId = value),
         ),
       const SizedBox(height: 12),
-      TextField(
+      ChoiceOrOtherField(
         controller: vendor,
-        decoration: const InputDecoration(labelText: 'Vendor / payee *'),
+        label: 'Vendor / payee *',
+        options: ({for (final e in ref.read(expensesProvider)) e.vendor.trim()}..remove('')).toList()..sort(),
       ),
       const SizedBox(height: 12),
       TextField(

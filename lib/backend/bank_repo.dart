@@ -136,4 +136,22 @@ class BankRepo {
 
   static Future<void> castVote(String requestId, String vote, String? comment) =>
       db.rpc('cast_ec_vote', params: {'p_request': requestId, 'p_vote': vote, 'p_comment': comment});
+
+  /// EC members who can vote on a request, with any vote already recorded.
+  static Future<List<({String id, String name, String? vote})>> meetingVoters(String requestId) async => [
+    for (final r in await db.rpc('ec_meeting_voters', params: {'p_request': requestId}) as List)
+      (id: r['id'] as String, name: r['name'] as String, vote: r['vote'] as String?),
+  ];
+
+  /// Secretary/President records the votes taken in an EC meeting, citing the approved minutes.
+  static Future<void> recordMeetingVotes(String requestId, String momRef, Map<String, String> votes) => db.rpc(
+    'record_ec_meeting_votes',
+    params: {
+      'p_request': requestId,
+      'p_mom_ref': momRef,
+      'p_votes': [
+        for (final e in votes.entries) {'voter': e.key, 'vote': e.value},
+      ],
+    },
+  );
 }

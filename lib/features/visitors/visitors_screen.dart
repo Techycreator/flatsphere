@@ -57,6 +57,7 @@ class VisitorsScreen extends ConsumerWidget {
           expectedArrival: draft.arrival,
           vehicleNumber: draft.vehicle,
           note: draft.note,
+          guestCount: draft.guestCount,
         );
         ref.invalidate(visitorRequestsProvider);
         if (context.mounted) toast(context, l.visitorRequestSent);
@@ -110,8 +111,11 @@ class VisitorsScreen extends ConsumerWidget {
                   backgroundColor: _statusColor(request.status).withValues(alpha: 0.14),
                   child: Icon(_statusIcon(request.status), color: _statusColor(request.status)),
                 ),
-                title: Text('${request.guestName} · ${request.hostFlat}'),
+                title: Text(
+                  '${request.guestName}${request.guestCount > 1 ? ' (group of ${request.guestCount})' : ''} · ${request.hostFlat}',
+                ),
                 subtitle: Text(
+                  '${request.status == VisitorStatus.expected && request.passCode != null ? 'Pass code ${request.passCode} · ' : ''}'
                   '${l.expectedArrival} ${dateTimeFmt.format(request.expectedAt)} · ${l.visitorHost}: ${request.hostName}'
                   '${request.guestPhone == null ? '' : ' · ${request.guestPhone}'}'
                   '${request.vehicleNumber == null ? '' : '\n${l.visitorVehicle}: ${request.vehicleNumber}'}'
@@ -315,7 +319,9 @@ class _VisitorDraft {
     required this.phone,
     required this.vehicle,
     required this.note,
+    this.guestCount = 1,
   });
+  final int guestCount;
   final String flatId;
   final String name;
   final DateTime arrival;
@@ -331,6 +337,7 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
   final vehicle = TextEditingController();
   final note = TextEditingController();
   var flatId = flats.first.$1;
+  var guestCount = 1;
   var arrival = DateTime.now().add(const Duration(hours: 1));
   String? error;
   final draft = await showDialog<_VisitorDraft>(
@@ -353,7 +360,22 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
                 const SizedBox(height: 12),
                 TextField(
                   controller: name,
-                  decoration: const InputDecoration(labelText: 'Visitor name *'),
+                  decoration: InputDecoration(
+                    labelText: guestCount > 1 ? 'Group leader / family name *' : 'Visitor name *',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: guestCount,
+                  decoration: const InputDecoration(
+                    labelText: 'How many people?',
+                    helperText: 'A group gets one pass code; the guard checks everyone in together.',
+                  ),
+                  items: [
+                    for (final n in [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 50])
+                      DropdownMenuItem(value: n, child: Text(n == 1 ? '1 person' : '$n people')),
+                  ],
+                  onChanged: (v) => setState(() => guestCount = v ?? 1),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -425,6 +447,7 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
                   phone: phone.text.trim(),
                   vehicle: vehicle.text.trim().toUpperCase(),
                   note: note.text.trim(),
+                  guestCount: guestCount,
                 ),
               );
             },

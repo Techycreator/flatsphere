@@ -827,8 +827,18 @@ class PaymentRecord {
     required this.mode,
     this.reference,
     this.head,
+    this.id,
+    this.reverses,
+    this.reversed = false,
   });
 
+  final String? id;
+
+  /// Set on a reversal entry (negative amount): the payment it cancels.
+  final String? reverses;
+
+  /// True when an approved reversal has cancelled this payment.
+  final bool reversed;
   final String flatNumber;
   final int amount;
   final DateTime paidOn;
@@ -1211,8 +1221,12 @@ class VisitorRequest {
     this.parkingSlot,
     this.note = '',
     this.hostName = '',
+    this.guestCount = 1,
+    this.passCode,
   });
 
+  final int guestCount;
+  final String? passCode;
   final String id;
   final String hostFlat;
   final String guestName;

@@ -1,6 +1,8 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -14,7 +16,10 @@ import 'analysis_data.dart';
 enum _Mode { yoy, mom }
 
 class AnalysisTab extends ConsumerStatefulWidget {
-  const AnalysisTab({super.key});
+  const AnalysisTab({super.key, this.embedded = false});
+
+  /// Shown inside Finance → Overview instead of as its own page.
+  final bool embedded;
 
   @override
   ConsumerState<AnalysisTab> createState() => _AnalysisTabState();
@@ -57,166 +62,167 @@ class _AnalysisTabState extends ConsumerState<AnalysisTab> {
     final previousTotal = series.previous.take(closedMonths).fold(0.0, (sum, value) => sum + value);
     final theme = Theme.of(context);
     final hasData = currentTotal != 0 || previousTotal != 0;
-    return PageBody(
-      children: [
-        Card(
-          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
-          child: const ListTile(
-            leading: Icon(Icons.visibility_outlined),
-            title: Text('Visible to all EC members (interim access)'),
-            subtitle: Text(
-              'Any change to who can see this goes through W2: Secretary review → EC vote → President approval.',
-            ),
+    final body = <Widget>[
+      Card(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
+        child: const ListTile(
+          leading: Icon(Icons.visibility_outlined),
+          title: Text('Visible to all EC members (interim access)'),
+          subtitle: Text(
+            'Any change to who can see this goes through W2: Secretary review → EC vote → President approval.',
           ),
         ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          crossAxisAlignment: WrapCrossAlignment.center,
+      ),
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          SegmentedButton<_Mode>(
+            segments: [
+              ButtonSegment(value: _Mode.yoy, label: Text(l.analysisYearOnYear), icon: Icon(Icons.compare_arrows)),
+              ButtonSegment(value: _Mode.mom, label: Text(l.analysisMonthOnMonth), icon: Icon(Icons.calendar_month)),
+            ],
+            selected: {_mode},
+            onSelectionChanged: (v) => setState(() => _mode = v.first),
+          ),
+          SizedBox(
+            width: 340,
+            child: DropdownButtonFormField<String>(
+              initialValue: _category,
+              isDense: true,
+              decoration: InputDecoration(labelText: l.analysisCategory, isDense: true),
+              items: [for (final item in categories) DropdownMenuItem(value: item.$1, child: Text(item.$2))],
+              onChanged: (v) => setState(() => _category = v ?? _category),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => toast(context, l.analysisExportHint),
+            icon: const Icon(Icons.download),
+            label: const Text('Export'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      if (hasData)
+        StatGrid(
           children: [
-            SegmentedButton<_Mode>(
-              segments: [
-                ButtonSegment(value: _Mode.yoy, label: Text(l.analysisYearOnYear), icon: Icon(Icons.compare_arrows)),
-                ButtonSegment(value: _Mode.mom, label: Text(l.analysisMonthOnMonth), icon: Icon(Icons.calendar_month)),
-              ],
-              selected: {_mode},
-              onSelectionChanged: (v) => setState(() => _mode = v.first),
-            ),
-            SizedBox(
-              width: 340,
-              child: DropdownButtonFormField<String>(
-                initialValue: _category,
-                isDense: true,
-                decoration: InputDecoration(labelText: l.analysisCategory, isDense: true),
-                items: [for (final item in categories) DropdownMenuItem(value: item.$1, child: Text(item.$2))],
-                onChanged: (v) => setState(() => _category = v ?? _category),
-              ),
-            ),
-            TextButton.icon(
-              onPressed: () => toast(context, l.analysisExportHint),
-              icon: const Icon(Icons.download),
-              label: const Text('Export'),
+            StatCard(label: '$currentFyName · to date', value: inr.format(currentTotal), icon: Icons.today),
+            StatCard(label: '$previousFyName · same period', value: inr.format(previousTotal), icon: Icons.history),
+            StatCard(
+              label: 'Change',
+              value:
+                  '${_pct(currentTotal, previousTotal) >= 0 ? '+' : ''}${_pct(currentTotal, previousTotal).toStringAsFixed(1)}%',
+              icon: Icons.trending_up,
             ),
           ],
-        ),
-        const SizedBox(height: 16),
-        if (hasData)
-          StatGrid(
-            children: [
-              StatCard(label: '$currentFyName · to date', value: inr.format(currentTotal), icon: Icons.today),
-              StatCard(label: '$previousFyName · same period', value: inr.format(previousTotal), icon: Icons.history),
-              StatCard(
-                label: 'Change',
-                value:
-                    '${_pct(currentTotal, previousTotal) >= 0 ? '+' : ''}${_pct(currentTotal, previousTotal).toStringAsFixed(1)}%',
-                icon: Icons.trending_up,
-              ),
-            ],
-          )
-        else
-          EmptyState(l.noAnalysisData, icon: Icons.bar_chart_outlined),
-        const SizedBox(height: 16),
-        SectionCard(
-          title: '${series.name} · $currentFyName vs $previousFyName',
-          child: !hasData
-              ? const Text('Figures appear here as transactions are recorded.')
-              : SizedBox(
-                  height: 280,
-                  child: _mode == _Mode.yoy
-                      ? LineChart(
-                          LineChartData(
-                            gridData: const FlGridData(drawVerticalLine: false),
-                            borderData: FlBorderData(show: false),
-                            titlesData: _titles((index) => _monthLabel(fiscalMonth, index.toInt())),
-                            lineBarsData: [
-                              LineChartBarData(
-                                spots: [for (var i = 0; i < 12; i++) FlSpot(i.toDouble(), series.previous[i])],
-                                color: Colors.blueGrey.shade300,
-                                barWidth: 2,
-                                dashArray: const [6, 4],
-                                dotData: const FlDotData(show: false),
-                              ),
-                              LineChartBarData(
-                                spots: [for (var i = 0; i < 12; i++) FlSpot(i.toDouble(), series.current[i])],
-                                color: theme.colorScheme.primary,
-                                barWidth: 3,
-                                isCurved: true,
-                                dotData: const FlDotData(show: true),
-                              ),
-                            ],
-                          ),
-                        )
-                      : BarChart(
-                          BarChartData(
-                            gridData: const FlGridData(drawVerticalLine: false),
-                            borderData: FlBorderData(show: false),
-                            titlesData: _titles((index) => _monthLabel(fiscalMonth, index.toInt())),
-                            barGroups: [
-                              for (var i = 0; i < 12; i++)
-                                BarChartGroupData(
-                                  x: i,
-                                  barRods: [
-                                    BarChartRodData(toY: series.previous[i], color: Colors.blueGrey.shade300, width: 7),
-                                    BarChartRodData(toY: series.current[i], color: theme.colorScheme.primary, width: 7),
-                                  ],
-                                ),
-                            ],
-                          ),
-                        ),
-                ),
-        ),
-        const SizedBox(height: 16),
-        SectionCard(
-          title: l.budgetVsActual,
-          child: budgets.when(
-            loading: () => const LinearProgressIndicator(),
-            error: (error, _) => Text('$error'),
-            data: (records) {
-              final budget = records
-                  .where((record) => record.status == 'approved' && record.fiscalYearStart == currentStart)
-                  .firstOrNull;
-              if (budget == null) return Text(l.noBudgetRecorded);
-              return Column(
-                children: [
-                  for (final entry in budget.categoryAmounts.entries)
-                    () {
-                      final actual = expenses
-                          .where(
-                            (expense) =>
-                                expense.category == entry.key &&
-                                !expense.date.isBefore(currentStart) &&
-                                !expense.date.isAfter(today),
-                          )
-                          .fold(0, (sum, expense) => sum + expense.amount);
-                      final ratio = entry.value == 0 ? 0.0 : actual / entry.value;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(child: Text(entry.key)),
-                                Text('${inr.format(actual)} / ${inr.format(entry.value)}'),
-                              ],
+        )
+      else
+        EmptyState(l.noAnalysisData, icon: Icons.bar_chart_outlined),
+      const SizedBox(height: 16),
+      SectionCard(
+        title: '${series.name} · $currentFyName vs $previousFyName',
+        child: !hasData
+            ? const Text('Figures appear here as transactions are recorded.')
+            : SizedBox(
+                height: 280,
+                child: _mode == _Mode.yoy
+                    ? LineChart(
+                        LineChartData(
+                          gridData: const FlGridData(drawVerticalLine: false),
+                          borderData: FlBorderData(show: false),
+                          titlesData: _titles((index) => _monthLabel(fiscalMonth, index.toInt())),
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: [for (var i = 0; i < 12; i++) FlSpot(i.toDouble(), series.previous[i])],
+                              color: Colors.blueGrey.shade300,
+                              barWidth: 2,
+                              dashArray: const [6, 4],
+                              dotData: const FlDotData(show: false),
                             ),
-                            const SizedBox(height: 4),
-                            LinearProgressIndicator(
-                              value: ratio.clamp(0, 1),
-                              color: ratio > 1 ? AppColors.red : Theme.of(context).colorScheme.primary,
+                            LineChartBarData(
+                              spots: [for (var i = 0; i < 12; i++) FlSpot(i.toDouble(), series.current[i])],
+                              color: theme.colorScheme.primary,
+                              barWidth: 3,
+                              isCurved: true,
+                              dotData: const FlDotData(show: true),
                             ),
                           ],
                         ),
-                      );
-                    }(),
-                ],
-              );
-            },
-          ),
+                      )
+                    : BarChart(
+                        BarChartData(
+                          gridData: const FlGridData(drawVerticalLine: false),
+                          borderData: FlBorderData(show: false),
+                          titlesData: _titles((index) => _monthLabel(fiscalMonth, index.toInt())),
+                          barGroups: [
+                            for (var i = 0; i < 12; i++)
+                              BarChartGroupData(
+                                x: i,
+                                barRods: [
+                                  BarChartRodData(toY: series.previous[i], color: Colors.blueGrey.shade300, width: 7),
+                                  BarChartRodData(toY: series.current[i], color: theme.colorScheme.primary, width: 7),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+              ),
+      ),
+      const SizedBox(height: 16),
+      SectionCard(
+        title: l.budgetVsActual,
+        child: budgets.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => Text('$error'),
+          data: (records) {
+            final budget = records
+                .where((record) => record.status == 'approved' && record.fiscalYearStart == currentStart)
+                .firstOrNull;
+            if (budget == null) return Text(l.noBudgetRecorded);
+            return Column(
+              children: [
+                for (final entry in budget.categoryAmounts.entries)
+                  () {
+                    final actual = expenses
+                        .where(
+                          (expense) =>
+                              expense.category == entry.key &&
+                              !expense.date.isBefore(currentStart) &&
+                              !expense.date.isAfter(today),
+                        )
+                        .fold(0, (sum, expense) => sum + expense.amount);
+                    final ratio = entry.value == 0 ? 0.0 : actual / entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: Text(entry.key)),
+                              Text('${inr.format(actual)} / ${inr.format(entry.value)}'),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          LinearProgressIndicator(
+                            value: ratio.clamp(0, 1),
+                            color: ratio > 1 ? AppColors.red : Theme.of(context).colorScheme.primary,
+                          ),
+                        ],
+                      ),
+                    );
+                  }(),
+              ],
+            );
+          },
         ),
-      ],
-    );
+      ),
+    ];
+    return widget.embedded
+        ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: body)
+        : PageBody(children: body);
   }
 
   CategorySeries _liveSeries(

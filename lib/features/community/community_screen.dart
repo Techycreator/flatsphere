@@ -403,9 +403,10 @@ Future<void> _addEvent(BuildContext context, WidgetRef ref) async {
                   onChanged: (v) => set(() => type = v ?? type),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                ChoiceOrOtherField(
                   controller: location,
-                  decoration: const InputDecoration(labelText: 'Location'),
+                  label: 'Location',
+                  options: const ['Clubhouse', 'Party hall', 'Terrace', 'Lobby', 'Garden', 'Swimming pool', 'Online'],
                 ),
                 const SizedBox(height: 12),
                 TextField(

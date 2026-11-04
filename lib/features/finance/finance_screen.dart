@@ -21,6 +21,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
+import '../../widgets/mom.dart';
 import '../../widgets/common.dart';
 import 'analysis_data.dart';
 import 'analysis_tab.dart';
@@ -44,9 +45,8 @@ class FinanceScreen extends ConsumerWidget {
     final tabs = <(String, Widget)>[
       ('Overview', const _Overview()),
       if (full) ('Income', const IncomeScreen()),
-      ('Analysis', const AnalysisTab()),
-      if (full) ('Dues & follow-ups', const _DuesTab()),
       if (full) ('Expenses', const _ExpensesTab()),
+      if (full) ('Dues & follow-ups', const _DuesTab()),
       ('Fund requests', const _FundRequestsTab()),
       ('Statements', const StatementsScreen()),
     ];
@@ -130,7 +130,9 @@ class _Overview extends ConsumerWidget {
                   : 'Bank balance (SBI ••••4521)',
               value: bal == null ? 'Not set' : inr.format(bal),
               icon: Icons.account_balance,
-              sub: bal == null ? 'Treasurer: set the opening balance under Dues' : 'As of ${dateFmt.format(today)}',
+              sub: bal == null
+                  ? 'Treasurer: set the opening balance under Dues'
+                  : 'Receipts + other income − expenses − petty cash given · ${dateFmt.format(today)}',
             ),
             StatCard(
               label: 'Dues collected',
@@ -155,6 +157,7 @@ class _Overview extends ConsumerWidget {
             ),
           ],
         ),
+        if (backendEnabled) const _PettyCashSummary(),
         const SizedBox(height: 16),
         if (role == Role.ecMember || role == Role.monitor)
           const Padding(
@@ -185,6 +188,10 @@ class _Overview extends ConsumerWidget {
                   ],
                 ),
         ),
+        const SizedBox(height: 24),
+        Text('Analysis', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        const AnalysisTab(embedded: true),
       ],
     );
   }
@@ -413,8 +420,18 @@ class _DuesTab extends ConsumerWidget {
                 for (final p in recent)
                   ListTile(
                     dense: true,
-                    leading: const Icon(Icons.receipt_outlined),
-                    title: Text('${p.receiptNo} · ${p.flatNumber}${p.head == null ? ' · advance' : ' · ${p.head}'}'),
+                    leading: Icon(
+                      p.reverses != null ? Icons.undo : Icons.receipt_outlined,
+                      color: p.reverses != null || p.reversed ? AppColors.red : null,
+                    ),
+                    title: Text(
+                      '${p.receiptNo} · ${p.flatNumber}${p.head == null ? ' · advance' : ' · ${p.head}'}'
+                      '${p.reverses != null
+                          ? ' · reversal'
+                          : p.reversed
+                          ? ' · cancelled'
+                          : ''}',
+                    ),
                     subtitle: Text(
                       '${dateFmt.format(p.paidOn)} · ${paymentModes[p.mode] ?? p.mode}'
                       '${p.reference == null ? '' : ' · ref ${p.reference}'}',
@@ -423,6 +440,12 @@ class _DuesTab extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(inr.format(p.amount), style: const TextStyle(fontWeight: FontWeight.w600)),
+                        if (canRecord && backendEnabled && p.id != null && p.reverses == null && !p.reversed)
+                          IconButton(
+                            tooltip: 'Reverse payment (marked by mistake)',
+                            icon: const Icon(Icons.undo),
+                            onPressed: () => _reversePayment(context, ref, p),
+                          ),
                         IconButton(
                           tooltip: 'View receipt',
                           icon: const Icon(Icons.visibility_outlined),
@@ -703,6 +726,30 @@ final fundRequestsProvider = FutureProvider.autoDispose<List<FundRequestRecord>>
   ];
 });
 
+Future<void> _reversePayment(BuildContext context, WidgetRef ref, PaymentRecord p) async {
+  final reason = await promptText(
+    context,
+    title: 'Reverse ${p.receiptNo} (${inr.format(p.amount)}, flat ${p.flatNumber})?',
+    hint: 'Reason, e.g. marked paid by mistake',
+  );
+  if (reason == null || reason.trim().length < 5 || !context.mounted) {
+    if (reason != null && context.mounted) toast(context, 'Enter a reason of at least 5 characters');
+    return;
+  }
+  try {
+    await FinanceRepo.requestPaymentReversal(p.id!, reason.trim(), ref.read(approvalsProvider.notifier).nextId());
+    await ref.read(approvalsProvider.notifier).refresh();
+    if (context.mounted) {
+      toast(
+        context,
+        'Sent to the President/Secretary. Once approved, the due shows unpaid again and the receipt is cancelled.',
+      );
+    }
+  } catch (e) {
+    if (context.mounted) toast(context, friendlyError(e));
+  }
+}
+
 class _FundRequestsTab extends ConsumerWidget {
   const _FundRequestsTab();
 
@@ -731,7 +778,7 @@ class _FundRequestsTab extends ConsumerWidget {
           await ref.read(approvalsProvider.notifier).refresh();
         }
         ref.invalidate(fundRequestsProvider);
-        if (context.mounted) toast(context, 'Fund request submitted for President approval');
+        if (context.mounted) toast(context, 'Fund request sent for the EC vote, then President approval');
       } catch (error) {
         if (context.mounted) toast(context, friendlyError(error));
       }
@@ -741,7 +788,9 @@ class _FundRequestsTab extends ConsumerWidget {
       children: [
         Row(
           children: [
-            const Expanded(child: Text('Fund requests require President approval and an EC MOM reference.')),
+            const Expanded(
+              child: Text('Fund requests need approved EC meeting minutes (MOM), an EC vote, then President approval.'),
+            ),
             if (canRequest)
               FilledButton.tonalIcon(
                 onPressed: addRequest,
@@ -771,6 +820,7 @@ class _FundRequestsTab extends ConsumerWidget {
                   '${request.dueDay == null ? '' : ' · due ${request.dueDay}'} · MOM ${request.momRef}',
                 ),
                 isThreeLine: true,
+                onTap: () => openMom(context, request.momRef),
                 trailing: Pill(
                   request.status,
                   color: request.status == 'active'
@@ -876,11 +926,37 @@ Future<_FundRequestDraft?> _fundRequestDialog(BuildContext context) async {
                     decoration: const InputDecoration(labelText: 'Due day / schedule *'),
                   ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: momRef,
-                  maxLength: 120,
-                  decoration: const InputDecoration(labelText: 'EC MOM reference *'),
-                ),
+                if (approvedMomOptions(context) case final moms when moms.isNotEmpty || !backendEnabled)
+                  DropdownButtonFormField<String>(
+                    initialValue: momRef.text.isEmpty ? null : momRef.text,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Approved EC meeting minutes (MOM) *'),
+                    items: [
+                      for (final m in moms.isEmpty ? const ['Demo MOM'] : moms)
+                        DropdownMenuItem(
+                          value: m,
+                          child: Text(m, overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: (v) => set(() => momRef.text = v ?? ''),
+                  )
+                else
+                  const ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.info_outline, color: AppColors.amber),
+                    title: Text(
+                      'No approved minutes yet. Record the EC meeting and approve its minutes in Meetings first.',
+                    ),
+                  ),
+                if (momRef.text.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => openMom(ctx, momRef.text),
+                      icon: const Icon(Icons.description_outlined),
+                      label: const Text('View minutes'),
+                    ),
+                  ),
                 if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
               ],
             ),
@@ -1536,4 +1612,29 @@ void _reviewStatement(BuildContext context, MonthlyStatement s) {
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
     ),
   );
+}
+
+/// Petty cash given to the caretaker, spent from it, and still with the caretaker.
+class _PettyCashSummary extends ConsumerWidget {
+  const _PettyCashSummary();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final given = (ref.watch(pettyCashTopupsProvider).value ?? const []).fold(0, (s, t) => s + t.$1);
+    final balance = ref.watch(pettyCashBalanceProvider).value;
+    if (given == 0 || balance == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Card(
+        child: ListTile(
+          leading: const Icon(Icons.payments_outlined, color: AppColors.amber),
+          title: Text('Petty cash with caretaker: ${inr.format(balance)}'),
+          subtitle: Text(
+            'Given ${inr.format(given)} · spent ${inr.format(given - balance)}. '
+            'Bills appear under Expenses in their own categories, tagged "Paid from petty cash".',
+          ),
+        ),
+      ),
+    );
+  }
 }

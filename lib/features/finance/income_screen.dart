@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
 import '../../backend/directory_repo.dart' show friendlyError;
@@ -111,6 +114,8 @@ class IncomeScreen extends ConsumerWidget {
                 ),
         ),
         const SizedBox(height: 16),
+        const _DuesCollections(),
+        const SizedBox(height: 16),
         SectionCard(
           title: 'Received income',
           padding: false,
@@ -181,9 +186,18 @@ Future<_IncomeDraft?> _incomeDialog(BuildContext context, List<IncomeCategory> c
                   decoration: const InputDecoration(labelText: 'Amount in rupees *', prefixText: '₹ '),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                ChoiceOrOtherField(
                   controller: source,
-                  decoration: const InputDecoration(labelText: 'Source / sponsor'),
+                  label: 'Source / sponsor',
+                  options: const [
+                    'Hall booking',
+                    'Sponsorship',
+                    'Advertisement',
+                    'Bank interest',
+                    'Event collection',
+                    'Donation',
+                    'Scrap sale',
+                  ],
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -243,4 +257,43 @@ Future<_IncomeDraft?> _incomeDialog(BuildContext context, List<IncomeCategory> c
   source.dispose();
   description.dispose();
   return draft;
+}
+
+/// Maintenance and other dues receipts, added here automatically when the Treasurer records a payment.
+class _DuesCollections extends ConsumerWidget {
+  const _DuesCollections();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final byMonth = <DateTime, (int, int)>{};
+    for (final p in ref.watch(duesProvider).payments) {
+      final m = DateTime(p.paidOn.year, p.paidOn.month);
+      final cur = byMonth[m] ?? (0, 0);
+      byMonth[m] = (cur.$1 + p.amount, cur.$2 + (p.amount > 0 && !p.reversed ? 1 : 0));
+    }
+    final months = byMonth.keys.toList()..sort((a, b) => b.compareTo(a));
+    return SectionCard(
+      title: 'Maintenance & dues collections',
+      child: months.isEmpty
+          ? const EmptyState('No dues payments recorded yet.', icon: Icons.receipt_long_outlined)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Added automatically from each payment the Treasurer records under Dues. Reversed payments are deducted.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                for (final m in months.take(12))
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.south_west, color: AppColors.green),
+                    title: Text(DateFormat('MMMM yyyy').format(m)),
+                    subtitle: Text('${byMonth[m]!.$2} receipts'),
+                    trailing: Text(inr.format(byMonth[m]!.$1), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+              ],
+            ),
+    );
+  }
 }

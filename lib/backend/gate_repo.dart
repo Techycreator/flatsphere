@@ -35,7 +35,10 @@ class GateRepo {
 
   static GateVisitor _row(Map<String, dynamic> r) => (
     id: r['id'] as String,
-    guest: r['guest_name'] as String,
+    guest: switch ((r['guest_count'] as num?)?.toInt() ?? 1) {
+      1 => r['guest_name'] as String,
+      final n => '${r['guest_name']} (group of $n)',
+    },
     phone: r['guest_phone'] as String?,
     flat: (r['flats'] as Map?)?['number'] as String? ?? '',
     status: r['status'] as String,
@@ -49,7 +52,7 @@ class GateRepo {
   );
 
   static const _cols =
-      'id, guest_name, guest_phone, status, approval, entry_type, vehicle_number, pass_code, expected_arrival, photo_path, guard_name, flats(number)';
+      'id, guest_name, guest_count, guest_phone, status, approval, entry_type, vehicle_number, pass_code, expected_arrival, photo_path, guard_name, flats(number)';
 
   /// Visitors expected or at the gate from yesterday onwards.
   static Future<List<GateVisitor>> today({required String associationId, bool hostOnly = false}) async {
@@ -59,8 +62,7 @@ class GateRepo {
         .select(_cols)
         .eq('association_id', associationId)
         .gte('expected_arrival', since);
-    final rows = await (hostOnly ? query.eq('host_id', db.auth.currentUser!.id) : query)
-        .order('expected_arrival');
+    final rows = await (hostOnly ? query.eq('host_id', db.auth.currentUser!.id) : query).order('expected_arrival');
     final visitors = [for (final r in rows) _row(r)];
     if (!hostOnly) return visitors;
     final flatRows = await db
@@ -85,7 +87,10 @@ class GateRepo {
               .gte('expected_arrival', since)
               .order('expected_arrival');
     final knownIds = visitors.map((v) => v.id).toSet();
-    visitors.addAll([for (final r in walkIns) if (!knownIds.contains(r['id'])) _row(r)]);
+    visitors.addAll([
+      for (final r in walkIns)
+        if (!knownIds.contains(r['id'])) _row(r),
+    ]);
     visitors.sort((a, b) => a.arrival.compareTo(b.arrival));
     return visitors;
   }
@@ -174,13 +179,12 @@ class GateRepo {
     return r['ok'] == true ? (name: r['name'] as String, error: null) : (name: null, error: r['error'] as String?);
   }
 
-  static Future<String?> currentShift(String associationId) =>
-      AssociationContext.run(() async {
-        if (await db.rpc('my_association') != associationId) {
-          throw StateError('The active association changed. Reload the gate to continue.');
-        }
-        return await db.rpc('gate_current_shift') as String?;
-      });
+  static Future<String?> currentShift(String associationId) => AssociationContext.run(() async {
+    if (await db.rpc('my_association') != associationId) {
+      throw StateError('The active association changed. Reload the gate to continue.');
+    }
+    return await db.rpc('gate_current_shift') as String?;
+  });
 
   /// Deletes visitor photos older than 60 days (runs when the Gate screen opens).
   static Future<void> purgeOldPhotos() async {
