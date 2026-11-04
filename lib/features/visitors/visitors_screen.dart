@@ -23,7 +23,11 @@ import 'gate_screen.dart';
 
 final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>((ref) {
   final role = ref.watch(sessionProvider.select((s) => s?.activeRole));
-  return VisitorRepo.load(hostOnly: role == Role.owner || role == Role.resident);
+  final associationId = ref.watch(sessionProvider.select((s) => s?.user.associationId));
+  return VisitorRepo.load(
+    hostOnly: role == Role.owner || role == Role.resident,
+    associationId: associationId,
+  );
 });
 final visitorFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>((ref) async {
   final associationId = ref.watch(sessionProvider.select((s) => s?.user.associationId));

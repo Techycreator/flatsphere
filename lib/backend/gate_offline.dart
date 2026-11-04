@@ -140,6 +140,21 @@ class GateOffline {
         ]);
       });
 
+  static Future<bool> verifyAfterPendingWalkIn(String associationId, Map<String, dynamic> action) =>
+      AssociationContext.run(() async {
+        final q = await queue(associationId);
+        if (!q.any((entry) => entry['kind'] == 'walkin' && entry['request_id'] == action['id'])) return false;
+        if (!q.any(
+          (entry) => entry['kind'] == 'verify' && entry['id'] == action['id'] && entry['action'] == action['action'],
+        )) {
+          await _save(associationId, [
+            ...q,
+            {...action, 'association_id': associationId, 'at': DateTime.now().toIso8601String()},
+          ]);
+        }
+        return true;
+      });
+
   /// Returns how many were sent and the messages for ones the server refused. Stops at the first network error.
   static Future<(int, List<String>)> flush(String associationId) =>
       AssociationContext.run(() => _flush(associationId));

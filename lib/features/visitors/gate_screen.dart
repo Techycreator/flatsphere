@@ -227,6 +227,19 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     final associationId = ref.read(sessionProvider)?.user.associationId;
     if (associationId == null) return false;
     try {
+      final action = {
+        'kind': 'verify',
+        'id': v.id,
+        'action': checkIn ? 'check_in' : 'check_out',
+        'label': '${v.guest} → ${v.flat}',
+      };
+      if (await GateOffline.verifyAfterPendingWalkIn(associationId, action)) {
+        if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return false;
+        _setLocal(v.id, checkIn ? 'checked_in' : 'checked_out');
+        setState(() => _pending++);
+        toast(context, '${v.guest} checked $word. It will sync after the walk-in is recorded.');
+        return true;
+      }
       await VisitorRepo.verify(v.id, checkIn ? VisitorStatus.checkedIn : VisitorStatus.checkedOut);
       if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return false;
       toast(context, '${v.guest} checked $word');
@@ -239,12 +252,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       }
       if (!mounted) return false;
       if (ref.read(sessionProvider)?.user.associationId != associationId) return false;
-      await GateOffline.add(associationId, {
-        'kind': 'verify',
-        'id': v.id,
-        'action': checkIn ? 'check_in' : 'check_out',
-        'label': '${v.guest} → ${v.flat}',
-      });
+      await GateOffline.add(associationId, action);
       if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return false;
       _setLocal(v.id, checkIn ? 'checked_in' : 'checked_out');
       setState(() => _pending++);
@@ -694,19 +702,20 @@ class _GateScreenState extends ConsumerState<GateScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 56),
-                    foregroundColor: AppColors.green,
-                    side: const BorderSide(color: AppColors.green, width: 1.5),
+              if (v.approval != 'staff_confirmed')
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 56),
+                      foregroundColor: AppColors.green,
+                      side: const BorderSide(color: AppColors.green, width: 1.5),
+                    ),
+                    onPressed: () => _callFlat(v.flat),
+                    icon: const Icon(Icons.call, size: 26),
+                    label: const Text('Call flat', style: TextStyle(fontSize: 18)),
                   ),
-                  onPressed: () => _callFlat(v.flat),
-                  icon: const Icon(Icons.call, size: 26),
-                  label: const Text('Call flat', style: TextStyle(fontSize: 18)),
                 ),
-              ),
-              const SizedBox(width: 10),
+              if (v.approval != 'staff_confirmed') const SizedBox(width: 10),
               Expanded(
                 child: switch ((v.approval, v.status)) {
                   ('awaiting', _) when v.type == 'delivery' => OutlinedButton(

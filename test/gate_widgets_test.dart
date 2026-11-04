@@ -106,6 +106,36 @@ void main() {
     expect((await GateOffline.queue('association-a')).single['association_id'], 'association-a');
   });
 
+  test('checkout waits behind an unsynced walk-in', () async {
+    SharedPreferences.setMockInitialValues({});
+    await GateOffline.add('association-a', {'kind': 'walkin', 'request_id': 'visitor-a'});
+    final action = {
+      'kind': 'verify',
+      'id': 'visitor-a',
+      'action': 'check_out',
+      'label': 'Guest → Staff: Ravi',
+    };
+
+    expect(await GateOffline.verifyAfterPendingWalkIn('association-a', action), isTrue);
+    expect(await GateOffline.verifyAfterPendingWalkIn('association-a', action), isTrue);
+    final queue = await GateOffline.queue('association-a');
+    expect(queue.map((entry) => entry['kind']), ['walkin', 'verify']);
+    expect(queue.last['action'], 'check_out');
+    expect(queue.last['association_id'], 'association-a');
+  });
+
+  test('checkout is sent normally when its walk-in is no longer queued', () async {
+    SharedPreferences.setMockInitialValues({});
+    expect(
+      await GateOffline.verifyAfterPendingWalkIn('association-a', {
+        'kind': 'verify',
+        'id': 'visitor-a',
+        'action': 'check_out',
+      }),
+      isFalse,
+    );
+  });
+
   test('legacy gate queue is preserved until assigned to an association', () async {
     SharedPreferences.setMockInitialValues({
       'gate_queue': ['{"kind":"walkin","flat":"A-101"}'],
