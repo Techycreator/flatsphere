@@ -14,6 +14,7 @@ import '../../models/models.dart';
 import '../../models/sla.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
+import '../../widgets/push_prompt.dart';
 import '../../widgets/common.dart';
 import '../approvals/approval_tile.dart';
 import '../complaints/complaint_tile.dart';
@@ -57,6 +58,7 @@ class DashboardScreen extends ConsumerWidget {
           },
         ),
         const SizedBox(height: 16),
+        const PushPromptCard(),
         body,
       ],
     );
@@ -573,10 +575,35 @@ class _OwnerDash extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
         ],
+        if (myFlats.length > 1) ...[
+          SectionCard(
+            title: 'Pending dues by flat',
+            child: Column(
+              children: [
+                for (final f in myFlats)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.home_outlined),
+                    title: Text('Flat $f'),
+                    trailing: Text(
+                      dues.pendingFor(f) > 0 ? inr.format(dues.pendingFor(f)) : 'Paid',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: dues.pendingFor(f) > 0 ? AppColors.red : AppColors.green,
+                      ),
+                    ),
+                    onTap: () => context.go('/dues'),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         StatGrid(
           children: [
             StatCard(
-              label: 'My pending dues',
+              label: myFlats.length > 1 ? 'My pending dues (${myFlats.length} flats)' : 'My pending dues',
               value: inr.format(pending),
               icon: Icons.payments_outlined,
               color: pending > 0 ? AppColors.red : AppColors.green,
@@ -906,10 +933,7 @@ class _PettyCashCard extends ConsumerWidget {
                   if (e.description.isNotEmpty)
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(e.description),
-                      ),
+                      child: Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(e.description)),
                     ),
                   if (e.comment != null && e.comment!.isNotEmpty)
                     Align(
