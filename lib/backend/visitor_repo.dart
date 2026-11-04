@@ -19,45 +19,62 @@ class VisitorRepo {
     return [for (final e in unique.entries) (e.key, e.value)];
   }
 
-  static Future<List<VisitorRequest>> load({bool hostOnly = false}) async {
+  static VisitorRequest _fromRow(Map<String, dynamic> row) {
+    final flat = row['flats'] as Map? ?? const {};
+    final vehicles = List<Map<String, dynamic>>.from(flat['flat_vehicles'] as List? ?? const []);
+    String? vehicle(String type) => vehicles
+        .where((v) => v['vehicle_type'] == type)
+        .map((v) => v['registration_number'] as String?)
+        .firstOrNull;
+    final slots = vehicles.map((v) => v['parking_slot'] as String?).whereType<String>();
+    return VisitorRequest(
+      id: row['id'] as String,
+      hostFlat: flat['number'] as String? ?? '',
+      guestName: row['guest_name'] as String,
+      guestPhone: row['guest_phone'] as String?,
+      expectedAt: DateTime.parse(row['expected_arrival'] as String).toLocal(),
+      vehicleNumber: row['vehicle_number'] as String?,
+      note: row['note'] as String? ?? '',
+      status: _status(row['status']),
+      hostName: row['host_name'] as String? ?? '',
+      flatCarNumber: vehicle('car'),
+      flatBikeNumber: vehicle('bike'),
+      parkingSlot: slots.firstOrNull,
+      guestCount: (row['guest_count'] as num?)?.toInt() ?? 1,
+      passCode: row['pass_code'] as String?,
+    );
+  }
+
+  static Future<List<VisitorRequest>> load({bool hostOnly = false, String? associationId}) async {
+    const columns =
+        'id, guest_name, guest_phone, expected_arrival, vehicle_number, note, status, host_name, guest_count, pass_code, '
+        'flats(number, flat_vehicles(vehicle_type, registration_number, parking_slot))';
     final query = db
         .from('visitor_requests')
-        .select(
-          'id, guest_name, guest_phone, expected_arrival, vehicle_number, note, status, host_name, guest_count, pass_code, '
-          'flats(number, flat_vehicles(vehicle_type, registration_number, parking_slot))',
-        );
+        .select(columns);
     final rows = await (hostOnly ? query.eq('host_id', db.auth.currentUser!.id) : query).order(
       'expected_arrival',
       ascending: false,
     );
-    return [
-      for (final row in rows)
-        () {
-          final flat = row['flats'] as Map? ?? const {};
-          final vehicles = List<Map<String, dynamic>>.from(flat['flat_vehicles'] as List? ?? const []);
-          String? vehicle(String type) => vehicles
-              .where((v) => v['vehicle_type'] == type)
-              .map((v) => v['registration_number'] as String?)
-              .firstOrNull;
-          final slots = vehicles.map((v) => v['parking_slot'] as String?).whereType<String>();
-          return VisitorRequest(
-            id: row['id'] as String,
-            hostFlat: flat['number'] as String? ?? '',
-            guestName: row['guest_name'] as String,
-            guestPhone: row['guest_phone'] as String?,
-            expectedAt: DateTime.parse(row['expected_arrival'] as String).toLocal(),
-            vehicleNumber: row['vehicle_number'] as String?,
-            note: row['note'] as String? ?? '',
-            status: _status(row['status']),
-            hostName: row['host_name'] as String? ?? '',
-            flatCarNumber: vehicle('car'),
-            flatBikeNumber: vehicle('bike'),
-            parkingSlot: slots.firstOrNull,
-            guestCount: (row['guest_count'] as num?)?.toInt() ?? 1,
-            passCode: row['pass_code'] as String?,
-          );
-        }(),
-    ];
+    final visitors = [for (final row in rows) _fromRow(row)];
+    if (!hostOnly || associationId == null) return visitors;
+
+    final flatIds = (await myFlats(associationId: associationId)).map((flat) => flat.$1).toSet();
+    if (flatIds.isEmpty) return visitors;
+    final lobbyRows = await db
+        .from('visitor_requests')
+        .select(columns)
+        .eq('association_id', associationId)
+        .inFilter('flat_id', flatIds.toList())
+        .eq('approval', 'lobby')
+        .order('expected_arrival', ascending: false);
+    final knownIds = visitors.map((visitor) => visitor.id).toSet();
+    visitors.addAll([
+      for (final row in lobbyRows)
+        if (knownIds.add(row['id'] as String)) _fromRow(row),
+    ]);
+    visitors.sort((a, b) => b.expectedAt.compareTo(a.expectedAt));
+    return visitors;
   }
 
   static Future<void> create({

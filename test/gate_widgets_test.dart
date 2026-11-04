@@ -106,6 +106,36 @@ void main() {
     expect((await GateOffline.queue('association-a')).single['association_id'], 'association-a');
   });
 
+  test('checkout waits behind an unsynced walk-in', () async {
+    SharedPreferences.setMockInitialValues({});
+    await GateOffline.add('association-a', {'kind': 'walkin', 'request_id': 'visitor-a'});
+    final action = {
+      'kind': 'verify',
+      'id': 'visitor-a',
+      'action': 'check_out',
+      'label': 'Guest → Staff: Ravi',
+    };
+
+    expect(await GateOffline.verifyAfterPendingWalkIn('association-a', action), isTrue);
+    expect(await GateOffline.verifyAfterPendingWalkIn('association-a', action), isTrue);
+    final queue = await GateOffline.queue('association-a');
+    expect(queue.map((entry) => entry['kind']), ['walkin', 'verify']);
+    expect(queue.last['action'], 'check_out');
+    expect(queue.last['association_id'], 'association-a');
+  });
+
+  test('checkout is sent normally when its walk-in is no longer queued', () async {
+    SharedPreferences.setMockInitialValues({});
+    expect(
+      await GateOffline.verifyAfterPendingWalkIn('association-a', {
+        'kind': 'verify',
+        'id': 'visitor-a',
+        'action': 'check_out',
+      }),
+      isFalse,
+    );
+  });
+
   test('legacy gate queue is preserved until assigned to an association', () async {
     SharedPreferences.setMockInitialValues({
       'gate_queue': ['{"kind":"walkin","flat":"A-101"}'],
@@ -243,12 +273,23 @@ void main() {
       vehicle: null,
       passCode: '123456',
       arrival: DateTime(2026, 11, 3),
+      note: 'Interview',
       photoPath: null,
       guardName: null,
     );
     await GateOffline.cache('association-a', [visitor]);
     expect(await GateOffline.cached('association-b'), isEmpty);
     expect((await GateOffline.cached('association-a')).single.id, 'visitor-a');
+    expect((await GateOffline.cached('association-a')).single.note, 'Interview');
+  });
+
+  test('cached staff contacts retain recipient IDs and stay association-scoped', () async {
+    SharedPreferences.setMockInitialValues({});
+    const staff = [(id: 'staff-a', name: 'Ravi', role: 'caretaker', mobile: '9999999999')];
+    await GateOffline.cacheStaff('association-a', staff);
+
+    expect(await GateOffline.cachedStaff('association-b'), isEmpty);
+    expect((await GateOffline.cachedStaff('association-a')).single.id, 'staff-a');
   });
 
   test('daily-help cache and guard status are scoped to their association', () async {
@@ -307,6 +348,109 @@ void main() {
     await tester.enterText(find.byType(TextField), 'b');
     await tester.pump();
     expect(find.widgetWithText(FilledButton, 'B-202'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  Future<WalkInData? Function()> openWalkIn(WidgetTester tester, Widget page) async {
+    WalkInData? result;
+    tester.view.physicalSize = const Size(360, 740) * 2;
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async =>
+                result = await Navigator.push<WalkInData>(context, MaterialPageRoute(builder: (_) => page)),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    return () => result;
+  }
+
+  testWidgets('walk-in delivery can be left at the lobby when the flat does not answer', (tester) async {
+    final result = await openWalkIn(tester, const WalkInPage(flats: ['A-101']));
+    await tester.tap(find.text('Delivery'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Amazon'));
+    await tester.tap(find.text('Amazon'));
+    await tester.pump();
+    final flatField = find.byWidgetPredicate((w) => w is TextField && w.decoration?.labelText == 'Flat number');
+    await tester.scrollUntilVisible(flatField, 200, scrollable: find.byType(Scrollable).first);
+    await tester.enterText(flatField, 'a101');
+    await tester.pump();
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'A-101'));
+    await tester.tap(find.widgetWithText(FilledButton, 'A-101'));
+    await tester.pump();
+    final lobby = find.text('Flat not reachable · Leave at lobby');
+    await tester.scrollUntilVisible(lobby, 300, scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(lobby);
+    await tester.pumpAndSettle();
+    await tester.tap(lobby);
+    await tester.pumpAndSettle();
+    expect(result()?.mode, 'lobby');
+    expect(result()?.flat, 'A-101');
+    expect(result()?.name, 'Amazon');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('walk-in for staff needs a staff member and an Other purpose', (tester) async {
+    final result = await openWalkIn(
+      tester,
+      const WalkInPage(
+        flats: ['A-101'],
+        staff: [(id: 'staff-a', name: 'Ravi', role: 'caretaker', mobile: '9999999999')],
+      ),
+    );
+    await tester.tap(find.text('Other'));
+    await tester.pump();
+    await tester.enterText(
+      find.byWidgetPredicate((w) => w is TextField && w.decoration?.labelText == 'Purpose of visit *'),
+      'Interview',
+    );
+    await tester.ensureVisible(find.text('Caretaker / staff'));
+    await tester.tap(find.text('Caretaker / staff'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Ravi'));
+    await tester.tap(find.text('Ravi'));
+    await tester.pump();
+    final name = find.byWidgetPredicate((w) => w is TextField && w.decoration?.labelText == 'Name / company *');
+    await tester.scrollUntilVisible(name, 200, scrollable: find.byType(Scrollable).first);
+    await tester.enterText(name, 'Anil');
+    await tester.tap(find.text('Confirmed · Let in'));
+    await tester.pumpAndSettle();
+    expect(result()?.mode, 'staff');
+    expect(result()?.meet, 'Ravi');
+    expect(result()?.staffId, 'staff-a');
+    expect(result()?.note, 'Interview');
+    expect(result()?.type, 'other');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('walk-in restores the selected flat after switching to staff and back', (tester) async {
+    await _phone(tester, const WalkInPage(flats: ['A-101']));
+    final flatField = find.byWidgetPredicate((w) => w is TextField && w.decoration?.labelText == 'Flat number');
+    await tester.enterText(flatField, 'a101');
+    await tester.pump();
+    final flatButton = find.widgetWithText(FilledButton, 'A-101');
+    await tester.ensureVisible(flatButton);
+    await tester.tap(flatButton);
+    await tester.pump();
+
+    final staffToggle = find.text('Caretaker / staff');
+    await tester.scrollUntilVisible(staffToggle, 200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(staffToggle);
+    await tester.pump();
+    final flatToggle = find.text('A flat');
+    await tester.scrollUntilVisible(flatToggle, 200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(flatToggle);
+    await tester.pump();
+
+    expect(find.text('Flat A-101'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

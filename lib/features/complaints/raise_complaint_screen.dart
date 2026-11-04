@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -53,6 +55,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
   final _cost = TextEditingController();
   String? _category;
   bool? _commonAreaChoice;
+  String? _flat;
   bool _private = false;
   final List<Uint8List> _photos = [];
   Uint8List? _voiceNote;
@@ -167,6 +170,7 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
       if (mounted) setState(() => _recordingBusy = false);
     }
   }
+
   Future<void> _submit() async {
     if (_recording || _recordingBusy) {
       toast(context, 'Stop the voice recording before submitting');
@@ -192,41 +196,43 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
     final now = DateTime.now();
     final role = s.activeRole;
     final vendorState = ref.read(complaintVendorsProvider);
-    final selectedVendor = vendorState.hasValue ? vendorState.value!.where((vendor) => vendor.id == _vendorId).firstOrNull : null;
+    final selectedVendor = vendorState.hasValue
+        ? vendorState.value!.where((vendor) => vendor.id == _vendorId).firstOrNull
+        : null;
     final needsReview = _staff && _commonArea && role != Role.secretary;
     final bypass = needsReview && _kind == ReportKind.complaint && crit == Criticality.critical;
     final status = !needsReview || bypass ? TicketStatus.newTicket : TicketStatus.pendingReview;
     final complaint = Complaint(
-        id: id,
-        flatNumber: _commonArea ? 'Common' : (s.user.flatNumber ?? 'Common'),
-        type: _type,
-        category: _category ?? ai?.category ?? 'Other',
-        title: _title.text.trim(),
-        description: _desc.text.trim(),
-        criticality: crit,
-        aiSuggested: _override == null && ai != null,
-        status: status,
-        createdAt: now,
-        kind: _kind,
-        acceptedAt: status == TicketStatus.newTicket ? now : null,
-        estimatedCost: int.tryParse(_cost.text.replaceAll(RegExp(r'[^0-9]'), '')),
-        remarks: bypass
-            ? [
-                TicketRemark(
-                  by: 'System',
-                  at: now,
-                  text: 'Critical – skipped review and sent straight to the caretaker. Secretary notified.',
-                ),
-              ]
-            : const [],
-        raisedBy: s.user.name,
-        photoCount: _photos.length,
-        hasVoiceNote: _voiceNote != null,
-        isPrivate: _private,
-        location: _commonArea ? 'Common area' : 'Inside flat',
-        vendorId: _vendorId,
-        vendorName: selectedVendor?.name,
-      );
+      id: id,
+      flatNumber: _commonArea ? 'Common' : (_flat ?? _myFlats(s).firstOrNull ?? s.user.flatNumber ?? 'Common'),
+      type: _type,
+      category: _category ?? ai?.category ?? 'Other',
+      title: _title.text.trim(),
+      description: _desc.text.trim(),
+      criticality: crit,
+      aiSuggested: _override == null && ai != null,
+      status: status,
+      createdAt: now,
+      kind: _kind,
+      acceptedAt: status == TicketStatus.newTicket ? now : null,
+      estimatedCost: int.tryParse(_cost.text.replaceAll(RegExp(r'[^0-9]'), '')),
+      remarks: bypass
+          ? [
+              TicketRemark(
+                by: 'System',
+                at: now,
+                text: 'Critical – skipped review and sent straight to the caretaker. Secretary notified.',
+              ),
+            ]
+          : const [],
+      raisedBy: s.user.name,
+      photoCount: _photos.length,
+      hasVoiceNote: _voiceNote != null,
+      isPrivate: _private,
+      location: _commonArea ? 'Common area' : 'Inside flat',
+      vendorId: _vendorId,
+      vendorName: selectedVendor?.name,
+    );
     setState(() => _submitting = true);
     try {
       await notifier.add(complaint, photos: _photos, voiceNote: _voiceNote, voiceFormat: _voiceFormat);
@@ -246,14 +252,18 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
     context.go('/complaints/$id');
   }
 
+  /// Owner/resident flats in the open association; an owner may have several.
+  List<String> _myFlats(dynamic s) => <String>{
+    ...(s.user.flatsFor(Role.owner) as List<String>),
+    ...(s.user.flatsFor(Role.resident) as List<String>),
+  }.toList();
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final ai = _ai;
     final role = ref.watch(sessionProvider)!.activeRole;
-    final vendorOptions = role.isOfficeBearer
-        ? ref.watch(complaintVendorsProvider.select((value) => value))
-        : null;
+    final vendorOptions = role.isOfficeBearer ? ref.watch(complaintVendorsProvider.select((value) => value)) : null;
     return Scaffold(
       appBar: AppBar(title: Text(l.raiseComplaint)),
       body: PageBody(
@@ -363,6 +373,18 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
                       value: _commonArea,
                       onChanged: (v) => setState(() => _commonAreaChoice = v),
                     ),
+                  if (!_commonArea && _myFlats(ref.read(sessionProvider)!).length > 1) ...[
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: _flat ?? _myFlats(ref.read(sessionProvider)!).first,
+                      decoration: const InputDecoration(labelText: 'Which flat?'),
+                      items: [
+                        for (final f in _myFlats(ref.read(sessionProvider)!))
+                          DropdownMenuItem(value: f, child: Text('Flat $f')),
+                      ],
+                      onChanged: (v) => setState(() => _flat = v),
+                    ),
+                  ],
                   if (_kind.isEnhancement) ...[
                     const SizedBox(height: 8),
                     TextField(
@@ -395,7 +417,11 @@ class _RaiseComplaintScreenState extends ConsumerState<RaiseComplaintScreen> {
                           _recording ? Icons.stop_circle : Icons.mic_none,
                           color: _recording ? Colors.red : null,
                         ),
-                        label: Text(_recording ? 'Stop recording' : (_voiceNote != null ? 'Voice note recorded ✓' : l.recordVoice)),
+                        label: Text(
+                          _recording
+                              ? 'Stop recording'
+                              : (_voiceNote != null ? 'Voice note recorded ✓' : l.recordVoice),
+                        ),
                       ),
                       if (_voiceNote != null)
                         TextButton.icon(
