@@ -59,6 +59,17 @@ class DemoUser {
 
   /// Flats held under [role]; falls back to the primary flat for demo users.
   List<String> flatsFor(Role role) => flatsByRole[role] ?? (flatNumber != null ? [flatNumber!] : const []);
+
+  /// Every flat held under any role, primary flat first, without duplicates.
+  List<String> get allFlats {
+    final flats = <String>[?flatNumber];
+    for (final list in flatsByRole.values) {
+      for (final f in list) {
+        if (!flats.contains(f)) flats.add(f);
+      }
+    }
+    return flats;
+  }
   final List<String> monitorCategories;
   final List<String> designations;
   final DateTime? monitorUntil;

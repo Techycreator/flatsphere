@@ -12,6 +12,7 @@ Flatsphere is a web app (installable as a PWA) and mobile app that runs an apart
 4. **Install the app** (browser menu, Install / Add to Home Screen). When a new version is ready an *Update available* banner appears; tap **Update** when convenient. Nothing changes until you tap it.
 5. **Language:** switch English / Malayalam from the profile menu.
 6. **Several associations:** if you belong to more than one, switch between them from the association switcher.
+7. **Several flats:** if you own or occupy more than one flat in the association, the profile menu lists all of them, and screens that need a flat (complaints, dues, visitors, amenity bookings, household staff, family accounts) let you pick which one.
 
 The menu shows only what your role may use. Anything not listed for your role is intentionally hidden.
 
@@ -72,6 +73,8 @@ Money and membership decisions run through approval workflows. Each request show
 | W30 | Family member addition | Configured; raised by owner or resident |
 
 The Admin sets who approves each configurable workflow in **Approval workflows**. When a new workflow appears, it is listed there and in this table.
+
+Owner-consent steps are tied to a flat. An owner who holds several flats sees and signs the consent for whichever of their flats a request concerns, not just their first-listed flat.
 
 ### 3.4 Finance (Treasurer, Joint Treasurer, President, Secretary, Auditor and others in read mode)
 - **Dues and payments:** create dues per flat, record payments, issue PDF receipts, send reminders (one per flat per day).
@@ -252,3 +255,4 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 | 2026-11-04 | Gate approvals show Other visit purposes; staff walk-in alerts target the selected account; offline lobby changes, admission times and visitor cache persist correctly. | 3.8 |
 | 2026-11-04 | Pending walk-in checkouts queue after creation; staff visitor actions, vehicle lookup and owner/resident lobby delivery visibility are corrected, and Other visits require a purpose in the RPC. | 3.8 |
 | 2026-11-04 | The gate RPC now explicitly rejects Other walk-ins with an empty or whitespace-only purpose before inserting a request. | 3.8 |
+| 2026-11-04 | Owners with several flats see all their flats in the profile menu, and owner-consent approval steps are matched against every flat they own rather than only the first-listed one. | 1, 3.3 |

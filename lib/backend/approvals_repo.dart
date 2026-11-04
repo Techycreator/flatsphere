@@ -87,7 +87,9 @@ class ApprovalsRepo {
     final role = roleFromDb(s['role']) ?? Role.president;
     final alt = roleFromDb(s['alternate_role']);
     // Owner-consent steps are bound to a flat; show them as the signed-in owner's when it is theirs.
-    final mine = role == Role.owner && me.roles.contains(Role.owner) && s['owner_flat'] == me.flatNumber;
+    // An owner may hold several flats, so match against all of them, not just the primary one.
+    final mine =
+        role == Role.owner && me.roles.contains(Role.owner) && me.flatsFor(Role.owner).contains(s['owner_flat']);
     final by = s['decided_by_name'] as String?;
     return ApproverStep(
       role: role,

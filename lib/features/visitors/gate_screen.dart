@@ -226,13 +226,13 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     final word = checkIn ? 'in' : 'out';
     final associationId = ref.read(sessionProvider)?.user.associationId;
     if (associationId == null) return false;
+    final action = {
+      'kind': 'verify',
+      'id': v.id,
+      'action': checkIn ? 'check_in' : 'check_out',
+      'label': '${v.guest} → ${v.flat}',
+    };
     try {
-      final action = {
-        'kind': 'verify',
-        'id': v.id,
-        'action': checkIn ? 'check_in' : 'check_out',
-        'label': '${v.guest} → ${v.flat}',
-      };
       if (await GateOffline.verifyAfterPendingWalkIn(associationId, action)) {
         if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return false;
         _setLocal(v.id, checkIn ? 'checked_in' : 'checked_out');
