@@ -153,7 +153,7 @@ class FinanceRepo {
         .order('due_date');
     final payRows = await db
         .from('payments')
-        .select('flat_id, due_id, amount, paid_on, mode, reference, receipt_no')
+        .select('id, flat_id, due_id, amount, paid_on, mode, reference, receipt_no, reverses')
         .eq('association_id', assoc)
         .order('paid_on')
         .order('created_at');
@@ -166,12 +166,13 @@ class FinanceRepo {
     final paid = <String, int>{};
     final receipt = <String, String>{};
     final payments = <PaymentRecord>[];
+    final reversedIds = {for (final r in payRows) ?r['reverses'] as String?};
     for (final r in payRows) {
       final due = r['due_id'] as String?;
       final amount = _int(r['amount']);
       if (due != null) {
         paid[due] = (paid[due] ?? 0) + amount;
-        receipt[due] = r['receipt_no'] as String;
+        if (amount > 0 && !reversedIds.contains(r['id'])) receipt[due] = r['receipt_no'] as String;
       }
       payments.add(
         PaymentRecord(
@@ -182,6 +183,9 @@ class FinanceRepo {
           mode: r['mode'] as String,
           reference: r['reference'] as String?,
           head: heads[due],
+          id: r['id'] as String?,
+          reverses: r['reverses'] as String?,
+          reversed: reversedIds.contains(r['id']),
         ),
       );
     }
@@ -386,6 +390,15 @@ class FinanceRepo {
       'p_late_fee_grace_days': graceDays,
     },
   );
+
+  /// Sends a reversal of a mistaken receipt for President/Secretary approval.
+  static Future<void> requestPaymentReversal(String paymentId, String reason, String requestRef) =>
+      db.rpc('request_payment_reversal', params: {'p_payment': paymentId, 'p_reason': reason, 'p_ref': requestRef});
+
+  static Future<List<(int, DateTime)>> pettyCashTopups() async => [
+    for (final r in await db.from('petty_cash_topups').select('amount, given_on'))
+      (_int(r['amount']), DateTime.parse(r['given_on'] as String)),
+  ];
 
   static Future<int?> pettyCashBalance() async => (await db.rpc('petty_cash_balance') as num?)?.toInt();
 

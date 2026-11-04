@@ -352,3 +352,76 @@ class VehicleNumberFormatter extends TextInputFormatter {
     );
   }
 }
+
+/// Dropdown of known choices plus "Other…", which reveals a text box. The value is kept in [controller].
+class ChoiceOrOtherField extends StatefulWidget {
+  const ChoiceOrOtherField({super.key, required this.controller, required this.label, required this.options});
+  final TextEditingController controller;
+  final String label;
+  final List<String> options;
+
+  @override
+  State<ChoiceOrOtherField> createState() => _ChoiceOrOtherFieldState();
+}
+
+class _ChoiceOrOtherFieldState extends State<ChoiceOrOtherField> {
+  static const _other = '\u0000other';
+  late bool _typing = widget.controller.text.isNotEmpty && !widget.options.contains(widget.controller.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final text = widget.controller.text;
+    final selected = _typing ? _other : (widget.options.contains(text) ? text : null);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DropdownButtonFormField<String>(
+          initialValue: selected,
+          isExpanded: true,
+          decoration: InputDecoration(labelText: widget.label),
+          items: [
+            for (final o in widget.options)
+              DropdownMenuItem(
+                value: o,
+                child: Text(o, overflow: TextOverflow.ellipsis),
+              ),
+            const DropdownMenuItem(value: _other, child: Text('Other… (type it)')),
+          ],
+          onChanged: (v) => setState(() {
+            _typing = v == _other;
+            widget.controller.text = _typing ? '' : (v ?? '');
+          }),
+        ),
+        if (_typing) ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: widget.controller,
+            autofocus: true,
+            decoration: InputDecoration(labelText: '${widget.label.replaceAll(' *', '')} (type) *'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+bool isPhone(BuildContext context) => MediaQuery.sizeOf(context).width < 600;
+
+/// On phones, shows the screen's main action as a large floating button instead of an inline one.
+class PhoneActionPage extends StatelessWidget {
+  const PhoneActionPage({super.key, required this.child, this.label, this.icon = Icons.add, this.onPressed});
+  final Widget child;
+  final String? label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    if (label == null || !isPhone(context)) return child;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: child,
+      floatingActionButton: FloatingActionButton.extended(onPressed: onPressed, icon: Icon(icon), label: Text(label!)),
+    );
+  }
+}

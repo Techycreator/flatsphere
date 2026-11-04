@@ -499,6 +499,21 @@ class _EcVotePanel extends ConsumerWidget {
                 padding: EdgeInsets.only(top: 8),
                 child: Text('Voting opens after the earlier approval steps are complete.'),
               ),
+            if (s.open &&
+                step.decision == Decision.pending &&
+                const [
+                  Role.secretary,
+                  Role.jointSecretary,
+                  Role.president,
+                ].contains(ref.watch(sessionProvider)!.activeRole))
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: OutlinedButton.icon(
+                  onPressed: () => _recordMeetingVotes(context, ref, request),
+                  icon: const Icon(Icons.groups_outlined),
+                  label: const Text('Record votes from EC meeting'),
+                ),
+              ),
             if (s.canVote) ...[
               const SizedBox(height: 12),
               Wrap(
@@ -541,5 +556,108 @@ class _EcVotePanel extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _recordMeetingVotes(BuildContext context, WidgetRef ref, ApprovalRequest request) async {
+  final id = ApprovalsRepo.uuidFor(request.id)!;
+  final List<({String id, String name, String? vote})> voters;
+  try {
+    voters = await BankRepo.meetingVoters(id);
+  } catch (e) {
+    if (context.mounted) toast(context, userMessage('$e'));
+    return;
+  }
+  if (!context.mounted) return;
+  final moms = approvedEcMeetings(context);
+  var mom = request.momRef ?? (moms.isEmpty ? null : moms.first.id);
+  final votes = <String, String>{};
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, set) => AlertDialog(
+        title: const Text('Record votes from EC meeting'),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (request.momRef != null)
+                  Text('Minutes: ${request.momRef}')
+                else if (moms.isEmpty)
+                  const Text('No approved minutes yet. Approve the meeting minutes in Meetings first.')
+                else
+                  DropdownButtonFormField<String>(
+                    initialValue: mom,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Approved minutes (MOM) of the meeting *'),
+                    items: [
+                      for (final m in moms)
+                        DropdownMenuItem(
+                          value: m.id,
+                          child: Text(momLabel(m), overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: (v) => set(() => mom = v),
+                  ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Mark each member as recorded in the minutes. Leave absent members blank; they can still vote in the app.',
+                ),
+                const SizedBox(height: 8),
+                for (final v in voters)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        Text(v.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        if (v.vote != null)
+                          Pill(
+                            'Voted ${v.vote == 'yes' ? 'Yes' : 'No'}',
+                            color: v.vote == 'yes' ? AppColors.green : AppColors.red,
+                          )
+                        else
+                          SegmentedButton<String>(
+                            emptySelectionAllowed: true,
+                            showSelectedIcon: false,
+                            segments: const [
+                              ButtonSegment(value: 'yes', label: Text('Yes')),
+                              ButtonSegment(value: 'no', label: Text('No')),
+                            ],
+                            selected: {?votes[v.id]},
+                            onSelectionChanged: (sel) =>
+                                set(() => sel.isEmpty ? votes.remove(v.id) : votes[v.id] = sel.first),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: votes.isEmpty || mom == null ? null : () => Navigator.pop(ctx, true),
+            child: const Text('Save votes'),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  try {
+    await BankRepo.recordMeetingVotes(id, mom!, votes);
+    ref.invalidate(ecVoteSummaryProvider(request.id));
+    await ref.read(approvalsProvider.notifier).refresh();
+    if (context.mounted) toast(context, 'Meeting votes recorded.');
+  } catch (e) {
+    if (context.mounted) toast(context, userMessage('$e'));
   }
 }

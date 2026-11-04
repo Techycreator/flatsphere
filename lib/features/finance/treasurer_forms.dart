@@ -462,6 +462,8 @@ Future<void> showFixedLateFeeForm(BuildContext context, WidgetRef ref) async {
   });
 }
 
+String _lastPaymentMode = 'upi';
+
 Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}) async {
   final l = AppLocalizations.of(context);
   final st = ref.read(duesProvider);
@@ -472,7 +474,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
   var due = open(number).firstOrNull;
   final amount = TextEditingController(text: due?.pending.toString() ?? '');
   final reference = TextEditingController();
-  var mode = 'upi';
+  var mode = _lastPaymentMode;
   var paidOn = DateUtils.dateOnly(DateTime.now());
   final ok = await _form(
     context,
@@ -541,6 +543,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
     ],
   );
   if (ok != true || !context.mounted) return;
+  _lastPaymentMode = mode;
   await _run(context, () async {
     final r = await ref
         .read(duesProvider.notifier)
@@ -596,6 +599,7 @@ Future<void> showPettyCashForm(BuildContext context, WidgetRef ref) async {
   await _run(context, () async {
     await FinanceRepo.addPettyCash(int.parse(amount.text), date, note.text.trim());
     ref.invalidate(pettyCashBalanceProvider);
+    ref.invalidate(pettyCashTopupsProvider);
     return 'Petty cash recorded';
   });
 }
@@ -705,9 +709,10 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref, {bool pettyCas
           onChanged: (value) => set(() => eventId = value),
         ),
       const SizedBox(height: 12),
-      TextField(
+      ChoiceOrOtherField(
         controller: vendor,
-        decoration: const InputDecoration(labelText: 'Vendor / payee *'),
+        label: 'Vendor / payee *',
+        options: ({for (final e in ref.read(expensesProvider)) e.vendor.trim()}..remove('')).toList()..sort(),
       ),
       const SizedBox(height: 12),
       TextField(

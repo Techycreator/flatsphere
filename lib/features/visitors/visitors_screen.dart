@@ -57,6 +57,7 @@ class VisitorsScreen extends ConsumerWidget {
           expectedArrival: draft.arrival,
           vehicleNumber: draft.vehicle,
           note: draft.note,
+          guestCount: draft.guestCount,
         );
         ref.invalidate(visitorRequestsProvider);
         if (context.mounted) toast(context, l.visitorRequestSent);
@@ -65,64 +66,72 @@ class VisitorsScreen extends ConsumerWidget {
       }
     }
 
-    return PageBody(
-      maxWidth: 1000,
-      children: [
-        const GateAlertsCard(),
-        const DailyHelpSection(),
-        const SizedBox(height: 12),
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            Text(l.visitorRegister, style: Theme.of(context).textTheme.headlineSmall),
-            if (canHost)
-              FilledButton.icon(
-                onPressed: flats == null || flats.isLoading || flats.value?.isEmpty == true ? null : addRequest,
-                icon: const Icon(Icons.person_add_alt),
-                label: Text(l.preregisterVisitor),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(canHost ? l.visitorHostIntro : l.visitorRoleIntro, style: Theme.of(context).textTheme.bodySmall),
-        if (flats?.hasError == true)
-          Card(
-            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${flats!.error}')),
+    return PhoneActionPage(
+      label: canHost ? l.preregisterVisitor : null,
+      icon: Icons.person_add_alt,
+      onPressed: addRequest,
+      child: PageBody(
+        maxWidth: 1000,
+        children: [
+          const GateAlertsCard(),
+          const DailyHelpSection(),
+          const SizedBox(height: 12),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              Text(l.visitorRegister, style: Theme.of(context).textTheme.headlineSmall),
+              if (canHost && !isPhone(context))
+                FilledButton.icon(
+                  onPressed: flats == null || flats.isLoading || flats.value?.isEmpty == true ? null : addRequest,
+                  icon: const Icon(Icons.person_add_alt),
+                  label: Text(l.preregisterVisitor),
+                ),
+            ],
           ),
-        const SizedBox(height: 12),
-        if (requests.isLoading) const LinearProgressIndicator(),
-        if (requests.hasError)
-          Card(
-            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${requests.error}')),
-          ),
-        if (requests.hasValue && requests.value!.isEmpty)
-          EmptyState(l.noVisitorRequests, icon: Icons.directions_walk_outlined),
-        if (requests.hasValue)
-          for (final request in requests.value!)
+          const SizedBox(height: 8),
+          Text(canHost ? l.visitorHostIntro : l.visitorRoleIntro, style: Theme.of(context).textTheme.bodySmall),
+          if (flats?.hasError == true)
             Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                isThreeLine: true,
-                leading: CircleAvatar(
-                  backgroundColor: _statusColor(request.status).withValues(alpha: 0.14),
-                  child: Icon(_statusIcon(request.status), color: _statusColor(request.status)),
-                ),
-                title: Text('${request.guestName} · ${request.hostFlat}'),
-                subtitle: Text(
-                  '${l.expectedArrival} ${dateTimeFmt.format(request.expectedAt)} · ${l.visitorHost}: ${request.hostName}'
-                  '${request.guestPhone == null ? '' : ' · ${request.guestPhone}'}'
-                  '${request.vehicleNumber == null ? '' : '\n${l.visitorVehicle}: ${request.vehicleNumber}'}'
-                  '${request.flatCarNumber == null && request.flatBikeNumber == null ? '' : '\n${l.registeredVehicles}: ${[request.flatCarNumber, request.flatBikeNumber].whereType<String>().join(' · ')}'}'
-                  '${request.parkingSlot == null ? '' : ' · ${l.slot} ${request.parkingSlot}'}'
-                  '${request.note.isEmpty ? '' : '\n${request.note}'}',
-                ),
-                trailing: Pill(request.status.label, color: _statusColor(request.status)),
-              ),
+              child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${flats!.error}')),
             ),
-      ],
+          const SizedBox(height: 12),
+          if (requests.isLoading) const LinearProgressIndicator(),
+          if (requests.hasError)
+            Card(
+              child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${requests.error}')),
+            ),
+          if (requests.hasValue && requests.value!.isEmpty)
+            EmptyState(l.noVisitorRequests, icon: Icons.directions_walk_outlined),
+          if (requests.hasValue)
+            for (final request in requests.value!)
+              Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  isThreeLine: true,
+                  leading: CircleAvatar(
+                    backgroundColor: _statusColor(request.status).withValues(alpha: 0.14),
+                    child: Icon(_statusIcon(request.status), color: _statusColor(request.status)),
+                  ),
+                  title: Text(
+                    '${request.guestName}${request.guestCount > 1 ? ' (group of ${request.guestCount})' : ''} · ${request.hostFlat}',
+                  ),
+                  subtitle: Text(
+                    '${request.status == VisitorStatus.expected && request.passCode != null ? 'Pass code ${request.passCode} · ' : ''}'
+                    '${l.expectedArrival} ${dateTimeFmt.format(request.expectedAt)} · ${l.visitorHost}: ${request.hostName}'
+                    '${request.guestPhone == null ? '' : ' · ${request.guestPhone}'}'
+                    '${request.vehicleNumber == null ? '' : '\n${l.visitorVehicle}: ${request.vehicleNumber}'}'
+                    '${request.flatCarNumber == null && request.flatBikeNumber == null ? '' : '\n${l.registeredVehicles}: ${[request.flatCarNumber, request.flatBikeNumber].whereType<String>().join(' · ')}'}'
+                    '${request.parkingSlot == null ? '' : ' · ${l.slot} ${request.parkingSlot}'}'
+                    '${request.note.isEmpty ? '' : '\n${request.note}'}',
+                  ),
+                  trailing: Pill(request.status.label, color: _statusColor(request.status)),
+                ),
+              ),
+        ],
+      ),
     );
   }
 }
@@ -315,7 +324,9 @@ class _VisitorDraft {
     required this.phone,
     required this.vehicle,
     required this.note,
+    this.guestCount = 1,
   });
+  final int guestCount;
   final String flatId;
   final String name;
   final DateTime arrival;
@@ -331,6 +342,7 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
   final vehicle = TextEditingController();
   final note = TextEditingController();
   var flatId = flats.first.$1;
+  var guestCount = 1;
   var arrival = DateTime.now().add(const Duration(hours: 1));
   String? error;
   final draft = await showDialog<_VisitorDraft>(
@@ -353,7 +365,22 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
                 const SizedBox(height: 12),
                 TextField(
                   controller: name,
-                  decoration: const InputDecoration(labelText: 'Visitor name *'),
+                  decoration: InputDecoration(
+                    labelText: guestCount > 1 ? 'Group leader / family name *' : 'Visitor name *',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: guestCount,
+                  decoration: const InputDecoration(
+                    labelText: 'How many people?',
+                    helperText: 'A group gets one pass code; the guard checks everyone in together.',
+                  ),
+                  items: [
+                    for (final n in [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 50])
+                      DropdownMenuItem(value: n, child: Text(n == 1 ? '1 person' : '$n people')),
+                  ],
+                  onChanged: (v) => setState(() => guestCount = v ?? 1),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -425,6 +452,7 @@ Future<_VisitorDraft?> _visitorDialog(BuildContext context, List<(String id, Str
                   phone: phone.text.trim(),
                   vehicle: vehicle.text.trim().toUpperCase(),
                   note: note.text.trim(),
+                  guestCount: guestCount,
                 ),
               );
             },

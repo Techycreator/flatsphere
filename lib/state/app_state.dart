@@ -623,18 +623,36 @@ class DuesNotifier extends Notifier<DuesState> {
   }
 }
 
-/// Opening balance + payments received − approved expenses since the opening date; null until it is set.
+/// Cash handed to the caretaker as petty cash: (amount, date given).
+final pettyCashTopupsProvider = FutureProvider.autoDispose<List<(int, DateTime)>>(
+  (ref) async {
+    final member = ref.watch(sessionProvider.select((session) => (session?.user.id, session?.user.associationId)));
+    if (!backendEnabled || member.$1 == null || member.$2 == null) return const [];
+    return FinanceRepo.pettyCashTopups();
+  },
+);
+
+/// Association funds excluding petty cash with the caretaker, since the opening date; null until it is set:
+/// opening balance + dues receipts + other income − approved expenses (not paid from petty cash) − petty cash given.
 final bankBalanceProvider = Provider<int?>((ref) {
   if (!backendEnabled) return 485320;
   final d = ref.watch(duesProvider);
   final o = d.opening;
   if (o == null) return null;
-  final inflow = d.payments.where((p) => !p.paidOn.isBefore(o.asOf)).fold(0, (s, p) => s + p.amount);
+  final receipts = d.payments.where((p) => !p.paidOn.isBefore(o.asOf)).fold(0, (s, p) => s + p.amount);
+  final otherIncome = ref
+      .watch(incomeProvider)
+      .entries
+      .where((e) => !e.receivedOn.isBefore(o.asOf))
+      .fold(0, (s, e) => s + e.amount);
   final outflow = ref
       .watch(expensesProvider)
-      .where((e) => e.status == ExpenseStatus.approved && !e.date.isBefore(o.asOf))
+      .where((e) => e.status == ExpenseStatus.approved && !e.fromPettyCash && !e.date.isBefore(o.asOf))
       .fold(0, (s, e) => s + e.amount);
-  return o.amount + inflow - outflow;
+  final pettyGiven = (ref.watch(pettyCashTopupsProvider).value ?? const [])
+      .where((t) => !t.$2.isBefore(o.asOf))
+      .fold(0, (s, t) => s + t.$1);
+  return o.amount + receipts + otherIncome - outflow - pettyGiven;
 });
 
 class IncomeState {

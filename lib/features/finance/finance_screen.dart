@@ -21,6 +21,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
+import '../../widgets/mom.dart';
 import '../../widgets/common.dart';
 import 'analysis_data.dart';
 import 'analysis_tab.dart';
@@ -44,9 +45,8 @@ class FinanceScreen extends ConsumerWidget {
     final tabs = <(String, Widget)>[
       ('Overview', const _Overview()),
       if (full) ('Income', const IncomeScreen()),
-      ('Analysis', const AnalysisTab()),
-      if (full) ('Dues & follow-ups', const _DuesTab()),
       if (full) ('Expenses', const _ExpensesTab()),
+      if (full) ('Dues & follow-ups', const _DuesTab()),
       ('Fund requests', const _FundRequestsTab()),
       ('Statements', const StatementsScreen()),
     ];
@@ -100,6 +100,8 @@ class _Overview extends ConsumerWidget {
       incomeByCategory.update(entry.categoryName, (value) => value + entry.amount, ifAbsent: () => entry.amount);
     }
     final bal = ref.watch(bankBalanceProvider);
+    final full = role.isOfficeBearer || role == Role.auditor;
+    void go(int tab) => DefaultTabController.of(context).animateTo(tab);
     final spent = ref
         .watch(expensesProvider)
         .where((e) => e.status == ExpenseStatus.approved && e.date.year == today.year && e.date.month == today.month)
@@ -130,19 +132,24 @@ class _Overview extends ConsumerWidget {
                   : 'Bank balance (SBI ••••4521)',
               value: bal == null ? 'Not set' : inr.format(bal),
               icon: Icons.account_balance,
-              sub: bal == null ? 'Treasurer: set the opening balance under Dues' : 'As of ${dateFmt.format(today)}',
+              onTap: full ? () => go(5) : null,
+              sub: bal == null
+                  ? 'Treasurer: set the opening balance under Dues'
+                  : 'Receipts + other income − expenses − petty cash given · ${dateFmt.format(today)}',
             ),
             StatCard(
               label: 'Dues collected',
               value: inr.format(collected),
               icon: Icons.south_west,
               color: AppColors.green,
+              onTap: full ? () => go(1) : null,
               sub: '$thisMonth bills, arrears & corpus',
             ),
             StatCard(
               label: 'Pending dues',
               value: inr.format(pending),
               icon: Icons.pending_actions,
+              onTap: full ? () => go(3) : null,
               color: AppColors.amber,
               sub: '$defaulters flats · as of ${dateFmt.format(today)}',
             ),
@@ -150,11 +157,13 @@ class _Overview extends ConsumerWidget {
               label: 'Spent – $thisMonth (to date)',
               value: backendEnabled ? inr.format(spent) : '₹1,49,000',
               icon: Icons.north_east,
+              onTap: full ? () => go(2) : null,
               color: AppColors.red,
               sub: backendEnabled ? 'Approved expenses' : '62% of monthly budget',
             ),
           ],
         ),
+        if (backendEnabled) const _PettyCashSummary(),
         const SizedBox(height: 16),
         if (role == Role.ecMember || role == Role.monitor)
           const Padding(
@@ -185,6 +194,17 @@ class _Overview extends ConsumerWidget {
                   ],
                 ),
         ),
+        const SizedBox(height: 16),
+        const Card(
+          clipBehavior: Clip.antiAlias,
+          child: ExpansionTile(
+            leading: Icon(Icons.insights_outlined),
+            title: Text('Analysis'),
+            subtitle: Text('Year-on-year, month-on-month and budget'),
+            childrenPadding: EdgeInsets.all(12),
+            children: [AnalysisTab(embedded: true)],
+          ),
+        ),
       ],
     );
   }
@@ -210,242 +230,278 @@ class _DuesTab extends ConsumerWidget {
     final o = st.opening;
     final recent = st.payments.reversed.take(10).toList();
 
-    return PageBody(
-      children: [
-        if (canRecord) ...[
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FilledButton.icon(
-                onPressed: () => showPaymentForm(context, ref),
-                icon: const Icon(Icons.receipt_long),
-                label: Text(l.recordPayment),
-              ),
-              if (backendEnabled)
-                OutlinedButton.icon(
-                  onPressed: () => showDuesScheduleForm(context, ref),
-                  icon: const Icon(Icons.event_repeat),
-                  label: const Text('Automatic monthly bills'),
-                ),
-              OutlinedButton.icon(
-                onPressed: () => showRaiseDuesForm(context, ref),
-                icon: const Icon(Icons.playlist_add),
-                label: Text(l.raiseDues),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => showRaiseDuesPerSqftForm(context, ref),
-                icon: const Icon(Icons.square_foot),
-                label: const Text('Per-square-foot charge'),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => showFixedLateFeeForm(context, ref),
-                icon: const Icon(Icons.schedule_send_outlined),
-                label: const Text('Apply late fee'),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => showOpeningBalanceForm(context, ref),
-                icon: const Icon(Icons.account_balance),
-                label: Text(o == null ? l.setOpeningBalance : l.editOpeningBalance),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (backendEnabled)
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.account_balance),
-              title: Text(
-                o == null ? 'Opening balance not set yet' : 'Opening balance ${inr.format(o.amount)} · ${o.account}',
-              ),
-              subtitle: Text(
-                o == null
-                    ? 'The Treasurer enters the bank balance on the day records start (e.g. 1 Apr).'
-                    : 'At the start of ${dateFmt.format(o.asOf)}. Bank balance = opening + payments received '
-                          '− approved expenses since then.',
-              ),
-            ),
-          ),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
+    return PhoneActionPage(
+      label: canRecord ? l.recordPayment : null,
+      icon: Icons.receipt_long,
+      onPressed: () => showPaymentForm(context, ref),
+      child: PageBody(
+        children: [
+          if (canRecord) ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${pendingFlats.length} flats have pending dues',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      Text(
-                        'Limit: 1 reminder per flat per day, 1 bulk reminder per day',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                if (canRemind)
+                if (!isPhone(context))
                   FilledButton.icon(
-                    onPressed: n.canBulk && pendingFlats.isNotEmpty
-                        ? () async {
-                            try {
-                              final c = await n.remindAll();
-                              if (context.mounted) toast(context, 'In-app reminder sent to the owners of $c flats');
-                            } catch (error) {
-                              if (context.mounted) toast(context, friendlyError(error));
-                            }
-                          }
-                        : null,
-                    icon: const Icon(Icons.campaign),
-                    label: Text(n.canBulk ? 'Remind all pending' : 'Bulk sent today'),
+                    onPressed: () => showPaymentForm(context, ref),
+                    icon: const Icon(Icons.receipt_long),
+                    label: Text(l.recordPayment),
                   ),
+                if (o == null)
+                  OutlinedButton.icon(
+                    onPressed: () => showOpeningBalanceForm(context, ref),
+                    icon: const Icon(Icons.account_balance),
+                    label: Text(l.setOpeningBalance),
+                  ),
+                PopupMenuButton<VoidCallback>(
+                  tooltip: 'More dues actions',
+                  onSelected: (action) => action(),
+                  itemBuilder: (_) => [
+                    if (backendEnabled)
+                      PopupMenuItem(
+                        value: () => showDuesScheduleForm(context, ref),
+                        child: const ListTile(
+                          leading: Icon(Icons.event_repeat),
+                          title: Text('Automatic monthly bills'),
+                        ),
+                      ),
+                    PopupMenuItem(
+                      value: () => showRaiseDuesForm(context, ref),
+                      child: ListTile(leading: const Icon(Icons.playlist_add), title: Text(l.raiseDues)),
+                    ),
+                    PopupMenuItem(
+                      value: () => showRaiseDuesPerSqftForm(context, ref),
+                      child: const ListTile(leading: Icon(Icons.square_foot), title: Text('Per-square-foot charge')),
+                    ),
+                    PopupMenuItem(
+                      value: () => showFixedLateFeeForm(context, ref),
+                      child: const ListTile(leading: Icon(Icons.schedule_send_outlined), title: Text('Apply late fee')),
+                    ),
+                    if (o != null)
+                      PopupMenuItem(
+                        value: () => showOpeningBalanceForm(context, ref),
+                        child: ListTile(leading: const Icon(Icons.account_balance), title: Text(l.editOpeningBalance)),
+                      ),
+                  ],
+                  child: const Chip(avatar: Icon(Icons.more_horiz), label: Text('More')),
+                ),
               ],
             ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (flats.isEmpty)
-          const EmptyState('No flats yet. Add them in Flats & people.', icon: Icons.apartment_outlined)
-        else if (backendEnabled && st.lines.isEmpty)
-          EmptyState(
-            canRecord
-                ? 'No dues raised yet. Use "Raise dues" to bill every flat, e.g. Maintenance for this month.'
-                : 'No dues raised yet.',
-            icon: Icons.receipt_long_outlined,
-          )
-        else
-          Card(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columnSpacing: 14,
-                horizontalMargin: 10,
-                dataRowMinHeight: 40,
-                dataRowMaxHeight: 44,
-                headingRowHeight: 40,
-                columns: [
-                  const DataColumn(label: Text('Flat')),
-                  const DataColumn(label: Text('Type')),
-                  if (owners.isNotEmpty) const DataColumn(label: Text('Owner')),
-                  const DataColumn(label: Text('Charged'), numeric: true),
-                  const DataColumn(label: Text('Paid'), numeric: true),
-                  const DataColumn(label: Text('Pending'), numeric: true),
-                  const DataColumn(label: Text('Status')),
-                  const DataColumn(label: Text('Actions')),
-                ],
-                rows: [
-                  for (final (number, type) in flats)
-                    () {
-                      final lines = st.lines.where((l) => l.flatNumber == number).toList();
-                      final charged = lines.fold(0, (s, l) => s + l.amount);
-                      final paid = lines.fold(0, (s, l) => s + l.paid);
-                      final pending = st.pendingFor(number);
-                      final open = lines.where((l) => !l.isPaid).length;
-                      return DataRow(
-                        cells: [
-                          DataCell(Text(number, style: const TextStyle(fontWeight: FontWeight.w600))),
-                          DataCell(Text(type)),
-                          if (owners.isNotEmpty) DataCell(Text(owners[number] ?? '–')),
-                          DataCell(Text(charged == 0 ? '–' : inr.format(charged))),
-                          DataCell(Text(paid == 0 ? '–' : inr.format(paid))),
-                          DataCell(Text(pending <= 0 ? '–' : inr.format(pending))),
-                          DataCell(
-                            lines.isEmpty
-                                ? Text(l.noDues)
-                                : open == 0
-                                ? const Pill('Paid', color: AppColors.green)
-                                : Pill('$open due', color: AppColors.red),
-                          ),
-                          DataCell(
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (canRecord)
-                                  TextButton.icon(
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                    onPressed: () => showPaymentForm(context, ref, flat: number),
-                                    icon: const Icon(Icons.receipt_long, size: 16),
-                                    label: const Text('Record'),
-                                  ),
-                                if (pending > 0 && canRemind)
-                                  n.canRemind(number)
-                                      ? TextButton.icon(
-                                          style: TextButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                                            visualDensity: VisualDensity.compact,
-                                          ),
-                                          onPressed: () async {
-                                            try {
-                                              await n.remind(number);
-                                              if (context.mounted)
-                                                toast(context, 'Reminder sent to the owner of $number');
-                                            } catch (error) {
-                                              if (context.mounted) toast(context, friendlyError(error));
-                                            }
-                                          },
-                                          icon: const Icon(Icons.notifications_active_outlined, size: 16),
-                                          label: const Text('Remind'),
-                                        )
-                                      : const Text('Sent today', style: TextStyle(color: Colors.black45)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    }(),
-                ],
+            const SizedBox(height: 12),
+          ],
+          if (backendEnabled)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.account_balance),
+                title: Text(
+                  o == null ? 'Opening balance not set yet' : 'Opening balance ${inr.format(o.amount)} · ${o.account}',
+                ),
+                subtitle: Text(
+                  o == null
+                      ? 'The Treasurer enters the bank balance on the day records start (e.g. 1 Apr).'
+                      : 'At the start of ${dateFmt.format(o.asOf)}. Bank balance = opening + payments received '
+                            '− approved expenses since then.',
+                ),
               ),
             ),
-          ),
-        if (recent.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          SectionCard(
-            title: 'Recent receipts',
-            padding: false,
-            child: Column(
-              children: [
-                for (final p in recent)
-                  ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.receipt_outlined),
-                    title: Text('${p.receiptNo} · ${p.flatNumber}${p.head == null ? ' · advance' : ' · ${p.head}'}'),
-                    subtitle: Text(
-                      '${dateFmt.format(p.paidOn)} · ${paymentModes[p.mode] ?? p.mode}'
-                      '${p.reference == null ? '' : ' · ref ${p.reference}'}',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(inr.format(p.amount), style: const TextStyle(fontWeight: FontWeight.w600)),
-                        IconButton(
-                          tooltip: 'View receipt',
-                          icon: const Icon(Icons.visibility_outlined),
-                          onPressed: () => viewReceipt(
-                            context,
-                            p,
-                            ref.read(sessionProvider)!.user.association?.name ?? associationName,
-                          ),
+                        Text(
+                          '${pendingFlats.length} flats have pending dues',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        IconButton(
-                          tooltip: 'Download receipt (PDF)',
-                          icon: const Icon(Icons.download_outlined),
-                          onPressed: () =>
-                              downloadReceipt(p, ref.read(sessionProvider)!.user.association?.name ?? associationName),
+                        Text(
+                          'Limit: 1 reminder per flat per day, 1 bulk reminder per day',
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
                     ),
                   ),
-              ],
+                  if (canRemind)
+                    FilledButton.icon(
+                      onPressed: n.canBulk && pendingFlats.isNotEmpty
+                          ? () async {
+                              try {
+                                final c = await n.remindAll();
+                                if (context.mounted) toast(context, 'In-app reminder sent to the owners of $c flats');
+                              } catch (error) {
+                                if (context.mounted) toast(context, friendlyError(error));
+                              }
+                            }
+                          : null,
+                      icon: const Icon(Icons.campaign),
+                      label: Text(n.canBulk ? 'Remind all pending' : 'Bulk sent today'),
+                    ),
+                ],
+              ),
             ),
           ),
+          const SizedBox(height: 12),
+          if (flats.isEmpty)
+            const EmptyState('No flats yet. Add them in Flats & people.', icon: Icons.apartment_outlined)
+          else if (backendEnabled && st.lines.isEmpty)
+            EmptyState(
+              canRecord
+                  ? 'No dues raised yet. Use "Raise dues" to bill every flat, e.g. Maintenance for this month.'
+                  : 'No dues raised yet.',
+              icon: Icons.receipt_long_outlined,
+            )
+          else
+            Card(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columnSpacing: 14,
+                  horizontalMargin: 10,
+                  dataRowMinHeight: 40,
+                  dataRowMaxHeight: 44,
+                  headingRowHeight: 40,
+                  columns: [
+                    const DataColumn(label: Text('Flat')),
+                    const DataColumn(label: Text('Type')),
+                    if (owners.isNotEmpty) const DataColumn(label: Text('Owner')),
+                    const DataColumn(label: Text('Charged'), numeric: true),
+                    const DataColumn(label: Text('Paid'), numeric: true),
+                    const DataColumn(label: Text('Pending'), numeric: true),
+                    const DataColumn(label: Text('Status')),
+                    const DataColumn(label: Text('Actions')),
+                  ],
+                  rows: [
+                    for (final (number, type) in flats)
+                      () {
+                        final lines = st.lines.where((l) => l.flatNumber == number).toList();
+                        final charged = lines.fold(0, (s, l) => s + l.amount);
+                        final paid = lines.fold(0, (s, l) => s + l.paid);
+                        final pending = st.pendingFor(number);
+                        final open = lines.where((l) => !l.isPaid).length;
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(number, style: const TextStyle(fontWeight: FontWeight.w600))),
+                            DataCell(Text(type)),
+                            if (owners.isNotEmpty) DataCell(Text(owners[number] ?? '–')),
+                            DataCell(Text(charged == 0 ? '–' : inr.format(charged))),
+                            DataCell(Text(paid == 0 ? '–' : inr.format(paid))),
+                            DataCell(Text(pending <= 0 ? '–' : inr.format(pending))),
+                            DataCell(
+                              lines.isEmpty
+                                  ? Text(l.noDues)
+                                  : open == 0
+                                  ? const Pill('Paid', color: AppColors.green)
+                                  : Pill('$open due', color: AppColors.red),
+                            ),
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (canRecord)
+                                    TextButton.icon(
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      onPressed: () => showPaymentForm(context, ref, flat: number),
+                                      icon: const Icon(Icons.receipt_long, size: 16),
+                                      label: const Text('Record'),
+                                    ),
+                                  if (pending > 0 && canRemind)
+                                    n.canRemind(number)
+                                        ? TextButton.icon(
+                                            style: TextButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                                              visualDensity: VisualDensity.compact,
+                                            ),
+                                            onPressed: () async {
+                                              try {
+                                                await n.remind(number);
+                                                if (context.mounted)
+                                                  toast(context, 'Reminder sent to the owner of $number');
+                                              } catch (error) {
+                                                if (context.mounted) toast(context, friendlyError(error));
+                                              }
+                                            },
+                                            icon: const Icon(Icons.notifications_active_outlined, size: 16),
+                                            label: const Text('Remind'),
+                                          )
+                                        : const Text('Sent today', style: TextStyle(color: Colors.black45)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }(),
+                  ],
+                ),
+              ),
+            ),
+          if (recent.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            SectionCard(
+              title: 'Recent receipts',
+              padding: false,
+              child: Column(
+                children: [
+                  for (final p in recent)
+                    ListTile(
+                      dense: true,
+                      leading: Icon(
+                        p.reverses != null ? Icons.undo : Icons.receipt_outlined,
+                        color: p.reverses != null || p.reversed ? AppColors.red : null,
+                      ),
+                      title: Text(
+                        '${p.receiptNo} · ${p.flatNumber}${p.head == null ? ' · advance' : ' · ${p.head}'}'
+                        '${p.reverses != null
+                            ? ' · reversal'
+                            : p.reversed
+                            ? ' · cancelled'
+                            : ''}',
+                      ),
+                      subtitle: Text(
+                        '${dateFmt.format(p.paidOn)} · ${paymentModes[p.mode] ?? p.mode}'
+                        '${p.reference == null ? '' : ' · ref ${p.reference}'}',
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(inr.format(p.amount), style: const TextStyle(fontWeight: FontWeight.w600)),
+                          if (canRecord && backendEnabled && p.id != null && p.reverses == null && !p.reversed)
+                            IconButton(
+                              tooltip: 'Reverse payment (marked by mistake)',
+                              icon: const Icon(Icons.undo),
+                              onPressed: () => _reversePayment(context, ref, p),
+                            ),
+                          IconButton(
+                            tooltip: 'View receipt',
+                            icon: const Icon(Icons.visibility_outlined),
+                            onPressed: () => viewReceipt(
+                              context,
+                              p,
+                              ref.read(sessionProvider)!.user.association?.name ?? associationName,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Download receipt (PDF)',
+                            icon: const Icon(Icons.download_outlined),
+                            onPressed: () => downloadReceipt(
+                              p,
+                              ref.read(sessionProvider)!.user.association?.name ?? associationName,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -523,165 +579,172 @@ class _ExpensesTab extends ConsumerWidget {
       }
     }
 
-    return PageBody(
-      children: [
-        Row(
-          children: [
-            const Expanded(
-              child: Text(
-                'Entered by Secretary/Treasurer → Treasurer verifies the bill → President approves. '
-                'Nobody can verify or approve an expense they entered.',
-              ),
-            ),
-            if (canEnter)
-              FilledButton.tonalIcon(
-                onPressed: () => showExpenseForm(context, ref),
-                icon: const Icon(Icons.add),
-                label: const Text('Add expense'),
-              ),
-          ],
-        ),
-        if (backendEnabled && const {Role.treasurer, Role.jointTreasurer, Role.admin}.contains(role)) ...[
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
+    return PhoneActionPage(
+      label: canEnter ? 'Add expense' : null,
+      onPressed: () => showExpenseForm(context, ref),
+      child: PageBody(
+        children: [
+          Row(
             children: [
-              Text(
-                'Petty cash with caretaker: ${switch (ref.watch(pettyCashBalanceProvider).value) {
-                  final b? => inr.format(b),
-                  null => '—',
-                }}',
+              const Expanded(
+                child: Text(
+                  'Entered by Secretary/Treasurer → Treasurer verifies the bill → President approves. '
+                  'Nobody can verify or approve an expense they entered.',
+                ),
               ),
-              OutlinedButton.icon(
-                onPressed: () => showPettyCashForm(context, ref),
-                icon: const Icon(Icons.payments_outlined),
-                label: const Text('Give petty cash'),
-              ),
+              if (canEnter && !isPhone(context))
+                FilledButton.tonalIcon(
+                  onPressed: () => showExpenseForm(context, ref),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add expense'),
+                ),
             ],
           ),
-        ],
-        const SizedBox(height: 12),
-        if (list.isEmpty) const EmptyState('No expenses recorded yet.', icon: Icons.receipt_long_outlined),
-        for (final e in list) ...[
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text('${e.category} · ${e.vendor}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      ),
-                      Text(
-                        inr.format(e.amount),
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${e.id} · ${dateFmt.format(e.date)}${e.description.isEmpty ? '' : ' · ${e.description}'} · by ${e.enteredBy}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 8),
-                  if (e.fromPettyCash)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 6),
-                      child: Pill('Paid from petty cash', color: AppColors.amber),
+          if (backendEnabled && const {Role.treasurer, Role.jointTreasurer, Role.admin}.contains(role)) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  'Petty cash with caretaker: ${switch (ref.watch(pettyCashBalanceProvider).value) {
+                    final b? => inr.format(b),
+                    null => '—',
+                  }}',
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => showPettyCashForm(context, ref),
+                  icon: const Icon(Icons.payments_outlined),
+                  label: const Text('Give petty cash'),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          if (list.isEmpty) const EmptyState('No expenses recorded yet.', icon: Icons.receipt_long_outlined),
+          for (final e in list) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${e.category} · ${e.vendor}',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Text(
+                          inr.format(e.amount),
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ],
                     ),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Pill(
-                        e.status.label,
-                        color: switch (e.status) {
-                          ExpenseStatus.approved => AppColors.green,
-                          ExpenseStatus.sentBack => AppColors.red,
-                          _ => AppColors.amber,
-                        },
+                    const SizedBox(height: 4),
+                    Text(
+                      '${e.id} · ${dateFmt.format(e.date)}${e.description.isEmpty ? '' : ' · ${e.description}'} · by ${e.enteredBy}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 8),
+                    if (e.fromPettyCash)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 6),
+                        child: Pill('Paid from petty cash', color: AppColors.amber),
                       ),
-                      if (e.billPaths.isNotEmpty)
-                        for (final (i, path) in e.billPaths.indexed)
-                          ActionChip(
-                            avatar: const Icon(Icons.receipt, size: 16),
-                            label: Text('Bill ${i + 1}'),
-                            tooltip: 'Open (link valid 60 seconds)',
-                            onPressed: () => view(path),
-                          )
-                      else if (e.documents == 0)
-                        const Pill('No bill attached', color: AppColors.red, icon: Icons.attach_file)
-                      else
-                        Pill('${e.documents} document(s)', color: Colors.blueGrey, icon: Icons.attach_file),
-                      if (e.flagged)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
                         Pill(
-                          'Flagged for discussion${e.flagReason == null ? '' : ': ${e.flagReason}'}',
-                          color: AppColors.amber,
-                          icon: Icons.flag,
-                        )
-                      else if (e.flagResolution != null)
-                        Pill('Flag resolved: ${e.flagResolution}', color: AppColors.green, icon: Icons.check),
-                      if (e.comment != null)
-                        Text('“${e.comment}”', style: const TextStyle(fontStyle: FontStyle.italic)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (role == Role.treasurer && e.status == ExpenseStatus.awaitingTreasurer) ...[
-                        FilledButton(
-                          onPressed: e.documents == 0 ? null : () => act(e, 'verify'),
-                          child: const Text('Bill OK → President'),
+                          e.status.label,
+                          color: switch (e.status) {
+                            ExpenseStatus.approved => AppColors.green,
+                            ExpenseStatus.sentBack => AppColors.red,
+                            _ => AppColors.amber,
+                          },
                         ),
-                        OutlinedButton(onPressed: () => sendBack(e), child: const Text('Send back')),
+                        if (e.billPaths.isNotEmpty)
+                          for (final (i, path) in e.billPaths.indexed)
+                            ActionChip(
+                              avatar: const Icon(Icons.receipt, size: 16),
+                              label: Text('Bill ${i + 1}'),
+                              tooltip: 'Open (link valid 60 seconds)',
+                              onPressed: () => view(path),
+                            )
+                        else if (e.documents == 0)
+                          const Pill('No bill attached', color: AppColors.red, icon: Icons.attach_file)
+                        else
+                          Pill('${e.documents} document(s)', color: Colors.blueGrey, icon: Icons.attach_file),
+                        if (e.flagged)
+                          Pill(
+                            'Flagged for discussion${e.flagReason == null ? '' : ': ${e.flagReason}'}',
+                            color: AppColors.amber,
+                            icon: Icons.flag,
+                          )
+                        else if (e.flagResolution != null)
+                          Pill('Flag resolved: ${e.flagResolution}', color: AppColors.green, icon: Icons.check),
+                        if (e.comment != null)
+                          Text('“${e.comment}”', style: const TextStyle(fontStyle: FontStyle.italic)),
                       ],
-                      if (role == Role.president && e.status == ExpenseStatus.awaitingPresident) ...[
-                        FilledButton(
-                          onPressed: e.flagged ? null : () => act(e, 'approve'),
-                          child: Text(e.flagged ? 'Approve (resolve flag first)' : 'Approve'),
-                        ),
-                        OutlinedButton(onPressed: () => sendBack(e), child: const Text('Send back')),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (role == Role.treasurer && e.status == ExpenseStatus.awaitingTreasurer) ...[
+                          FilledButton(
+                            onPressed: e.documents == 0 ? null : () => act(e, 'verify'),
+                            child: const Text('Bill OK → President'),
+                          ),
+                          OutlinedButton(onPressed: () => sendBack(e), child: const Text('Send back')),
+                        ],
+                        if (role == Role.president && e.status == ExpenseStatus.awaitingPresident) ...[
+                          FilledButton(
+                            onPressed: e.flagged ? null : () => act(e, 'approve'),
+                            child: Text(e.flagged ? 'Approve (resolve flag first)' : 'Approve'),
+                          ),
+                          OutlinedButton(onPressed: () => sendBack(e), child: const Text('Send back')),
+                        ],
+                        if ((canEnter || role == Role.treasurer) &&
+                            (e.status == ExpenseStatus.awaitingTreasurer || e.status == ExpenseStatus.sentBack))
+                          TextButton.icon(
+                            onPressed: () => attach(e),
+                            icon: const Icon(Icons.attach_file),
+                            label: const Text('Attach bill'),
+                          ),
+                        if (canEnter && e.status == ExpenseStatus.sentBack)
+                          TextButton.icon(
+                            onPressed: () => act(e, 'resubmit'),
+                            icon: const Icon(Icons.send),
+                            label: const Text('Resubmit'),
+                          ),
+                        if (role == Role.president && !e.flagged)
+                          TextButton.icon(
+                            onPressed: () => flag(e),
+                            icon: const Icon(Icons.outlined_flag),
+                            label: const Text('Flag for discussion'),
+                          ),
+                        if (e.flagged && (role == Role.president || role == Role.secretary))
+                          TextButton.icon(
+                            onPressed: () => resolveFlag(e),
+                            icon: const Icon(Icons.flag),
+                            label: const Text('Resolve flag'),
+                          ),
                       ],
-                      if ((canEnter || role == Role.treasurer) &&
-                          (e.status == ExpenseStatus.awaitingTreasurer || e.status == ExpenseStatus.sentBack))
-                        TextButton.icon(
-                          onPressed: () => attach(e),
-                          icon: const Icon(Icons.attach_file),
-                          label: const Text('Attach bill'),
-                        ),
-                      if (canEnter && e.status == ExpenseStatus.sentBack)
-                        TextButton.icon(
-                          onPressed: () => act(e, 'resubmit'),
-                          icon: const Icon(Icons.send),
-                          label: const Text('Resubmit'),
-                        ),
-                      if (role == Role.president && !e.flagged)
-                        TextButton.icon(
-                          onPressed: () => flag(e),
-                          icon: const Icon(Icons.outlined_flag),
-                          label: const Text('Flag for discussion'),
-                        ),
-                      if (e.flagged && (role == Role.president || role == Role.secretary))
-                        TextButton.icon(
-                          onPressed: () => resolveFlag(e),
-                          icon: const Icon(Icons.flag),
-                          label: const Text('Resolve flag'),
-                        ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
+            const SizedBox(height: 8),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -702,6 +765,30 @@ final fundRequestsProvider = FutureProvider.autoDispose<List<FundRequestRecord>>
       ),
   ];
 });
+
+Future<void> _reversePayment(BuildContext context, WidgetRef ref, PaymentRecord p) async {
+  final reason = await promptText(
+    context,
+    title: 'Reverse ${p.receiptNo} (${inr.format(p.amount)}, flat ${p.flatNumber})?',
+    hint: 'Reason, e.g. marked paid by mistake',
+  );
+  if (reason == null || reason.trim().length < 5 || !context.mounted) {
+    if (reason != null && context.mounted) toast(context, 'Enter a reason of at least 5 characters');
+    return;
+  }
+  try {
+    await FinanceRepo.requestPaymentReversal(p.id!, reason.trim(), ref.read(approvalsProvider.notifier).nextId());
+    await ref.read(approvalsProvider.notifier).refresh();
+    if (context.mounted) {
+      toast(
+        context,
+        'Sent to the President/Secretary. Once approved, the due shows unpaid again and the receipt is cancelled.',
+      );
+    }
+  } catch (e) {
+    if (context.mounted) toast(context, friendlyError(e));
+  }
+}
 
 class _FundRequestsTab extends ConsumerWidget {
   const _FundRequestsTab();
@@ -731,7 +818,7 @@ class _FundRequestsTab extends ConsumerWidget {
           await ref.read(approvalsProvider.notifier).refresh();
         }
         ref.invalidate(fundRequestsProvider);
-        if (context.mounted) toast(context, 'Fund request submitted for President approval');
+        if (context.mounted) toast(context, 'Fund request sent for the EC vote, then President approval');
       } catch (error) {
         if (context.mounted) toast(context, friendlyError(error));
       }
@@ -741,7 +828,9 @@ class _FundRequestsTab extends ConsumerWidget {
       children: [
         Row(
           children: [
-            const Expanded(child: Text('Fund requests require President approval and an EC MOM reference.')),
+            const Expanded(
+              child: Text('Fund requests need approved EC meeting minutes (MOM), an EC vote, then President approval.'),
+            ),
             if (canRequest)
               FilledButton.tonalIcon(
                 onPressed: addRequest,
@@ -771,6 +860,7 @@ class _FundRequestsTab extends ConsumerWidget {
                   '${request.dueDay == null ? '' : ' · due ${request.dueDay}'} · MOM ${request.momRef}',
                 ),
                 isThreeLine: true,
+                onTap: () => openMom(context, request.momRef),
                 trailing: Pill(
                   request.status,
                   color: request.status == 'active'
@@ -876,11 +966,39 @@ Future<_FundRequestDraft?> _fundRequestDialog(BuildContext context) async {
                     decoration: const InputDecoration(labelText: 'Due day / schedule *'),
                   ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: momRef,
-                  maxLength: 120,
-                  decoration: const InputDecoration(labelText: 'EC MOM reference *'),
-                ),
+                if (approvedEcMeetings(context) case final meetings when meetings.isNotEmpty || !backendEnabled)
+                  DropdownButtonFormField<String>(
+                    initialValue: momRef.text.isEmpty ? null : momRef.text,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Approved EC meeting minutes (MOM) *'),
+                    items: [
+                      for (final m in meetings)
+                        DropdownMenuItem(
+                          value: m.id,
+                          child: Text(momLabel(m), overflow: TextOverflow.ellipsis),
+                        ),
+                      if (meetings.isEmpty && !backendEnabled)
+                        const DropdownMenuItem(value: 'Demo MOM', child: Text('Demo MOM')),
+                    ],
+                    onChanged: (v) => set(() => momRef.text = v ?? ''),
+                  )
+                else
+                  const ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.info_outline, color: AppColors.amber),
+                    title: Text(
+                      'No approved minutes yet. Record the EC meeting and approve its minutes in Meetings first.',
+                    ),
+                  ),
+                if (momRef.text.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => openMom(ctx, momRef.text),
+                      icon: const Icon(Icons.description_outlined),
+                      label: const Text('View minutes'),
+                    ),
+                  ),
                 if (error != null) Align(alignment: Alignment.centerLeft, child: Text(error!)),
               ],
             ),
@@ -1536,4 +1654,29 @@ void _reviewStatement(BuildContext context, MonthlyStatement s) {
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
     ),
   );
+}
+
+/// Petty cash given to the caretaker, spent from it, and still with the caretaker.
+class _PettyCashSummary extends ConsumerWidget {
+  const _PettyCashSummary();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final given = (ref.watch(pettyCashTopupsProvider).value ?? const []).fold(0, (s, t) => s + t.$1);
+    final balance = ref.watch(pettyCashBalanceProvider).value;
+    if (given == 0 || balance == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Card(
+        child: ListTile(
+          leading: const Icon(Icons.payments_outlined, color: AppColors.amber),
+          title: Text('Petty cash with caretaker: ${inr.format(balance)}'),
+          subtitle: Text(
+            'Given ${inr.format(given)} · spent ${inr.format(given - balance)}. '
+            'Bills appear under Expenses in their own categories, tagged "Paid from petty cash".',
+          ),
+        ),
+      ),
+    );
+  }
 }

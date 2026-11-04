@@ -23,11 +23,13 @@ class VisitorRepo {
     final query = db
         .from('visitor_requests')
         .select(
-          'id, guest_name, guest_phone, expected_arrival, vehicle_number, note, status, host_name, '
+          'id, guest_name, guest_phone, expected_arrival, vehicle_number, note, status, host_name, guest_count, pass_code, '
           'flats(number, flat_vehicles(vehicle_type, registration_number, parking_slot))',
         );
-    final rows = await (hostOnly ? query.eq('host_id', db.auth.currentUser!.id) : query)
-        .order('expected_arrival', ascending: false);
+    final rows = await (hostOnly ? query.eq('host_id', db.auth.currentUser!.id) : query).order(
+      'expected_arrival',
+      ascending: false,
+    );
     return [
       for (final row in rows)
         () {
@@ -51,6 +53,8 @@ class VisitorRepo {
             flatCarNumber: vehicle('car'),
             flatBikeNumber: vehicle('bike'),
             parkingSlot: slots.firstOrNull,
+            guestCount: (row['guest_count'] as num?)?.toInt() ?? 1,
+            passCode: row['pass_code'] as String?,
           );
         }(),
     ];
@@ -63,6 +67,7 @@ class VisitorRepo {
     required DateTime expectedArrival,
     required String vehicleNumber,
     required String note,
+    int guestCount = 1,
   }) async {
     await db.rpc(
       'create_visitor_request',
@@ -73,6 +78,7 @@ class VisitorRepo {
         'p_expected_arrival': expectedArrival.toUtc().toIso8601String(),
         'p_vehicle_number': vehicleNumber,
         'p_note': note,
+        'p_guest_count': guestCount,
       },
     );
   }

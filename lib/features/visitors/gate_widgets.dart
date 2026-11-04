@@ -419,6 +419,51 @@ const walkInCompanies = {
   ],
 };
 
+/// Brand colours for the company buttons (a coloured initial, not the trademarked logo).
+const _brandColors = <String, Color>{
+  'Amazon': Color(0xFFFF9900),
+  'Flipkart': Color(0xFF2874F0),
+  'Swiggy': Color(0xFFFC8019),
+  'Zomato': Color(0xFFE23744),
+  'Zepto': Color(0xFF5A1E96),
+  'Blinkit': Color(0xFFF8CB46),
+  'BigBasket': Color(0xFF84C225),
+  'Swiggy Instamart': Color(0xFFFC8019),
+  'Myntra': Color(0xFFFF3F6C),
+  'Meesho': Color(0xFF570A57),
+  'JioMart': Color(0xFF0078AD),
+  'Ekart': Color(0xFF2874F0),
+  'Delhivery': Color(0xFFD32F2F),
+  'Blue Dart': Color(0xFF1E3A8A),
+  'DTDC': Color(0xFFE30613),
+  'India Post': Color(0xFFD3242C),
+  'Shadowfax': Color(0xFF00A86B),
+  'Uber': Color(0xFF000000),
+  'Ola': Color(0xFF8DB600),
+  'Rapido': Color(0xFFF9C935),
+  'Namma Yatri': Color(0xFFFCC32C),
+  'Urban Company': Color(0xFF111111),
+};
+
+class _BrandBadge extends StatelessWidget {
+  const _BrandBadge(this.name);
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _brandColors[name] ?? const Color(0xFF546E7A);
+    final light = color.computeLuminance() > 0.5;
+    return CircleAvatar(
+      radius: 15,
+      backgroundColor: color,
+      child: Text(
+        name.characters.first,
+        style: TextStyle(color: light ? Colors.black : Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
+      ),
+    );
+  }
+}
+
 typedef WalkInData = ({String flat, String name, String phone, String type, String vehicle, Uint8List? photo});
 
 class WalkInPage extends StatefulWidget {
@@ -530,7 +575,20 @@ class _WalkInPageState extends State<WalkInPage> {
                       padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
                       shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     ),
-                    child: Text(c, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _BrandBadge(c),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            c,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
             ],
