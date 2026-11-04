@@ -797,7 +797,9 @@ class _GateAlertsCardState extends ConsumerState<GateAlertsCard> {
     final hostOnly = session?.activeRole == Role.owner || session?.activeRole == Role.resident;
     final currentScope = (session?.user.associationId, hostOnly);
     final list = _loadedScope == currentScope ? _list : const <GateVisitor>[];
-    final waiting = list.where((v) => v.approval == 'awaiting').toList();
+    // Approve/Deny only for the user's own flats (owner or resident) in this association.
+    final myFlats = {...?session?.user.flatsFor(Role.owner), ...?session?.user.flatsFor(Role.resident)};
+    final waiting = list.where((v) => v.approval == 'awaiting' && myFlats.contains(v.flat)).toList();
     final codes = list.where((v) => v.status == 'expected' && v.passCode != null).toList();
     if (waiting.isEmpty && codes.isEmpty) return const SizedBox.shrink();
     return Card(
