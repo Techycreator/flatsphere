@@ -412,11 +412,11 @@ void main() {
     await tester.pump();
 
     final staffToggle = find.text('Caretaker / staff');
-    await tester.ensureVisible(staffToggle);
+    await tester.scrollUntilVisible(staffToggle, 200, scrollable: find.byType(Scrollable).first);
     await tester.tap(staffToggle);
     await tester.pump();
     final flatToggle = find.text('A flat');
-    await tester.ensureVisible(flatToggle);
+    await tester.scrollUntilVisible(flatToggle, 200, scrollable: find.byType(Scrollable).first);
     await tester.tap(flatToggle);
     await tester.pump();
 
