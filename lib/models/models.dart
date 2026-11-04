@@ -59,6 +59,17 @@ class DemoUser {
 
   /// Flats held under [role]; falls back to the primary flat for demo users.
   List<String> flatsFor(Role role) => flatsByRole[role] ?? (flatNumber != null ? [flatNumber!] : const []);
+
+  /// Every flat held under any role, primary flat first, without duplicates.
+  List<String> get allFlats {
+    final flats = <String>[?flatNumber];
+    for (final list in flatsByRole.values) {
+      for (final f in list) {
+        if (!flats.contains(f)) flats.add(f);
+      }
+    }
+    return flats;
+  }
   final List<String> monitorCategories;
   final List<String> designations;
   final DateTime? monitorUntil;
@@ -724,6 +735,15 @@ class DueLine {
 
   DueLine markPaid(String receipt) =>
       DueLine(flatNumber: flatNumber, head: head, amount: amount, paid: amount, dueDate: dueDate, receiptNo: receipt);
+}
+
+/// The category part of a dues head, e.g. 'Maintenance' from 'Maintenance – Nov 2026'.
+String duesCategory(String head) {
+  for (final sep in const [' – ', ' - ']) {
+    final cut = head.indexOf(sep);
+    if (cut > 0) return head.substring(0, cut).trim();
+  }
+  return head.trim();
 }
 
 enum ExpenseStatus {

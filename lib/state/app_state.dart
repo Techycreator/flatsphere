@@ -621,6 +621,64 @@ class DuesNotifier extends Notifier<DuesState> {
     );
     return receipt;
   }
+
+  /// Records one full payment per selected open due (bulk receive). Returns the count recorded.
+  Future<int> recordBulkPayments({
+    required List<DueLine> dues,
+    required String mode,
+    String? reference,
+    required DateTime paidOn,
+  }) async {
+    if (backendEnabled) {
+      try {
+        for (final due in dues) {
+          final r = await FinanceRepo.recordPayment(
+            flatId: due.flatId!,
+            dueId: due.id,
+            amount: due.pending,
+            mode: mode,
+            reference: reference,
+            paidOn: paidOn,
+          );
+          FinanceRepo.emailReceipt(r).ignore();
+        }
+      } finally {
+        await refresh();
+      }
+      return dues.length;
+    }
+    var next = 5001 + state.payments.length;
+    final receipts = {for (final due in dues) due: 'RCT-${next++}'};
+    state = state.copyWith(
+      lines: [
+        for (final l in state.lines)
+          receipts.containsKey(l)
+              ? DueLine(
+                  flatNumber: l.flatNumber,
+                  head: l.head,
+                  amount: l.amount,
+                  paid: l.amount,
+                  dueDate: l.dueDate,
+                  receiptNo: receipts[l],
+                )
+              : l,
+      ],
+      payments: [
+        ...state.payments,
+        for (final due in dues)
+          PaymentRecord(
+            flatNumber: due.flatNumber,
+            amount: due.pending,
+            paidOn: paidOn,
+            receiptNo: receipts[due]!,
+            mode: mode,
+            reference: reference,
+            head: due.head,
+          ),
+      ],
+    );
+    return dues.length;
+  }
 }
 
 /// Cash handed to the caretaker as petty cash: (amount, date given).

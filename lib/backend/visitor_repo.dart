@@ -45,19 +45,21 @@ class VisitorRepo {
     );
   }
 
-  static Future<List<VisitorRequest>> load({bool hostOnly = false, String? associationId}) async {
+  static Future<List<VisitorRequest>> load({bool hostOnly = false, required String associationId}) async {
     const columns =
         'id, guest_name, guest_phone, expected_arrival, vehicle_number, note, status, host_name, guest_count, pass_code, '
         'flats(number, flat_vehicles(vehicle_type, registration_number, parking_slot))';
+    // Scope to the active association: a host may belong to several associations.
     final query = db
         .from('visitor_requests')
-        .select(columns);
+        .select(columns)
+        .eq('association_id', associationId);
     final rows = await (hostOnly ? query.eq('host_id', db.auth.currentUser!.id) : query).order(
       'expected_arrival',
       ascending: false,
     );
     final visitors = [for (final row in rows) _fromRow(row)];
-    if (!hostOnly || associationId == null) return visitors;
+    if (!hostOnly) return visitors;
 
     final flatIds = (await myFlats(associationId: associationId)).map((flat) => flat.$1).toSet();
     if (flatIds.isEmpty) return visitors;

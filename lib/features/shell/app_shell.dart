@@ -435,7 +435,7 @@ class _ProfileMenu extends ConsumerWidget {
           child: ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(session.user.name),
-            subtitle: Text([session.user.mobile, ?session.user.flatNumber].join(' · ')),
+            subtitle: Text([session.user.mobile, ...session.user.allFlats].join(' · ')),
           ),
         ),
         if (showLanguage) ...[

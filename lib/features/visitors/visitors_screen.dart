@@ -24,6 +24,7 @@ import 'gate_screen.dart';
 final visitorRequestsProvider = FutureProvider.autoDispose<List<VisitorRequest>>((ref) {
   final role = ref.watch(sessionProvider.select((s) => s?.activeRole));
   final associationId = ref.watch(sessionProvider.select((s) => s?.user.associationId));
+  if (associationId == null) return const [];
   return VisitorRepo.load(
     hostOnly: role == Role.owner || role == Role.resident,
     associationId: associationId,

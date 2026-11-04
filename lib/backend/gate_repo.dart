@@ -108,11 +108,12 @@ class GateRepo {
     return [for (final r in rows) r['number'] as String];
   }
 
-  static Future<List<GateVisitor>> history({int days = 30}) async {
+  static Future<List<GateVisitor>> history({required String associationId, int days = 30}) async {
     final since = DateTime.now().subtract(Duration(days: days)).toUtc().toIso8601String();
     final rows = await db
         .from('visitor_requests')
         .select(_cols)
+        .eq('association_id', associationId)
         .gte('expected_arrival', since)
         .order('expected_arrival', ascending: false)
         .limit(500);
