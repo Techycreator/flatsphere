@@ -89,6 +89,7 @@ Owner-consent steps are tied to a flat. An owner who holds several flats sees an
 
 ### 3.5 Flats and people (Directory)
 - **Add / edit a flat:** number, block, type, area, occupancy, vehicles and parking slot.
+- **Find a flat:** the Flats tab has a search box that filters by flat number or block, alongside the occupancy chips. The People tab search already covers name, email and flat.
 - **Retire flat:** Admin, President or Secretary, with a reason, only when no active owner or resident, no pending change and no dues remain. History is kept.
 - **Add a person:** name, email, mobile, role and flat. Existing accounts get the role immediately; new emails get an invite.
 - **Edit details:** designations, monitor areas and dates. Owner/resident contact changes require a valid phone number and update the number used in the directory and at the gate. An invite cannot be changed to an email that already has an account; add that account through the directory. Profile edits preserve saved contact data when changing a name.
@@ -256,3 +257,4 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 | 2026-11-04 | Pending walk-in checkouts queue after creation; staff visitor actions, vehicle lookup and owner/resident lobby delivery visibility are corrected, and Other visits require a purpose in the RPC. | 3.8 |
 | 2026-11-04 | The gate RPC now explicitly rejects Other walk-ins with an empty or whitespace-only purpose before inserting a request. | 3.8 |
 | 2026-11-04 | Owners with several flats see all their flats in the profile menu, and owner-consent approval steps are matched against every flat they own rather than only the first-listed one. | 1, 3.3 |
+| 2026-11-04 | The Flats tab in Flats and people gains a search box that filters by flat number or block; the search box clears when switching tabs. | 3.5 |

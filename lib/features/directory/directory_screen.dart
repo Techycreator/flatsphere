@@ -136,7 +136,11 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
               ButtonSegment(value: _Tab.monitors, label: Text('Monitors'), icon: Icon(Icons.visibility_outlined)),
             ],
             selected: {tab},
-            onSelectionChanged: (v) => setState(() => tab = v.first),
+            // The search field is rebuilt empty on tab change, so drop the stale query with it.
+            onSelectionChanged: (v) => setState(() {
+              tab = v.first;
+              query = '';
+            }),
           ),
         ),
         const SizedBox(height: 16),
@@ -199,9 +203,12 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
   }
 
   List<Widget> _flats(DirectoryState st) {
+    final q = query.trim().toLowerCase();
     final shown = [
       for (final f in st.flats)
-        if (occFilter == null || f.occupancy == occFilter) f,
+        if ((occFilter == null || f.occupancy == occFilter) &&
+            (q.isEmpty || f.number.toLowerCase().contains(q) || f.block.toLowerCase().contains(q)))
+          f,
     ];
     return [
       Wrap(
@@ -209,6 +216,17 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
+          SizedBox(
+            width: 260,
+            child: TextField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Search flat number or block',
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => query = v),
+            ),
+          ),
           ChoiceChip(
             label: const Text('All'),
             selected: occFilter == null,
