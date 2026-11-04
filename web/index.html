@@ -58,6 +58,21 @@
         } catch (e) { return false; }
       },
     };
+    // Reads text from a bill photo in this browser; the OCR library is downloaded only the first time it is used.
+    window.flatsphereOcr = async (bytes) => {
+      if (!window.Tesseract) {
+        await new Promise((ok, fail) => {
+          const sc = document.createElement('script');
+          sc.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+          sc.integrity = 'sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F';
+          sc.crossOrigin = 'anonymous';
+          sc.onload = ok; sc.onerror = fail;
+          document.head.appendChild(sc);
+        });
+      }
+      const r = await window.Tesseract.recognize(new Blob([bytes]), 'eng');
+      return r.data.text;
+    };
     window.flatspherePush = {
       async subscribe(key) {
         if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return null;
@@ -152,21 +167,28 @@
       } catch (e) { /* fall through */ }
       await hardReload();
     }
-    function showUpdateRequired() {
-      if (document.getElementById('fs-update')) return;
-      if (updateAttemptedRecently()) return;
-      if (window.flatsphereUpdateGuard.busy()) { window.flatsphereUpdateGuard.defer(); return; }
+    let appReady = false;
+    function newOverlay() {
       const o = document.createElement('div');
       o.id = 'fs-update';
       o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#0F766E;color:#fff;display:flex;'
         + 'flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;font:16px sans-serif';
+      document.body.appendChild(o);
+      document.body.style.overflow = 'hidden';
+      return o;
+    }
+    function showUpdateRequired() {
+      if (document.getElementById('fs-update')) return;
+      if (updateAttemptedRecently()) return;
+      if (window.flatsphereUpdateGuard.busy()) { window.flatsphereUpdateGuard.defer(); return; }
+      if (!appReady) { applyUpdate(newOverlay()); return; }
+      const o = newOverlay();
       o.innerHTML = '<div style="font-size:22px;font-weight:700">Update available</div>'
         + '<div style="max-width:360px">A new version of FlatSphere is available. Please update to continue.</div>'
         + '<button id="fs-update-btn" style="padding:12px 28px;border:0;border-radius:24px;font:600 16px sans-serif;background:#fff;color:#0F766E;cursor:pointer">Update now</button>';
-      document.body.appendChild(o);
-      document.body.style.overflow = 'hidden';
       document.getElementById('fs-update-btn').onclick = () => applyUpdate(o);
-    }    async function checkForUpdate() {
+    }
+    async function checkForUpdate() {
       if (BUILD_ID.startsWith('__')) return;
       try {
         const r = await fetch('build-id.txt', { cache: 'no-store' });
@@ -177,8 +199,13 @@
     }
     checkForUpdate();
     setInterval(checkForUpdate, 5 * 60 * 1000);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
-    window.addEventListener('flutter-first-frame', () => document.getElementById('splash')?.remove());
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) checkForUpdate();
+    });
+    window.addEventListener('flutter-first-frame', () => {
+      appReady = true;
+      document.getElementById('splash')?.remove();
+    });
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

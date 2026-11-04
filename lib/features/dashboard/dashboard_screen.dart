@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
+import '../../backend/directory_repo.dart' show friendlyError;
 import '../../backend/finance_repo.dart';
 import '../../backend/backend.dart' show backendEnabled;
 import '../../l10n/app_localizations.dart';
@@ -18,6 +19,7 @@ import '../approvals/approval_tile.dart';
 import '../complaints/complaint_tile.dart';
 import '../community/community_screen.dart' show communityEventsProvider, marketplaceProvider;
 import '../finance/charts.dart';
+import '../finance/treasurer_forms.dart' show pettyCashBalanceProvider, pickBill, showExpenseForm;
 import '../visitors/gate_screen.dart' show GateAlertsCard;
 
 class DashboardScreen extends ConsumerWidget {
@@ -227,8 +229,6 @@ class _PresidentDash extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider);
-    final s = ref.watch(sessionProvider)!;
-    final pending = ref.watch(approvalsProvider).where((a) => a.needsAction(s.activeRole, s.user.name)).length;
     final red = ref.watch(complaintsProvider).where((c) => c.slaApplies && slaFor(c, now).color == SlaColor.red).length;
     final dues = ref.watch(duesProvider).lines;
     final total = dues.fold(0, (a, x) => a + x.amount);
@@ -240,12 +240,6 @@ class _PresidentDash extends ConsumerWidget {
       children: [
         StatGrid(
           children: [
-            StatCard(
-              label: 'Pending approvals',
-              value: '$pending',
-              icon: Icons.verified_outlined,
-              onTap: () => context.go('/approvals'),
-            ),
             StatCard(
               label: 'Red complaints',
               value: '$red',
@@ -311,7 +305,6 @@ class _SecretaryDash extends ConsumerWidget {
     final review = all.where((c) => c.inReview).toList();
     int n(SlaColor c) => open.where((x) => slaFor(x, now).color == c).length;
     final cl = ref.watch(checklistProvider);
-    final pending = ref.watch(approvalsProvider).where((a) => a.needsAction(role, session.user.name)).length;
     final byCat = <String, (int, int)>{};
     for (final i in cl.items) {
       final v = byCat[i.category] ?? (0, 0);
@@ -322,12 +315,6 @@ class _SecretaryDash extends ConsumerWidget {
       children: [
         StatGrid(
           children: [
-            StatCard(
-              label: 'Pending approvals',
-              value: '$pending',
-              icon: Icons.verified_outlined,
-              onTap: () => context.go('/approvals'),
-            ),
             StatCard(
               label: 'Open complaints',
               value: '${open.length}',
@@ -731,6 +718,10 @@ class _CaretakerDash extends ConsumerWidget {
             ),
           ),
         ),
+        if (backendEnabled && ref.watch(sessionProvider)!.activeRole == Role.caretaker) ...[
+          const SizedBox(height: 16),
+          const _PettyCashCard(),
+        ],
         const SizedBox(height: 16),
         SectionCard(
           title: 'Open complaints (most urgent first)',
@@ -859,3 +850,108 @@ class _AuditorDash extends StatelessWidget {
 }
 
 String _balance(int? v) => v == null ? 'Not set' : inr.format(v);
+
+Future<void> _attachReturnedExpenseBill(BuildContext context, WidgetRef ref, Expense expense) async {
+  final file = await pickBill(context);
+  if (file == null || !context.mounted) return;
+  try {
+    await ref.read(expensesProvider.notifier).attachBill(expense, file.bytes, file.ext);
+    if (context.mounted) toast(context, 'Bill attached to ${expense.id}');
+  } catch (e) {
+    if (context.mounted) toast(context, friendlyError(e));
+  }
+}
+
+Future<void> _resubmitReturnedExpense(BuildContext context, WidgetRef ref, Expense expense) async {
+  try {
+    await ref.read(expensesProvider.notifier).decide(expense, 'resubmit');
+    if (context.mounted) toast(context, 'Expense resubmitted');
+  } catch (e) {
+    if (context.mounted) toast(context, friendlyError(e));
+  }
+}
+
+class _PettyCashCard extends ConsumerWidget {
+  const _PettyCashCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final balance = ref.watch(pettyCashBalanceProvider).value;
+    final pettyCashExpenses = ref.watch(expensesProvider).where((e) => e.fromPettyCash);
+    final returned = pettyCashExpenses.where((e) => e.status == ExpenseStatus.sentBack).toList();
+    final recent = pettyCashExpenses.where((e) => e.status != ExpenseStatus.sentBack).take(5);
+    final mine = [...returned, ...recent];
+    return SectionCard(
+      title: 'Petty cash',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            balance == null ? 'Balance: —' : 'Balance with you: ${inr.format(balance)}',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () => showExpenseForm(context, ref, pettyCash: true),
+            icon: const Icon(Icons.add_a_photo_outlined),
+            label: const Padding(padding: EdgeInsets.all(10), child: Text('Add petty cash expense')),
+          ),
+          for (final e in mine)
+            if (e.status == ExpenseStatus.sentBack)
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: Text('${e.vendor} · ${inr.format(e.amount)}'),
+                subtitle: Text('${dateFmt.format(e.date)} · ${e.status.label}'),
+                children: [
+                  if (e.description.isNotEmpty)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(e.description),
+                      ),
+                    ),
+                  if (e.comment != null && e.comment!.isNotEmpty)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text('Returned with: ${e.comment}'),
+                      ),
+                    ),
+                  if (e.documents == 0)
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text('Attach the requested bill before resubmitting.'),
+                      ),
+                    ),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => _attachReturnedExpenseBill(context, ref, e),
+                        icon: const Icon(Icons.attach_file),
+                        label: const Text('Attach bill'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: e.documents == 0 ? null : () => _resubmitReturnedExpense(context, ref, e),
+                        icon: const Icon(Icons.send),
+                        label: const Text('Resubmit'),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            else
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('${e.vendor} · ${inr.format(e.amount)}'),
+                subtitle: Text('${dateFmt.format(e.date)} · ${e.status.label}'),
+              ),
+        ],
+      ),
+    );
+  }
+}

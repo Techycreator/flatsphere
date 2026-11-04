@@ -624,10 +624,18 @@ class ApprovalRequest {
   final String category;
 
   bool awaits(Role active, String userName) =>
-      currentStep?.isEcVote != true && currentStep?.matches(active, userName) == true && !initiatorName.contains(userName);
+      currentStep?.isEcVote != true &&
+      currentStep?.matches(active, userName) == true &&
+      !initiatorName.contains(userName);
 
   static const _ecRoles = {
-    Role.ecMember, Role.president, Role.vicePresident, Role.secretary, Role.jointSecretary, Role.treasurer, Role.jointTreasurer,
+    Role.ecMember,
+    Role.president,
+    Role.vicePresident,
+    Role.secretary,
+    Role.jointSecretary,
+    Role.treasurer,
+    Role.jointTreasurer,
   };
 
   /// The EC vote is open and this role is on the EC (the requester votes too).
@@ -746,7 +754,13 @@ class Expense {
     this.dbId,
     this.billPaths = const [],
     this.eventId,
+    this.paidFrom = 'association',
   });
+
+  /// 'association' or 'petty_cash' (spent by the caretaker from petty cash).
+  final String paidFrom;
+
+  bool get fromPettyCash => paidFrom == 'petty_cash';
 
   /// Display reference, e.g. EXP-1001; [dbId] is the database key in cloud mode.
   final String id;
@@ -766,7 +780,14 @@ class Expense {
   final List<String> billPaths;
   final String? eventId;
 
-  Expense copyWith({ExpenseStatus? status, bool? flagged, String? flagReason, String? flagResolution, String? comment, int? documents}) => Expense(
+  Expense copyWith({
+    ExpenseStatus? status,
+    bool? flagged,
+    String? flagReason,
+    String? flagResolution,
+    String? comment,
+    int? documents,
+  }) => Expense(
     id: id,
     date: date,
     category: category,
@@ -783,6 +804,7 @@ class Expense {
     dbId: dbId,
     billPaths: billPaths,
     eventId: eventId,
+    paidFrom: paidFrom,
   );
 }
 

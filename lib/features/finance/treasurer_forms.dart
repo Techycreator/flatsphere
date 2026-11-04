@@ -1,11 +1,16 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../backend/backend.dart';
+import '../../backend/bill_parser.dart';
+import '../../backend/bill_reader.dart';
+import '../../backend/finance_repo.dart';
 import '../../backend/community_repo.dart';
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../backend/upload_preparation.dart' show maxSourceUploadBytes;
@@ -49,7 +54,7 @@ Future<bool?> _form(
   BuildContext context, {
   required String title,
   required String action,
-  required List<Widget> Function(StateSetter set) fields,
+  required List<Widget> Function(StateSetter set, BuildContext dialogContext) fields,
   required String? Function() validate,
 }) {
   String? error;
@@ -65,7 +70,7 @@ Future<bool?> _form(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final w in fields(set)) Padding(padding: const EdgeInsets.only(bottom: 12), child: w),
+                for (final w in fields(set, ctx)) Padding(padding: const EdgeInsets.only(bottom: 12), child: w),
                 if (error != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -113,11 +118,12 @@ Future<void> showOpeningBalanceForm(BuildContext context, WidgetRef ref) async {
     title: l.openingBalance,
     action: l.save,
     validate: () => int.tryParse(amount.text.trim()) == null ? 'Enter the balance in rupees' : null,
-    fields: (set) => [
+    fields: (set, _) => [
       TextField(
         controller: account,
         decoration: InputDecoration(labelText: l.account, hintText: 'e.g. SBI current a/c ••••4521'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,
@@ -158,6 +164,138 @@ Future<void> showOpeningBalanceForm(BuildContext context, WidgetRef ref) async {
   });
 }
 
+Future<void> showDuesScheduleForm(BuildContext context, WidgetRef ref) async {
+  final types = {for (final f in financeFlats(ref.read(duesProvider))) f.$2}.toList()..sort();
+  Map<String, dynamic>? cur;
+  try {
+    cur = await FinanceRepo.duesSchedule();
+  } catch (e) {
+    if (context.mounted) toast(context, friendlyError(e));
+    return;
+  }
+  if (!context.mounted) return;
+  final savedRates = (cur?['rates'] as Map?) ?? const {};
+  var enabled = cur?['enabled'] as bool? ?? true;
+  var perSqft = cur?['mode'] == 'per_sqft';
+  var lateFee = cur?['late_fee_enabled'] as bool? ?? false;
+  var billDay = (cur?['bill_day'] as num?)?.toInt() ?? 1;
+  var dueDay = (cur?['due_day'] as num?)?.toInt() ?? 10;
+  final prefix = TextEditingController(text: cur?['head_prefix'] as String? ?? 'Maintenance');
+  final sqft = TextEditingController(text: cur?['rate_per_sqft']?.toString() ?? '');
+  final fee = TextEditingController(text: cur?['late_fee_amount']?.toString() ?? '');
+  final grace = TextEditingController(text: '${cur?['late_fee_grace_days'] ?? 5}');
+  final rates = {for (final t in types) t: TextEditingController(text: savedRates[t]?.toString() ?? '')};
+  Widget day(String label, int value, void Function(int) on) => DropdownButtonFormField<int>(
+    initialValue: value,
+    decoration: InputDecoration(labelText: label),
+    items: [for (var d = 1; d <= 28; d++) DropdownMenuItem(value: d, child: Text('Day $d of the month'))],
+    onChanged: (v) => on(v ?? value),
+  );
+  final ok = await _form(
+    context,
+    title: 'Automatic monthly bills',
+    action: 'Save',
+    validate: () {
+      if (prefix.text.trim().isEmpty) return 'Enter a bill name, e.g. Maintenance';
+      if (dueDay < billDay) return 'Due day must be on or after the bill day';
+      if (enabled && !perSqft && rates.values.every((c) => (int.tryParse(c.text) ?? 0) <= 0)) {
+        return 'Enter an amount for at least one flat type';
+      }
+      if (enabled && perSqft && (double.tryParse(sqft.text) ?? 0) <= 0) return 'Enter the rate per square foot';
+      if (lateFee && (int.tryParse(fee.text) ?? 0) <= 0) return 'Enter the late fee amount';
+      return null;
+    },
+    fields: (set, _) => [
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: enabled,
+        title: const Text('Raise maintenance bills every month'),
+        onChanged: (v) => set(() => enabled = v),
+      ),
+      TextField(
+        controller: prefix,
+        decoration: const InputDecoration(
+          labelText: 'Bill name *',
+          helperText: 'Shown as e.g. "Maintenance – Nov 2026"',
+        ),
+      ),
+      day('Raise bill on', billDay, (v) => set(() => billDay = v)),
+      day('Due by', dueDay, (v) => set(() => dueDay = v)),
+      const SizedBox(height: 8),
+      SegmentedButton<bool>(
+        segments: const [
+          ButtonSegment(value: false, label: Text('By flat type')),
+          ButtonSegment(value: true, label: Text('Per sq. ft')),
+        ],
+        selected: {perSqft},
+        onSelectionChanged: (v) => set(() => perSqft = v.first),
+      ),
+      if (perSqft)
+        TextField(
+          controller: sqft,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Rate per sq. ft', prefixText: '₹ '),
+        )
+      else
+        for (final t in types)
+          TextField(
+            controller: rates[t],
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(labelText: t, prefixText: '₹ '),
+          ),
+      const Divider(height: 24),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: lateFee,
+        title: const Text('Add a late fee if unpaid'),
+        onChanged: (v) => set(() => lateFee = v),
+      ),
+      if (lateFee) ...[
+        TextField(
+          controller: fee,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(labelText: 'Late fee amount', prefixText: '₹ '),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: grace,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(labelText: 'Days after due date before the fee is added'),
+        ),
+      ],
+      const Padding(
+        padding: EdgeInsets.only(top: 8),
+        child: Text(
+          'Runs every morning (India time). A flat never gets the same bill twice. Reminders and receipts work as usual.',
+          style: _note,
+        ),
+      ),
+    ],
+  );
+  if (ok != true || !context.mounted) return;
+  await _run(context, () async {
+    await FinanceRepo.saveDuesSchedule(
+      enabled: enabled,
+      mode: perSqft ? 'per_sqft' : 'flat_type',
+      rates: {
+        for (final e in rates.entries)
+          if ((int.tryParse(e.value.text) ?? 0) > 0) e.key: int.parse(e.value.text),
+      },
+      ratePerSqft: perSqft ? double.tryParse(sqft.text) : null,
+      headPrefix: prefix.text.trim(),
+      billDay: billDay,
+      dueDay: dueDay,
+      lateFeeEnabled: lateFee,
+      lateFeeAmount: lateFee ? int.tryParse(fee.text) : null,
+      graceDays: (int.tryParse(grace.text) ?? 5).clamp(0, 60),
+    );
+    return enabled ? 'Automatic bills on: raised on day $billDay, due on day $dueDay' : 'Automatic bills turned off';
+  });
+}
+
 Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
   final l = AppLocalizations.of(context);
   final st = ref.read(duesProvider);
@@ -181,7 +319,7 @@ Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
       if (types.every((t) => rate(t) <= 0)) return 'Enter an amount for at least one flat type';
       return null;
     },
-    fields: (set) => [
+    fields: (set, _) => [
       TextField(
         controller: head,
         decoration: const InputDecoration(
@@ -243,11 +381,12 @@ Future<void> showRaiseDuesPerSqftForm(BuildContext context, WidgetRef ref) async
       if (rate == null || rate <= 0) return 'Enter a positive rate per square foot';
       return null;
     },
-    fields: (set) => [
+    fields: (set, _) => [
       TextField(
         controller: head,
         decoration: InputDecoration(labelText: '${l.duesName} *'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: rateController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -289,11 +428,12 @@ Future<void> showFixedLateFeeForm(BuildContext context, WidgetRef ref) async {
       if ((int.tryParse(amount.text.trim()) ?? 0) <= 0) return 'Enter a positive fixed amount';
       return null;
     },
-    fields: (set) => [
+    fields: (set, _) => [
       TextField(
         controller: feeName,
         decoration: InputDecoration(labelText: '${l.duesName} *'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,
@@ -339,7 +479,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
     title: l.recordPaymentReceived,
     action: l.saveReceipt,
     validate: () => (int.tryParse(amount.text) ?? 0) <= 0 ? 'Enter the amount received' : null,
-    fields: (set) => [
+    fields: (set, _) => [
       DropdownButtonFormField<String>(
         initialValue: number,
         isExpanded: true,
@@ -351,6 +491,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
           amount.text = due?.pending.toString() ?? '';
         }),
       ),
+      const SizedBox(height: 12),
       DropdownButtonFormField<DueLine?>(
         key: ValueKey(number),
         initialValue: due,
@@ -366,12 +507,14 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
           if (v != null) amount.text = v.pending.toString();
         }),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         decoration: InputDecoration(labelText: '${l.paymentReceived} *', prefixText: '₹ '),
       ),
+      const SizedBox(height: 12),
       DropdownButtonFormField<String>(
         initialValue: mode,
         decoration: InputDecoration(labelText: l.paymentMode),
@@ -381,6 +524,7 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
         ],
         onChanged: (v) => set(() => mode = v ?? mode),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: reference,
         decoration: InputDecoration(labelText: l.paymentReference, hintText: 'UPI ref, cheque no. or bank txn id'),
@@ -412,7 +556,51 @@ Future<void> showPaymentForm(BuildContext context, WidgetRef ref, {String? flat}
   });
 }
 
-Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
+final pettyCashBalanceProvider = FutureProvider.autoDispose<int?>((ref) async {
+  ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId)));
+  ref.watch(expensesProvider);
+  return backendEnabled ? FinanceRepo.pettyCashBalance() : null;
+});
+
+Future<void> showPettyCashForm(BuildContext context, WidgetRef ref) async {
+  final amount = TextEditingController();
+  final note = TextEditingController();
+  var date = DateUtils.dateOnly(DateTime.now());
+  final ok = await _form(
+    context,
+    title: 'Give petty cash to caretaker',
+    action: 'Save',
+    validate: () => (int.tryParse(amount.text) ?? 0) <= 0 ? 'Enter the amount' : null,
+    fields: (set, _) => [
+      TextField(
+        controller: amount,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: const InputDecoration(labelText: 'Amount *', prefixText: '₹ '),
+      ),
+      OutlinedButton.icon(
+        icon: const Icon(Icons.event),
+        label: Text('Given on ${dateFmt.format(date)}'),
+        onPressed: () async {
+          final d = await _pickDate(context, date);
+          if (d != null) set(() => date = d);
+        },
+      ),
+      TextField(
+        controller: note,
+        decoration: const InputDecoration(labelText: 'Note (e.g. cash from office)'),
+      ),
+    ],
+  );
+  if (ok != true || !context.mounted) return;
+  await _run(context, () async {
+    await FinanceRepo.addPettyCash(int.parse(amount.text), date, note.text.trim());
+    ref.invalidate(pettyCashBalanceProvider);
+    return 'Petty cash recorded';
+  });
+}
+
+Future<void> showExpenseForm(BuildContext context, WidgetRef ref, {bool pettyCash = false}) async {
   final s = ref.read(sessionProvider)!;
   var events = <CommunityEvent>[];
   if (backendEnabled) {
@@ -427,16 +615,66 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
   final description = TextEditingController();
   final amount = TextEditingController();
   PickedFile? bill;
+  var reading = false;
+  String? readNote;
   final ok = await _form(
     context,
-    title: 'Add expense',
+    title: pettyCash ? 'Petty cash expense' : 'Add expense',
     action: 'Submit for verification',
     validate: () {
       if (vendor.text.trim().isEmpty) return 'Enter the vendor or payee';
       if ((int.tryParse(amount.text) ?? 0) <= 0) return 'Enter the amount';
       return null;
     },
-    fields: (set) => [
+    fields: (set, dialogContext) => [
+      FilledButton.tonalIcon(
+        icon: reading
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            : Icon(bill == null ? Icons.document_scanner_outlined : Icons.check_circle),
+        label: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Text(
+            reading ? 'Reading the bill…' : (bill == null ? 'Add bill photo first (fills the form)' : bill!.name),
+          ),
+        ),
+        onPressed: reading
+            ? null
+            : () async {
+                final b = await pickBill(context);
+                if (!dialogContext.mounted || b == null) return;
+                set(() {
+                  bill = b;
+                  readNote = null;
+                });
+                if (!const {'jpg', 'jpeg', 'png', 'webp'}.contains(b.ext.toLowerCase())) return;
+                set(() => reading = true);
+                final text = await readBillText(b.bytes);
+                if (!dialogContext.mounted) return;
+                final g = text == null ? const BillGuess() : parseBill(text);
+                set(() {
+                  reading = false;
+                  if (g.isEmpty) {
+                    readNote = 'Could not read details from this photo. Please fill them in.';
+                    return;
+                  }
+                  if (g.vendor != null && vendor.text.trim().isEmpty) vendor.text = g.vendor!;
+                  if (g.amount != null) amount.text = '${g.amount}';
+                  if (g.date != null) date = g.date!;
+                  final extra = [
+                    if (g.invoiceNo != null) 'Invoice ${g.invoiceNo}',
+                    if (g.gstin != null) 'GSTIN ${g.gstin}',
+                  ].join(' · ');
+                  if (extra.isNotEmpty && description.text.trim().isEmpty) description.text = extra;
+                  readNote = 'Filled from the bill. Please check every field before submitting.';
+                });
+              },
+      ),
+      if (readNote != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(readNote!, style: _note),
+        ),
+      const SizedBox(height: 8),
       OutlinedButton.icon(
         icon: const Icon(Icons.event),
         label: Text('Spent on ${dateFmt.format(date)}'),
@@ -466,28 +704,22 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
           ],
           onChanged: (value) => set(() => eventId = value),
         ),
+      const SizedBox(height: 12),
       TextField(
         controller: vendor,
         decoration: const InputDecoration(labelText: 'Vendor / payee *'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: description,
         decoration: const InputDecoration(labelText: 'Description'),
       ),
+      const SizedBox(height: 12),
       TextField(
         controller: amount,
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         decoration: const InputDecoration(labelText: 'Amount *', prefixText: '₹ '),
-      ),
-      const SizedBox(height: 12),
-      OutlinedButton.icon(
-        icon: Icon(bill == null ? Icons.add_a_photo_outlined : Icons.check_circle),
-        label: Text(bill == null ? 'Attach bill photo or PDF' : bill!.name),
-        onPressed: () async {
-          final b = await pickBill(context);
-          if (b != null) set(() => bill = b);
-        },
       ),
       const Padding(
         padding: EdgeInsets.only(top: 8),
@@ -513,7 +745,9 @@ Future<void> showExpenseForm(BuildContext context, WidgetRef ref) async {
           bill: bill?.bytes,
           ext: bill?.ext,
           eventId: eventId,
+          paidFrom: pettyCash ? 'petty_cash' : 'association',
         );
+    ref.invalidate(pettyCashBalanceProvider);
     return 'Expense submitted to the Treasurer';
   });
 }

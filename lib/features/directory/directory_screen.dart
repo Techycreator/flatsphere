@@ -722,6 +722,9 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
     var from = p.monitorFrom ?? (p.role == Role.monitor ? DateUtils.dateOnly(DateTime.now()) : null);
     var until = p.monitorUntil;
     var desk = p.designations.contains(DemoUser.membershipDesk);
+    final name = TextEditingController(text: p.name);
+    final mobile = TextEditingController(text: p.mobile ?? '');
+    final email = TextEditingController(text: p.email);
     String? err;
     final ok = await showDialog<bool>(
       context: context,
@@ -735,6 +738,30 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  TextField(
+                    controller: name,
+                    decoration: const InputDecoration(labelText: 'Full name *'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: mobile,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(labelText: 'Mobile number'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: email,
+                    enabled: p.invited,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      helperText: p.invited
+                          ? null
+                          : 'Login email cannot be changed. Remove and re-invite to change it.',
+                      helperMaxLines: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     value: desk,
@@ -780,6 +807,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
             FilledButton(
               onPressed: () {
+                if (name.text.trim().isEmpty) return set(() => err = 'Enter the name');
                 if (p.role == Role.monitor && areas.isNotEmpty && until == null) {
                   return set(() => err = 'Choose an end date for the monitor assignment');
                 }
@@ -810,6 +838,9 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
         until: isMonitor ? until : null,
       );
       if (birthDate != null && birthDate != p.birthDate) await notifier.setBirthDate(p, birthDate!);
+      if (name.text.trim() != p.name || mobile.text.trim() != (p.mobile ?? '') || email.text.trim() != p.email) {
+        await notifier.updateContact(p, name.text.trim(), mobile.text.trim(), email.text.trim());
+      }
     }, 'Saved changes for ${p.name}');
   }
 
@@ -1164,6 +1195,7 @@ class _PersonDialogState extends ConsumerState<_PersonDialog> {
                   items: [for (final t in idDocTypes) DropdownMenuItem(value: t, child: Text(t))],
                   onChanged: (v) => set(() => type = v ?? type),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: last4,
                   maxLength: 4,
@@ -1333,7 +1365,8 @@ class _PersonDialogState extends ConsumerState<_PersonDialog> {
               child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Roles'), Icon(Icons.arrow_drop_down)]),
             ),
           ),
-        if (editable) TextButton(onPressed: widget.onEdit, child: const Text('Edit areas / designation')),
+        if (widget.canModify)
+          TextButton(onPressed: widget.onEdit, child: Text(editable ? 'Edit details / areas' : 'Edit details')),
         OutlinedButton.icon(
           onPressed: busy ? null : _upload,
           icon: busy

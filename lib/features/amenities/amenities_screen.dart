@@ -244,6 +244,7 @@ Future<_BookingDraft?> _bookingDialog(
                   maxLength: 5,
                   decoration: const InputDecoration(labelText: 'Expected guests'),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: note,
                   minLines: 2,
@@ -414,12 +415,14 @@ Future<void> _manageAmenities(BuildContext context, WidgetRef ref, List<Amenity>
                   maxLength: 80,
                   decoration: const InputDecoration(labelText: 'Name *'),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: fee,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(labelText: 'Fee per booking (₹)'),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: rules,
                   maxLines: 2,

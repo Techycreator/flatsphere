@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/nav.dart';
 import '../../backend/backend.dart' show backendEnabled, db;
-import '../../backend/directory_repo.dart' show friendlyError;
+import '../../backend/directory_repo.dart' show DirectoryRepo, friendlyError;
 import '../../security/device_lock.dart';
 import '../../security/web_push.dart';
 import '../../backend/notifications_repo.dart';
@@ -372,6 +372,8 @@ class _ProfileMenu extends ConsumerWidget {
             context.go('/audit');
           case 'datatools':
             context.go('/data-tools');
+          case 'profile':
+            _editMyProfile(context, session);
           case 'help':
             showGlossary(context);
           case 'push':
@@ -395,18 +397,18 @@ class _ProfileMenu extends ConsumerWidget {
               }
             }();
           case 'setpin':
-            context.go('/set-pin');
+            context.go('/biometric-setup');
           case 'removepin':
             final uid = session.user.id;
             showDialog<bool>(
               context: context,
               builder: (ctx) => AlertDialog(
-                title: const Text('Turn off PIN on this device?'),
+                title: const Text('Turn off fingerprint / face unlock?'),
                 content: const Text(
-                  'FlatSphere will stop asking for your PIN or fingerprint/Face ID when it opens on this device. '
+                  'FlatSphere will stop asking for your fingerprint or face when it opens on this device. '
                   'Anyone holding this unlocked phone or computer could open the app as you until you log out.\n\n'
-                  'Your account, roles and data are not changed, other devices are not affected, and you can set a '
-                  'PIN again anytime from this menu.',
+                  'Your account, roles and data are not changed, other devices are not affected, and you can turn '
+                  'it on again anytime from this menu.',
                 ),
                 actions: [
                   TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
@@ -418,11 +420,9 @@ class _ProfileMenu extends ConsumerWidget {
               await DeviceLock.clear();
               await DeviceLock.skip(uid);
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('PIN turned off on this device. You can set it again from the profile menu.'),
-                  ),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Fingerprint / face unlock turned off on this device.')));
               }
             });
           case 'logout':
@@ -462,6 +462,15 @@ class _ProfileMenu extends ConsumerWidget {
             ),
           ),
         const PopupMenuDivider(),
+        if (backendEnabled)
+          const PopupMenuItem(
+            value: 'profile',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.person_outline),
+              title: Text('My profile'),
+            ),
+          ),
         const PopupMenuItem(
           value: 'help',
           child: ListTile(
@@ -483,8 +492,8 @@ class _ProfileMenu extends ConsumerWidget {
             value: 'setpin',
             child: ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.pin_outlined),
-              title: Text('Set or change PIN'),
+              leading: Icon(Icons.fingerprint),
+              title: Text('Turn on fingerprint / face unlock'),
             ),
           ),
           const PopupMenuItem(
@@ -492,7 +501,7 @@ class _ProfileMenu extends ConsumerWidget {
             child: ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.lock_open_outlined),
-              title: Text('Turn off PIN'),
+              title: Text('Turn off fingerprint / face unlock'),
             ),
           ),
           const PopupMenuDivider(),
@@ -541,6 +550,62 @@ Future<void> _sos(BuildContext context) async {
     final n = await db.rpc('raise_sos', params: {'p_note': note}) as int;
     if (context.mounted)
       toast(context, n == 0 ? 'SOS sent, but no security or committee member is set up.' : 'SOS sent to $n people.');
+  } catch (e) {
+    if (context.mounted) toast(context, friendlyError(e));
+  }
+}
+
+Future<void> _editMyProfile(BuildContext context, Session session) async {
+  Map<String, dynamic>? profile;
+  if (backendEnabled) {
+    try {
+      profile = await db.from('profiles').select('full_name, mobile').eq('id', session.user.id).maybeSingle();
+    } catch (e) {
+      if (context.mounted) toast(context, friendlyError(e));
+      return;
+    }
+  }
+  if (!context.mounted) return;
+  final name = TextEditingController(text: profile?['full_name'] as String? ?? session.user.name);
+  final mobile = TextEditingController(text: profile?['mobile'] as String? ?? session.user.mobile);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('My profile'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: 'Full name *'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: mobile,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Mobile number'),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your login email can only be changed by the Secretary or President.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  if (name.text.trim().isEmpty) return toast(context, 'Enter your name');
+  try {
+    await DirectoryRepo.updateMyProfile(name.text.trim(), mobile.text.trim());
+    if (context.mounted) toast(context, 'Profile saved. It shows everywhere after you next open the app.');
   } catch (e) {
     if (context.mounted) toast(context, friendlyError(e));
   }

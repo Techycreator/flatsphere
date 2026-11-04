@@ -157,6 +157,7 @@ class MeetingsScreen extends ConsumerWidget {
                         helperMaxLines: 2,
                       ),
                     ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: agenda,
                     maxLength: 2000,

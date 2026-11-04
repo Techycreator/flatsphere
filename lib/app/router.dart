@@ -76,12 +76,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (backendEnabled) {
         final lock = ref.read(lockProvider);
         if (lock == LockStatus.locked) return state.matchedLocation == '/unlock' ? null : '/unlock';
-        if (lock == LockStatus.needsSetup) return state.matchedLocation == '/set-pin' ? null : '/set-pin';
+        if (lock == LockStatus.needsSetup)
+          return state.matchedLocation == '/biometric-setup' ? null : '/biometric-setup';
       }
       // Security has no dashboard: Gate is their start page.
       if (session.activeRole == Role.security && state.matchedLocation == '/home') return '/gate';
       if (state.matchedLocation == '/unlock') return '/home';
-      if (state.matchedLocation == '/set-pin') return null;
+      if (state.matchedLocation == '/biometric-setup') return null;
       if (atAssociationSetup) return '/home';
       if (atLogin) return '/home';
       return canAccess(
@@ -95,7 +96,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/unlock', builder: (_, _) => const DeviceLockScreen(setup: false)),
-      GoRoute(path: '/set-pin', builder: (_, _) => const DeviceLockScreen(setup: true)),
+      GoRoute(path: '/biometric-setup', builder: (_, _) => const DeviceLockScreen(setup: true)),
       GoRoute(path: '/setup-association', builder: (_, _) => const FirstAssociationSetupScreen()),
       ShellRoute(
         builder: (context, state, child) => AppShell(location: state.matchedLocation, child: child),

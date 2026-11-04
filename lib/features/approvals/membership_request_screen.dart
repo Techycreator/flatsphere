@@ -426,6 +426,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
                       decoration: const InputDecoration(labelText: 'New owner phone *', prefixText: '+91 '),
                     ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: _deed,
                       decoration: const InputDecoration(labelText: 'Sale deed / registration number'),
@@ -452,6 +453,7 @@ class _MembershipRequestScreenState extends ConsumerState<MembershipRequestScree
                       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+() -]'))],
                       decoration: const InputDecoration(labelText: 'Incoming resident phone *', prefixText: '+91 '),
                     ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: _lease,
                       decoration: const InputDecoration(labelText: 'Lease period'),

@@ -74,11 +74,11 @@ class SessionNotifier extends Notifier<Session?> {
 
   Future<void> switchAssociation(String associationId) async {
     if (!backendEnabled) return;
-await AssociationContext.run(() async {
-  final user = await AuthService.loadUser(associationId: associationId);
-  if (user == null) throw StateError('No active membership in that association');
-  state = Session(user: user, activeRole: user.roles.first);
-});
+    await AssociationContext.run(() async {
+      final user = await AuthService.loadUser(associationId: associationId);
+      if (user == null) throw StateError('No active membership in that association');
+      state = Session(user: user, activeRole: user.roles.first);
+    });
   }
 
   void switchRole(Role r) => state = state?.copyWith(activeRole: r);
@@ -168,7 +168,8 @@ class ComplaintsNotifier extends Notifier<List<Complaint>> {
           TicketRemark(
             by: ref.read(sessionProvider)?.user.name ?? 'Demo user',
             at: DateTime.now(),
-            text: '[${close ? 'closed' : 'in_progress'}] ${note.isEmpty ? (close ? 'Confirmed resolved' : 'Reopened') : note}',
+            text:
+                '[${close ? 'closed' : 'in_progress'}] ${note.isEmpty ? (close ? 'Confirmed resolved' : 'Reopened') : note}',
           ),
         ],
       ),
@@ -786,9 +787,11 @@ class ExpensesNotifier extends Notifier<List<Expense>> {
     Uint8List? bill,
     String? ext,
     String? eventId,
+    String paidFrom = 'association',
   }) async {
     if (backendEnabled) {
       await FinanceRepo.addExpense(
+        paidFrom: paidFrom,
         date: date,
         category: category,
         vendor: vendor,
@@ -812,6 +815,7 @@ class ExpensesNotifier extends Notifier<List<Expense>> {
         enteredBy: enteredBy,
         documents: bill == null ? 0 : 1,
         eventId: eventId,
+        paidFrom: paidFrom,
       ),
       ...state,
     ];

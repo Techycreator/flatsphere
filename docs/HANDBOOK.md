@@ -46,7 +46,7 @@ Office bearers ("six roles") are President, Vice President, Secretary, Joint Sec
 ## 3. Features and how to use them
 
 ### 3.1 Home
-A summary for your role: open approvals, complaints, dues, upcoming meetings and notifications. Start your day here.
+A summary for your role: open approvals, complaints, dues, upcoming meetings and notifications. Start your day here. Updates found while the app is still loading install automatically; after the first screen appears, confirm before updating so an open form is not lost.
 
 ### 3.2 Complaints
 - **Raise:** title, category, details, up to a few photos (camera or gallery), optional **voice note** (up to 3 minutes; compressed on the web). Pick the flat or common area.
@@ -75,6 +75,8 @@ The Admin sets who approves each configurable workflow in **Approval workflows**
 
 ### 3.4 Finance (Treasurer, Joint Treasurer, President, Secretary, Auditor and others in read mode)
 - **Dues and payments:** create dues per flat, record payments, issue PDF receipts, send reminders (one per flat per day).
+- **Automatic maintenance bills:** invalid flat-type rates are rejected when saved; the schedule skips retired flats and closed associations. Late fees follow each bill's original due date, including when its grace period crosses a month, and are not charged until after that date and grace period.
+- **Petty cash:** the Treasurer records cash handed to the Caretaker. The Caretaker records spends with bills for verification and approval; returned spends remain deducted from the cash balance. On Home, open a returned spend to read the reason, attach the requested bill and resubmit it. When a bill photo is read, the helper prefers the final payable total, ignores dates when guessing an unlabeled amount and skips invalid calendar dates.
 - **Ledger:** income and expense entries with categories; export the ledger as CSV.
 - **Statements and budgets:** monthly statements and the annual budget each have their own approval chain.
 - **Bank account:** the association bank details are changed only through W3.
@@ -85,7 +87,7 @@ The Admin sets who approves each configurable workflow in **Approval workflows**
 - **Add / edit a flat:** number, block, type, area, occupancy, vehicles and parking slot.
 - **Retire flat:** Admin, President or Secretary, with a reason, only when no active owner or resident, no pending change and no dues remain. History is kept.
 - **Add a person:** name, email, mobile, role and flat. Existing accounts get the role immediately; new emails get an invite.
-- **Edit details:** designations, monitor areas and dates.
+- **Edit details:** designations, monitor areas and dates. Owner/resident contact changes require a valid phone number and update the number used in the directory and at the gate. An invite cannot be changed to an email that already has an account; add that account through the directory. Profile edits preserve saved contact data when changing a name.
 - **Remove / revoke a role:** mandatory reason; access ends at once and the flat's ID documents are archived. The last President, Secretary or Admin cannot be removed.
 - **ID documents:** private; only authorised roles can view them.
 - **Export flats** to CSV from the download icon.
@@ -200,14 +202,14 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 - **EC member / Monitor:** vote on approvals, inspect assigned areas, close complaints for your area, review the checklist.
 - **Owner:** keep dues paid, register vehicles and household staff, raise complaints with photos, approve tenant changes for your flat.
 - **Resident:** raise complaints, pre-register visitors, book amenities, add family through W30.
-- **Caretaker:** finish the checklist daily with proofs and notes, mark staff attendance, watch the visitors list.
+- **Caretaker:** finish the checklist daily with proofs and notes, mark staff attendance, watch the visitors list, and correct returned petty-cash expenses from Home.
 - **Security:** check visitors in and out, use vehicle lookup, nothing else.
 - **Auditor:** read-only finance and registers; ask the Treasurer for clarifications.
 
 ## 7. Privacy and security
 
 - Owner and resident personal details and ID proofs are visible only to authorised roles. Files are private and open through short-lived links.
-- Everyone signs in with an email code and a device PIN; sessions end when the role is revoked.
+- Everyone signs in with an email code. Fingerprint or face unlock is optional and checked by the device; old PIN-only protection is retained until the next fresh email-code sign-in. Sessions end when the role is revoked.
 - Every important action is recorded in the audit log.
 - Never share your sign-in or PIN. Log out on shared devices.
 
@@ -243,3 +245,5 @@ Full step-by-step procedures are in `docs\Onboarding_Offboarding_Procedures.docx
 | 2026-11-03 | Gate shifts and guard stamps are association-specific; daily-help passes and flat choices, and awaiting walk-ins, are filtered to the active association and authorized flats. | 3.8 |
 | 2026-11-03 | Gate background refreshes are single-flight and coalesce pending requests while preserving refreshes after association switches. | 3.8 |
 | 2026-11-03 | Gate timer refreshes skip active loads; explicit and association-change refreshes remain coalesced. | 3.8 |
+| 2026-11-03 | Caretakers can review, attach bills to and resubmit returned petty-cash expenses; cash remains deducted while a spend is returned. Profile edits preserve saved contact data, directory/gate phone numbers stay in sync, and invite edits cannot target existing accounts. Automatic bills skip retired flats and closed associations, calculate cross-month late fees from each bill's due date, and resumed app sessions ask before updating. | 3.4, 3.5, Caretaker, Technical |
+| 2026-11-04 | Legacy PIN protection now remains until fresh email-code sign-in; update prompts wait for the first screen, bill-photo guesses prefer final totals and valid dates, and owner/resident contact edits require a valid phone synchronized to the active association. Dues rates are validated before saving and late fees use each bill's stored due date after its grace period. | 3.1, 3.4, 3.5, 7 |

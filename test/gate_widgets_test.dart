@@ -47,6 +47,25 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('walk-in delivery company is one tap', (tester) async {
+    await _phone(tester, const WalkInPage(flats: ['A-101']));
+    await tester.tap(find.text('Delivery'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Flipkart'));
+    await tester.tap(find.text('Flipkart'));
+    await tester.pump();
+    final name = find.byWidgetPredicate((w) => w is TextField && w.controller?.text == 'Flipkart');
+    await tester.scrollUntilVisible(name, 200, scrollable: find.byType(Scrollable).first);
+    final controller = tester.widget<TextField>(name).controller!;
+    await tester.scrollUntilVisible(find.text('Cab'), -200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Cab'));
+    await tester.pump();
+    expect(find.text('Rapido'), findsOneWidget);
+    expect(find.text('Flipkart'), findsNothing);
+    expect(controller.text, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('empty flat list submits the normalized flat number once', (tester) async {
     String? submitted;
     var submissions = 0;
@@ -130,10 +149,7 @@ void main() {
 
     expect(await GateOffline.recoverAssignedLegacyQueue('association-a'), 1);
     expect((await GateOffline.queue('association-a')).single['flat'], 'A-101');
-    expect((await GateOffline.legacyQueue()).map((entry) => entry['flat'] ?? entry['id']), [
-      'B-202',
-      'unassigned',
-    ]);
+    expect((await GateOffline.legacyQueue()).map((entry) => entry['flat'] ?? entry['id']), ['B-202', 'unassigned']);
   });
 
   test('legacy gate queue recovery is safe to repeat after a partial save', () async {
@@ -273,10 +289,7 @@ void main() {
   test('vehicle formatter preserves and adjusts the selection', () {
     final formatted = VehicleNumberFormatter().formatEditUpdate(
       TextEditingValue.empty,
-      const TextEditingValue(
-        text: 'KL 07AB1234',
-        selection: TextSelection.collapsed(offset: 5),
-      ),
+      const TextEditingValue(text: 'KL 07AB1234', selection: TextSelection.collapsed(offset: 5)),
     );
 
     expect(formatted.text, 'KL07AB1234');
@@ -284,10 +297,7 @@ void main() {
 
     final clipped = VehicleNumberFormatter().formatEditUpdate(
       TextEditingValue.empty,
-      const TextEditingValue(
-        text: 'ABCDEFGHIJKLMN1234567890',
-        selection: TextSelection.collapsed(offset: 24),
-      ),
+      const TextEditingValue(text: 'ABCDEFGHIJKLMN1234567890', selection: TextSelection.collapsed(offset: 24)),
     );
     expect(clipped.selection, const TextSelection.collapsed(offset: 24));
   });

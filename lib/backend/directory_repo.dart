@@ -289,6 +289,20 @@ class DirectoryRepo {
     },
   );
 
+  static Future<void> updateContact(Person p, String name, String mobile, String email) => db.rpc(
+    'update_member_contact',
+    params: {
+      'p_kind': p.invited ? 'invited' : 'member',
+      'p_id': p.id,
+      'p_full_name': name,
+      'p_mobile': mobile,
+      'p_email': email,
+    },
+  );
+
+  static Future<void> updateMyProfile(String name, String mobile) =>
+      db.rpc('update_my_profile', params: {'p_full_name': name, 'p_mobile': mobile});
+
   static Future<void> setBirthDate(Person person, DateTime birthDate) => db.rpc(
     'set_member_birth_date',
     params: {'p_kind': person.invited ? 'invited' : 'member', 'p_id': person.id, 'p_birth_date': _date(birthDate)},

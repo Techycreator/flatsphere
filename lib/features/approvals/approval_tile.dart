@@ -22,6 +22,7 @@ class ApprovalTile extends StatelessWidget {
       Decision.sentBack => ('Sent back', AppColors.amber),
       Decision.pending => ('Waiting: ${a.currentStep?.role.label ?? '-'}', Colors.blueGrey),
     };
+    final narrow = MediaQuery.sizeOf(context).width < 600;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       onTap: () => context.go('/approvals/${a.id}'),
@@ -37,6 +38,7 @@ class ApprovalTile extends StatelessWidget {
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            if (narrow) Pill(statusText, color: statusColor),
             Text('${a.initiatorName} · $done/${a.steps.length} approved', style: Theme.of(context).textTheme.bodySmall),
             if (a.momRequired) const Pill('MOM required', color: Colors.indigo, icon: Icons.description_outlined),
             if (a.highRisk) const Pill('High risk', color: AppColors.red, icon: Icons.shield_outlined),
@@ -44,7 +46,7 @@ class ApprovalTile extends StatelessWidget {
           ],
         ),
       ),
-      trailing: Pill(statusText, color: statusColor),
+      trailing: narrow ? null : Pill(statusText, color: statusColor),
     );
   }
 }

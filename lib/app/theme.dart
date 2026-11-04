@@ -51,7 +51,16 @@ class AppTheme {
           side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6)),
         ),
       ),
-      inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+      ),
       chipTheme: const ChipThemeData(side: BorderSide.none),
     );
   }
