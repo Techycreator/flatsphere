@@ -174,10 +174,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
                 onPressed: () => Navigator.pop(context, association.id),
                 child: Text(association.name),
               ),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Not now'),
-            ),
+            SimpleDialogOption(onPressed: () => Navigator.pop(context), child: const Text('Not now')),
           ],
         ),
       );
@@ -202,7 +199,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     }
   }
 
-  void _setLocal(String id, String status) => setState(
+  void _setLocal(String id, String status, {String? approval}) => setState(
     () => _list = [
       for (final v in _list)
         v.id == id
@@ -212,7 +209,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
                 phone: v.phone,
                 flat: v.flat,
                 status: status,
-                approval: v.approval,
+                approval: approval ?? v.approval,
                 type: v.type,
                 vehicle: v.vehicle,
                 passCode: v.passCode,
@@ -252,6 +249,35 @@ class _GateScreenState extends ConsumerState<GateScreen> {
       setState(() => _pending++);
       toast(context, 'Offline: ${v.guest} checked $word. It will sync when the network is back.');
       return true;
+    }
+  }
+
+  String _walkInDoneMessage(WalkInData d) => switch (d.mode) {
+    'lobby' => 'Logged: ${d.name} left at the lobby for flat ${d.flat}. Tap Check out when they leave.',
+    'staff' => 'Logged: ${d.name} let in to meet ${d.meet}. Tap Check out when they leave.',
+    _ => 'Sent to flat ${d.flat}. Wait for Approved before letting them in.',
+  };
+
+  /// The flat did not answer: leave the delivery at the lobby and track it until it leaves.
+  Future<void> _lobby(GateVisitor v) async {
+    final associationId = ref.read(sessionProvider)?.user.associationId;
+    if (associationId == null) return;
+    try {
+      await GateRepo.lobbyDrop(v.id);
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      toast(context, '${v.guest}: left at the lobby. Tap Check out when they leave.');
+      await _load();
+    } catch (e) {
+      if (!isOffline(e)) {
+        if (mounted) toast(context, friendlyError(e));
+        return;
+      }
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      await GateOffline.add(associationId, {'kind': 'lobby', 'id': v.id, 'label': '${v.guest} → ${v.flat} (lobby)'});
+      if (!mounted || ref.read(sessionProvider)?.user.associationId != associationId) return;
+      _setLocal(v.id, 'checked_in', approval: 'lobby');
+      setState(() => _pending++);
+      toast(context, 'Offline: ${v.guest} left at the lobby. It will sync when the network is back.');
     }
   }
 
@@ -356,8 +382,9 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     final associationId = ref.read(sessionProvider)?.user.associationId;
     if (associationId == null) return;
     final flats = await loadGateFlats(associationId);
+    final staff = await loadGateStaff(associationId);
     if (!mounted) return;
-    final d = await openGatePage<WalkInData>(context, WalkInPage(flats: flats));
+    final d = await openGatePage<WalkInData>(context, WalkInPage(flats: flats, staff: staff));
     if (d == null) return;
     final f = d.flat, pic = d.photo;
     final requestId = GateRepo.newWalkInRequestId();
@@ -374,6 +401,9 @@ class _GateScreenState extends ConsumerState<GateScreen> {
           phone: d.phone,
           type: d.type,
           vehicle: d.vehicle,
+          mode: d.mode,
+          note: d.note,
+          meet: d.meet,
         );
         if (pic != null) {
           try {
@@ -384,7 +414,7 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         }
       });
       if (photoFailed && mounted) toast(context, 'Visitor sent, but the photo could not be uploaded.');
-      if (mounted) toast(context, 'Sent to flat $f. Wait for Approved before letting them in.');
+      if (mounted) toast(context, _walkInDoneMessage(d));
       await _load();
     } catch (e) {
       if (!isOffline(e)) {
@@ -400,11 +430,43 @@ class _GateScreenState extends ConsumerState<GateScreen> {
         'vehicle': d.vehicle,
         'photo': pic == null ? null : base64Encode(pic),
         'request_id': requestId,
-        'label': '${d.name} → $f',
+        'mode': d.mode,
+        'note': d.note,
+        'meet': d.meet,
+        'label': '${d.name} → ${d.mode == 'staff' ? d.meet : f}',
       });
       if (mounted && ref.read(sessionProvider)?.user.associationId == associationId) {
-        setState(() => _pending++);
-        toast(context, 'Offline: saved. It goes to flat $f when the network is back. Call the flat meanwhile.');
+        final local = (
+          id: requestId,
+          guest: d.name,
+          phone: d.phone.isEmpty ? null : d.phone,
+          flat: d.mode == 'staff' ? 'Staff: ${d.meet}' : f,
+          status: d.mode == 'ask' ? 'expected' : 'checked_in',
+          approval: switch (d.mode) {
+            'lobby' => 'lobby',
+            'staff' => 'staff_confirmed',
+            _ => 'awaiting',
+          },
+          type: d.type,
+          vehicle: d.vehicle.isEmpty ? null : d.vehicle,
+          passCode: null,
+          arrival: DateTime.now(),
+          photoPath: null,
+          guardName: null,
+        );
+        setState(() {
+          _list = [..._list, local];
+          _pending++;
+        });
+        await GateOffline.cache(associationId, _list);
+        if (mounted) {
+          toast(
+            context,
+            d.mode == 'ask'
+                ? 'Offline: saved. It goes to flat $f when the network is back. Call the flat meanwhile.'
+                : 'Offline: ${_walkInDoneMessage(d)} It will sync when the network is back.',
+          );
+        }
       }
     }
   }
@@ -456,19 +518,11 @@ class _GateScreenState extends ConsumerState<GateScreen> {
     final tiles = [
       tile(Icons.pin, 'Pass code', primary, _pass),
       tile(Icons.person_add_alt_1, 'Walk-in', primary, _walkIn),
-      tile(
-        Icons.cleaning_services,
-        'Daily help',
-        const Color(0xFF00796B),
-        () {
-          if (associationId != null) {
-            openGatePage<void>(
-              context,
-              DailyHelpGateDialog(associationId: associationId, onQueued: () => _load()),
-            );
-          }
-        },
-      ),
+      tile(Icons.cleaning_services, 'Daily help', const Color(0xFF00796B), () {
+        if (associationId != null) {
+          openGatePage<void>(context, DailyHelpGateDialog(associationId: associationId, onQueued: () => _load()));
+        }
+      }),
       tile(Icons.call, 'Call a flat', AppColors.green, () => _callFlat()),
     ];
     int rank(GateVisitor v) => switch ((v.approval, v.status)) {
@@ -622,6 +676,8 @@ class _GateScreenState extends ConsumerState<GateScreen> {
           Text(
             [
               v.type,
+              if (v.approval == 'lobby') 'left at lobby',
+              if (v.approval == 'staff_confirmed') 'confirmed by staff',
               if (v.vehicle != null) v.vehicle!,
               if (v.phone != null) v.phone!,
               dateTimeFmt.format(v.arrival),
@@ -647,6 +703,15 @@ class _GateScreenState extends ConsumerState<GateScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: switch ((v.approval, v.status)) {
+                  ('awaiting', _) when v.type == 'delivery' => OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 56),
+                      foregroundColor: AppColors.amber,
+                      side: const BorderSide(color: AppColors.amber, width: 1.5),
+                    ),
+                    onPressed: () => _lobby(v),
+                    child: const Text('No answer · Lobby', style: TextStyle(fontSize: 18), textAlign: TextAlign.center),
+                  ),
                   ('awaiting', _) => const Center(child: Pill('Waiting for flat', color: AppColors.amber)),
                   ('denied', _) => const Center(child: Pill('Denied', color: AppColors.red)),
                   (_, 'checked_in') => OutlinedButton(
@@ -950,6 +1015,8 @@ class _GateHistoryDialog extends StatelessWidget {
   static String _status(GateVisitor v) => switch ((v.approval, v.status)) {
     ('denied', _) => 'Denied',
     ('awaiting', _) => 'Waiting for flat',
+    ('lobby', 'checked_out') => 'Lobby drop · Left',
+    ('lobby', _) => 'Lobby drop · Inside',
     (_, 'checked_in') => 'Inside',
     (_, 'checked_out') => 'Left',
     (_, 'expected') => 'Expected',

@@ -29,6 +29,18 @@ Future<List<String>> loadGateFlats(String? associationId) async {
   }
 }
 
+/// Staff the guard can call, cached per association so it also works offline.
+Future<List<({String name, String role, String mobile})>> loadGateStaff(String? associationId) async {
+  if (associationId == null) return const [];
+  try {
+    final s = await GateRepo.staffContacts();
+    await GateOffline.cacheStaff(associationId, s);
+    return s;
+  } catch (_) {
+    return GateOffline.cachedStaff(associationId);
+  }
+}
+
 Future<T?> openGatePage<T>(BuildContext context, Widget page) =>
     Navigator.of(context, rootNavigator: true).push<T>(MaterialPageRoute(fullscreenDialog: true, builder: (_) => page));
 
@@ -464,11 +476,23 @@ class _BrandBadge extends StatelessWidget {
   }
 }
 
-typedef WalkInData = ({String flat, String name, String phone, String type, String vehicle, Uint8List? photo});
+/// mode: 'ask' (flat approves), 'lobby' (delivery left at the lobby), 'staff' (confirmed with staff by phone).
+typedef WalkInData = ({
+  String flat,
+  String name,
+  String phone,
+  String type,
+  String vehicle,
+  Uint8List? photo,
+  String mode,
+  String note,
+  String meet,
+});
 
 class WalkInPage extends StatefulWidget {
-  const WalkInPage({super.key, required this.flats});
+  const WalkInPage({super.key, required this.flats, this.staff = const []});
   final List<String> flats;
+  final List<({String name, String role, String mobile})> staff;
 
   @override
   State<WalkInPage> createState() => _WalkInPageState();
@@ -476,12 +500,19 @@ class WalkInPage extends StatefulWidget {
 
 class _WalkInPageState extends State<WalkInPage> {
   final _name = TextEditingController(), _phone = TextEditingController(), _vehicle = TextEditingController();
+  final _note = TextEditingController(), _otherStaff = TextEditingController();
+  final _nameFocus = FocusNode();
   String _type = 'guest';
   String? _flat;
   Uint8List? _photo;
+  bool _forStaff = false;
+  String? _staff;
 
   @override
   void dispose() {
+    _note.dispose();
+    _otherStaff.dispose();
+    _nameFocus.dispose();
     _name.dispose();
     _phone.dispose();
     _vehicle.dispose();
@@ -495,18 +526,44 @@ class _WalkInPageState extends State<WalkInPage> {
     if (mounted) setState(() => _photo = b);
   }
 
-  void _submit() {
-    if (_flat == null) return toast(context, 'Choose the flat first.');
+  String get _meet => _otherStaff.text.trim().isNotEmpty ? _otherStaff.text.trim() : (_staff ?? '');
+
+  void _submit(String mode) {
+    if (mode == 'staff') {
+      if (_meet.isEmpty) return toast(context, 'Choose who they are meeting.');
+    } else if (_flat == null) {
+      return toast(context, 'Choose the flat first.');
+    }
     if (_name.text.trim().isEmpty) return toast(context, 'Enter the visitor name.');
+    if (_type == 'other' && _note.text.trim().isEmpty) return toast(context, 'Enter the purpose of the visit.');
     Navigator.pop<WalkInData>(context, (
-      flat: _flat!,
+      flat: mode == 'staff' ? '' : _flat!,
       name: _name.text.trim(),
       phone: _phone.text.trim(),
       type: _type,
       vehicle: _vehicle.text.trim(),
       photo: _photo,
+      mode: mode,
+      note: _note.text.trim(),
+      meet: mode == 'staff' ? _meet : '',
     ));
   }
+
+  Widget _bigToggle(bool on, IconData icon, String label, VoidCallback onTap) => Expanded(
+    child: Padding(
+      padding: const EdgeInsets.all(4),
+      child: SizedBox(
+        height: 64,
+        child: (on ? FilledButton.icon : OutlinedButton.icon)(
+          onPressed: onTap,
+          icon: Icon(icon, size: 26),
+          label: FittedBox(
+            child: Text(label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          ),
+        ),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -545,11 +602,17 @@ class _WalkInPageState extends State<WalkInPage> {
 
     return GatePage(
       title: 'Walk-in visitor',
-      action: FilledButton.icon(
-        onPressed: _submit,
-        icon: const Icon(Icons.send, size: 28),
-        label: const Text('Ask flat to approve', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700)),
-      ),
+      action: _forStaff
+          ? FilledButton.icon(
+              onPressed: () => _submit('staff'),
+              icon: const Icon(Icons.verified_user, size: 28),
+              label: const Text('Confirmed · Let in', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700)),
+            )
+          : FilledButton.icon(
+              onPressed: () => _submit('ask'),
+              icon: const Icon(Icons.send, size: 28),
+              label: const Text('Ask flat to approve', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700)),
+            ),
       children: [
         _label('1. Who is it?'),
         Row(
@@ -558,8 +621,18 @@ class _WalkInPageState extends State<WalkInPage> {
             typeTile('delivery', Icons.local_shipping, 'Delivery'),
             typeTile('cab', Icons.local_taxi, 'Cab'),
             typeTile('service', Icons.handyman, 'Service'),
+            typeTile('other', Icons.more_horiz, 'Other'),
           ],
         ),
+        if (_type == 'other') ...[
+          const SizedBox(height: 8),
+          TextField(
+            controller: _note,
+            maxLength: 240,
+            style: _big,
+            decoration: bigField('Purpose of visit *', hint: 'e.g. Meter reading, Interview', icon: Icons.edit_note),
+          ),
+        ],
         if (walkInCompanies[_type] case final companies?) ...[
           _label(_type == 'delivery' ? 'Which company? (tap one)' : 'Tap one or type below'),
           Wrap(
@@ -591,14 +664,75 @@ class _WalkInPageState extends State<WalkInPage> {
                     ),
                   ),
                 ),
+              SizedBox(
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    setState(_name.clear);
+                    _nameFocus.requestFocus();
+                  },
+                  icon: const Icon(Icons.edit),
+                  label: const Text('Other (type it)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                ),
+              ),
             ],
           ),
         ],
-        _label('2. Which flat?'),
-        FlatPicker(flats: widget.flats, onChanged: (f) => setState(() => _flat = f)),
+        _label('2. Who are they meeting?'),
+        Row(
+          children: [
+            _bigToggle(!_forStaff, Icons.home, 'A flat', () => setState(() => _forStaff = false)),
+            _bigToggle(_forStaff, Icons.badge, 'Caretaker / staff', () => setState(() => _forStaff = true)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (!_forStaff)
+          FlatPicker(flats: widget.flats, onChanged: (f) => setState(() => _flat = f))
+        else ...[
+          const Text('Call them to confirm, then tap their name.', style: TextStyle(fontSize: 17)),
+          const SizedBox(height: 8),
+          for (final s in widget.staff)
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              color: _staff == s.name && _otherStaff.text.trim().isEmpty
+                  ? AppColors.green.withValues(alpha: .15)
+                  : null,
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                onTap: () => setState(() {
+                  _staff = s.name;
+                  _otherStaff.clear();
+                }),
+                leading: Icon(
+                  _staff == s.name && _otherStaff.text.trim().isEmpty ? Icons.check_circle : Icons.person_outline,
+                  size: 32,
+                  color: AppColors.green,
+                ),
+                title: Text(s.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                subtitle: Text(s.role.replaceAll('_', ' '), style: const TextStyle(fontSize: 16)),
+                trailing: IconButton.filled(
+                  iconSize: 28,
+                  tooltip: 'Call ${s.name}',
+                  style: IconButton.styleFrom(backgroundColor: AppColors.green),
+                  onPressed: () => launchUrl(Uri(scheme: 'tel', path: s.mobile)),
+                  icon: const Icon(Icons.call),
+                ),
+              ),
+            ),
+          if (widget.staff.isEmpty)
+            const Text('No staff phone numbers saved. Type the name below.', style: TextStyle(fontSize: 16)),
+          TextField(
+            controller: _otherStaff,
+            textCapitalization: TextCapitalization.words,
+            style: _big,
+            onChanged: (_) => setState(() {}),
+            decoration: bigField('Other staff (type name)', icon: Icons.badge_outlined),
+          ),
+        ],
         _label('3. Visitor details'),
         TextField(
           controller: _name,
+          focusNode: _nameFocus,
           textCapitalization: TextCapitalization.words,
           style: _big,
           decoration: bigField('Name / company *', icon: Icons.badge_outlined),
@@ -639,6 +773,21 @@ class _WalkInPageState extends State<WalkInPage> {
             label: Text(_photo == null ? 'Take visitor photo' : 'Retake photo', style: const TextStyle(fontSize: 20)),
           ),
         ),
+        if (_type == 'delivery' && !_forStaff) ...[
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 64,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.amber,
+                side: const BorderSide(color: AppColors.amber, width: 2),
+              ),
+              onPressed: () => _submit('lobby'),
+              icon: const Icon(Icons.inventory_2_outlined, size: 28),
+              label: const Text('Flat not reachable · Leave at lobby', style: TextStyle(fontSize: 18)),
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
       ],
     );

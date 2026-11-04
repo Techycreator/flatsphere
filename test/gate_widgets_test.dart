@@ -309,4 +309,80 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'B-202'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  Future<WalkInData? Function()> openWalkIn(WidgetTester tester, Widget page) async {
+    WalkInData? result;
+    tester.view.physicalSize = const Size(360, 740) * 2;
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async =>
+                result = await Navigator.push<WalkInData>(context, MaterialPageRoute(builder: (_) => page)),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    return () => result;
+  }
+
+  testWidgets('walk-in delivery can be left at the lobby when the flat does not answer', (tester) async {
+    final result = await openWalkIn(tester, const WalkInPage(flats: ['A-101']));
+    await tester.tap(find.text('Delivery'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Amazon'));
+    await tester.tap(find.text('Amazon'));
+    await tester.pump();
+    final flatField = find.byWidgetPredicate((w) => w is TextField && w.decoration?.labelText == 'Flat number');
+    await tester.scrollUntilVisible(flatField, 200, scrollable: find.byType(Scrollable).first);
+    await tester.enterText(flatField, 'a101');
+    await tester.pump();
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'A-101'));
+    await tester.tap(find.widgetWithText(FilledButton, 'A-101'));
+    await tester.pump();
+    final lobby = find.text('Flat not reachable · Leave at lobby');
+    await tester.scrollUntilVisible(lobby, 300, scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(lobby);
+    await tester.pumpAndSettle();
+    await tester.tap(lobby);
+    await tester.pumpAndSettle();
+    expect(result()?.mode, 'lobby');
+    expect(result()?.flat, 'A-101');
+    expect(result()?.name, 'Amazon');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('walk-in for staff needs a staff member and an Other purpose', (tester) async {
+    final result = await openWalkIn(
+      tester,
+      const WalkInPage(flats: ['A-101'], staff: [(name: 'Ravi', role: 'caretaker', mobile: '9999999999')]),
+    );
+    await tester.tap(find.text('Other'));
+    await tester.pump();
+    await tester.enterText(
+      find.byWidgetPredicate((w) => w is TextField && w.decoration?.labelText == 'Purpose of visit *'),
+      'Interview',
+    );
+    await tester.ensureVisible(find.text('Caretaker / staff'));
+    await tester.tap(find.text('Caretaker / staff'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Ravi'));
+    await tester.tap(find.text('Ravi'));
+    await tester.pump();
+    final name = find.byWidgetPredicate((w) => w is TextField && w.decoration?.labelText == 'Name / company *');
+    await tester.scrollUntilVisible(name, 200, scrollable: find.byType(Scrollable).first);
+    await tester.enterText(name, 'Anil');
+    await tester.tap(find.text('Confirmed · Let in'));
+    await tester.pumpAndSettle();
+    expect(result()?.mode, 'staff');
+    expect(result()?.meet, 'Ravi');
+    expect(result()?.note, 'Interview');
+    expect(result()?.type, 'other');
+    expect(tester.takeException(), isNull);
+  });
 }

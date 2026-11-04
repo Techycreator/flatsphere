@@ -40,7 +40,7 @@ class GateRepo {
       final n => '${r['guest_name']} (group of $n)',
     },
     phone: r['guest_phone'] as String?,
-    flat: (r['flats'] as Map?)?['number'] as String? ?? '',
+    flat: (r['flats'] as Map?)?['number'] as String? ?? (r['meet_staff'] == null ? '' : 'Staff: ${r['meet_staff']}'),
     status: r['status'] as String,
     approval: r['approval'] as String? ?? 'pre_approved',
     type: r['entry_type'] as String? ?? 'guest',
@@ -52,7 +52,7 @@ class GateRepo {
   );
 
   static const _cols =
-      'id, guest_name, guest_count, guest_phone, status, approval, entry_type, vehicle_number, pass_code, expected_arrival, photo_path, guard_name, flats(number)';
+      'id, guest_name, guest_count, guest_phone, meet_staff, status, approval, entry_type, vehicle_number, pass_code, expected_arrival, photo_path, guard_name, flats(number)';
 
   /// Visitors expected or at the gate from yesterday onwards.
   static Future<List<GateVisitor>> today({required String associationId, bool hostOnly = false}) async {
@@ -131,6 +131,9 @@ class GateRepo {
     String phone = '',
     String type = 'guest',
     String vehicle = '',
+    String mode = 'ask',
+    String note = '',
+    String meet = '',
   }) async => await db.rpc(
     'gate_walk_in',
     params: {
@@ -140,8 +143,23 @@ class GateRepo {
       'p_type': type,
       'p_vehicle': vehicle,
       'p_request_id': requestId,
+      'p_mode': mode,
+      'p_note': note,
+      'p_meet': meet.trim().isEmpty ? null : meet.trim(),
     },
   ) as String;
+
+  /// The flat could not be reached: a waiting delivery is left at the lobby and counted as inside.
+  static Future<void> lobbyDrop(String id) => db.rpc('gate_lobby_drop', params: {'p_request': id});
+
+  /// Caretaker, security and office bearers the guard can call to confirm a visitor for them.
+  static Future<List<({String name, String role, String mobile})>> staffContacts() async {
+    final rows = await db.rpc('gate_staff_contacts') as List;
+    return [
+      for (final r in rows.cast<Map>())
+        (name: r['name'] as String, role: r['role'] as String, mobile: r['mobile'] as String),
+    ];
+  }
 
   static Future<void> attachPhoto(String id, Uint8List bytes) async {
     final prepared = await prepareUpload(bytes, 'jpg');

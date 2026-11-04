@@ -173,6 +173,9 @@ class GateOffline {
               phone: a['phone'] as String? ?? '',
               type: a['type'] as String? ?? 'guest',
               vehicle: a['vehicle'] as String? ?? '',
+              mode: a['mode'] as String? ?? 'ask',
+              note: a['note'] as String? ?? '',
+              meet: a['meet'] as String? ?? '',
             );
             final photo = a['photo'] as String?;
             if (photo != null) {
@@ -180,6 +183,8 @@ class GateOffline {
                 await GateRepo.attachPhoto(id, base64Decode(photo));
               } catch (_) {}
             }
+          case 'lobby':
+            await GateRepo.lobbyDrop(a['id'] as String);
           case 'help':
             await DailyHelpRepo.entry(
               a['id'] as String,
@@ -246,6 +251,25 @@ class GateOffline {
   }
 
   static String _flatsKey(String associationId) => 'gate_flats_cache_$associationId';
+
+  static String _staffKey(String associationId) => 'gate_staff_cache_$associationId';
+
+  static Future<void> cacheStaff(
+    String associationId,
+    List<({String name, String role, String mobile})> staff,
+  ) async => (await SharedPreferences.getInstance()).setString(
+    _staffKey(associationId),
+    jsonEncode([for (final s in staff) {'name': s.name, 'role': s.role, 'mobile': s.mobile}]),
+  );
+
+  static Future<List<({String name, String role, String mobile})>> cachedStaff(String associationId) async {
+    final raw = (await SharedPreferences.getInstance()).getString(_staffKey(associationId));
+    if (raw == null) return const [];
+    return [
+      for (final m in (jsonDecode(raw) as List).cast<Map<String, dynamic>>())
+        (name: m['name'] as String, role: m['role'] as String, mobile: m['mobile'] as String),
+    ];
+  }
 
   static Future<void> cacheFlats(String associationId, List<String> flats) async =>
       (await SharedPreferences.getInstance()).setStringList(_flatsKey(associationId), flats);
