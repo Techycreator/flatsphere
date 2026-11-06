@@ -602,6 +602,8 @@ Future<void> showBulkReceiveForm(BuildContext context, WidgetRef ref) async {
       if (monthFmt.format(l.dueDate) == month) duesCategory(l.head),
   }.toList()..sort();
 
+  while (true) {
+  if (!context.mounted) return;
   final ok = await _form(
     context,
     title: 'Bulk receive dues',
@@ -760,7 +762,8 @@ Future<void> showBulkReceiveForm(BuildContext context, WidgetRef ref) async {
       ],
     ),
   );
-  if (confirmed != true || !context.mounted) return;
+  if (!context.mounted) return;
+  if (confirmed != true) continue;
   _lastPaymentMode = mode;
   await _run(context, () async {
     final n = await ref
@@ -773,6 +776,8 @@ Future<void> showBulkReceiveForm(BuildContext context, WidgetRef ref) async {
         );
     return 'Recorded $n receipts totalling ${inr.format(total)}';
   });
+  return;
+  }
 }
 
 final pettyCashBalanceProvider = FutureProvider.autoDispose<int?>((ref) async {

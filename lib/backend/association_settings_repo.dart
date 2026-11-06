@@ -73,6 +73,9 @@ class AssociationSettingsRepo {
     },
   );
 
+  static Future<void> updateComplaintVisibility({required bool owners, required bool residents}) =>
+      db.rpc('update_complaint_visibility', params: {'p_owners': owners, 'p_residents': residents});
+
   static Future<void> updateFamilyRules({required int minimumLoginAge, required int memberLimit}) => db.rpc(
     'update_family_account_rules',
     params: {'p_min_login_age': minimumLoginAge, 'p_member_limit': memberLimit},

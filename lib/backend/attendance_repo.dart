@@ -10,19 +10,26 @@ import 'upload_preparation.dart';
 typedef AttendanceData = ({List<StaffMember> staff, Map<String, StaffAttendance> records});
 
 class AttendanceRepo {
+  /// The caller's owner/resident flats in the open association only.
   static Future<List<(String id, String number)>> myResidentialFlats() async {
     final userId = db.auth.currentUser!.id;
     final associationId = await db.rpc('my_association') as String?;
     if (associationId == null) return [];
     final rows = await db
         .from('memberships')
-        .select('flat_id, flats(number)')
+        .select('flat_id, association_id, flats(number)')
         .eq('user_id', userId)
         .eq('association_id', associationId)
         .isFilter('ended_at', null)
         .inFilter('role', ['owner', 'resident']);
+    return residentialFlatsFrom(rows, associationId);
+  }
+
+  /// Unique flats from membership rows, keeping only [associationId].
+  static List<(String id, String number)> residentialFlatsFrom(List<Map<String, dynamic>> rows, String associationId) {
     final unique = <String, String>{};
     for (final row in rows) {
+      if (row['association_id'] != associationId) continue;
       if (row['flat_id'] case final String id) {
         unique[id] = ((row['flats'] as Map?)?['number'] as String?) ?? '';
       }
