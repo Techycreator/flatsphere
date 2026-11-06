@@ -416,7 +416,7 @@ Future<void> showRecurringBillForm(BuildContext context, WidgetRef ref) async {
       if (dueDay < billDay) return 'Due day must be on or after the bill day';
       return null;
     },
-    fields: (set, _) => [
+    fields: (set, dialogContext) => [
       if (active.isNotEmpty) ...[
         const Text('Running now', style: TextStyle(fontWeight: FontWeight.w600)),
         for (final b in active)
@@ -431,10 +431,10 @@ Future<void> showRecurringBillForm(BuildContext context, WidgetRef ref) async {
               onPressed: () async {
                 try {
                   await FinanceRepo.stopRecurringBill(b['id'] as String);
-                  set(() => active = [...active]..remove(b));
+                  if (dialogContext.mounted) set(() => active = [...active]..remove(b));
                   if (context.mounted) toast(context, 'Stopped; bills already raised stay');
                 } catch (e) {
-                  if (context.mounted) toast(context, friendlyError(e));
+                  if (dialogContext.mounted) toast(dialogContext, friendlyError(e));
                 }
               },
               child: const Text('Stop'),
@@ -756,180 +756,182 @@ Future<void> showBulkReceiveForm(BuildContext context, WidgetRef ref) async {
   }.toList()..sort();
 
   while (true) {
-  if (!context.mounted) return;
-  final ok = await _form(
-    context,
-    title: 'Bulk receive dues',
-    action: 'Preview',
-    validate: () => selected.isEmpty ? 'Tick at least one flat' : null,
-    fields: (set, _) {
-      final cats = categories();
-      if (category != 'All' && !cats.contains(category)) category = 'All';
-      final list = matching();
-      selected.removeWhere((l) => !list.contains(l));
-      final total = selected.fold(0, (s, l) => s + l.pending);
-      return [
-        Row(
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                key: ValueKey('m$month'),
-                initialValue: month,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Month'),
-                items: [for (final m in months) DropdownMenuItem(value: m, child: Text(m))],
-                onChanged: (v) => set(() => month = v ?? month),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                key: ValueKey('c$month$category'),
-                initialValue: category,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Type'),
-                items: [
-                  const DropdownMenuItem(value: 'All', child: Text('All types')),
-                  for (final c in cats) DropdownMenuItem(value: c, child: Text(c)),
-                ],
-                onChanged: (v) => set(() => category = v ?? category),
-              ),
-            ),
-          ],
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '${selected.length} of ${list.length} selected · ${inr.format(total)}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            TextButton(
-              onPressed: list.isEmpty
-                  ? null
-                  : () => set(() {
-                      final all = selected.length == list.length;
-                      selected.clear();
-                      if (!all) selected.addAll(list);
-                    }),
-              child: Text(selected.length == list.length && list.isNotEmpty ? 'Clear all' : 'Select all'),
-            ),
-          ],
-        ),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 240),
-          child: list.isEmpty
-              ? const Text('Nothing pending for this month and type.')
-              : ListView(
-                  shrinkWrap: true,
-                  children: [
-                    for (final l in list)
-                      CheckboxListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        value: selected.contains(l),
-                        onChanged: (v) => set(() => v == true ? selected.add(l) : selected.remove(l)),
-                        title: Text('${l.flatNumber} · ${l.head}'),
-                        secondary: Text(inr.format(l.pending)),
-                      ),
-                  ],
-                ),
-        ),
-        DropdownButtonFormField<String>(
-          initialValue: mode,
-          decoration: const InputDecoration(labelText: 'Payment mode (same for all)'),
-          items: [
-            for (final e in paymentModes.entries)
-              if (e.key != 'online') DropdownMenuItem(value: e.key, child: Text(e.value)),
-          ],
-          onChanged: (v) => set(() => mode = v ?? mode),
-        ),
-        TextField(
-          controller: reference,
-          decoration: const InputDecoration(
-            labelText: 'Reference (optional, same for all)',
-            hintText: 'e.g. collection drive or bank statement date',
-          ),
-        ),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.event),
-          label: Text('Received on ${dateFmt.format(paidOn)}'),
-          onPressed: () async {
-            final d = await _pickDate(context, paidOn);
-            if (d != null) set(() => paidOn = d);
-          },
-        ),
-      ];
-    },
-  );
-  if (ok != true || !context.mounted) return;
-
-  // Preview before the final save: every flat, amount and the grand total.
-  final rows = selected.toList()..sort((a, b) => a.flatNumber.compareTo(b.flatNumber));
-  final total = rows.fold(0, (s, l) => s + l.pending);
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text('Receive ${inr.format(total)} for ${rows.length} dues?'),
-      content: SizedBox(
-        width: 440,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+    if (!context.mounted) return;
+    final ok = await _form(
+      context,
+      title: 'Bulk receive dues',
+      action: 'Preview',
+      validate: () => selected.isEmpty ? 'Tick at least one flat' : null,
+      fields: (set, _) {
+        final cats = categories();
+        if (category != 'All' && !cats.contains(category)) category = 'All';
+        final list = matching();
+        selected.removeWhere((l) => !list.contains(l));
+        final total = selected.fold(0, (s, l) => s + l.pending);
+        return [
+          Row(
             children: [
-              Text(
-                '$month · ${category == 'All' ? 'all types' : category} · ${paymentModes[mode] ?? mode}'
-                '${reference.text.trim().isEmpty ? '' : ' · ref ${reference.text.trim()}'}'
-                ' · ${dateFmt.format(paidOn)}',
-              ),
-              const Divider(),
-              for (final l in rows)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text('${l.flatNumber} · ${l.head}')),
-                      Text(inr.format(l.pending)),
-                    ],
-                  ),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('m$month'),
+                  initialValue: month,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Month'),
+                  items: [for (final m in months) DropdownMenuItem(value: m, child: Text(m))],
+                  onChanged: (v) => set(() => month = v ?? month),
                 ),
-              const Divider(),
-              Row(
-                children: [
-                  const Expanded(child: Text('Total', style: TextStyle(fontWeight: FontWeight.w700))),
-                  Text(inr.format(total), style: const TextStyle(fontWeight: FontWeight.w700)),
-                ],
               ),
-              const SizedBox(height: 8),
-              const Text('One receipt is recorded per due; owners see theirs immediately.', style: _note),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('c$month$category'),
+                  initialValue: category,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Type'),
+                  items: [
+                    const DropdownMenuItem(value: 'All', child: Text('All types')),
+                    for (final c in cats) DropdownMenuItem(value: c, child: Text(c)),
+                  ],
+                  onChanged: (v) => set(() => category = v ?? category),
+                ),
+              ),
             ],
           ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${selected.length} of ${list.length} selected · ${inr.format(total)}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              TextButton(
+                onPressed: list.isEmpty
+                    ? null
+                    : () => set(() {
+                        final all = selected.length == list.length;
+                        selected.clear();
+                        if (!all) selected.addAll(list);
+                      }),
+                child: Text(selected.length == list.length && list.isNotEmpty ? 'Clear all' : 'Select all'),
+              ),
+            ],
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 240),
+            child: list.isEmpty
+                ? const Text('Nothing pending for this month and type.')
+                : ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final l in list)
+                        CheckboxListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          value: selected.contains(l),
+                          onChanged: (v) => set(() => v == true ? selected.add(l) : selected.remove(l)),
+                          title: Text('${l.flatNumber} · ${l.head}'),
+                          secondary: Text(inr.format(l.pending)),
+                        ),
+                    ],
+                  ),
+          ),
+          DropdownButtonFormField<String>(
+            initialValue: mode,
+            decoration: const InputDecoration(labelText: 'Payment mode (same for all)'),
+            items: [
+              for (final e in paymentModes.entries)
+                if (e.key != 'online') DropdownMenuItem(value: e.key, child: Text(e.value)),
+            ],
+            onChanged: (v) => set(() => mode = v ?? mode),
+          ),
+          TextField(
+            controller: reference,
+            decoration: const InputDecoration(
+              labelText: 'Reference (optional, same for all)',
+              hintText: 'e.g. collection drive or bank statement date',
+            ),
+          ),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.event),
+            label: Text('Received on ${dateFmt.format(paidOn)}'),
+            onPressed: () async {
+              final d = await _pickDate(context, paidOn);
+              if (d != null) set(() => paidOn = d);
+            },
+          ),
+        ];
+      },
+    );
+    if (ok != true || !context.mounted) return;
+
+    // Preview before the final save: every flat, amount and the grand total.
+    final rows = selected.toList()..sort((a, b) => a.flatNumber.compareTo(b.flatNumber));
+    final total = rows.fold(0, (s, l) => s + l.pending);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Receive ${inr.format(total)} for ${rows.length} dues?'),
+        content: SizedBox(
+          width: 440,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$month · ${category == 'All' ? 'all types' : category} · ${paymentModes[mode] ?? mode}'
+                  '${reference.text.trim().isEmpty ? '' : ' · ref ${reference.text.trim()}'}'
+                  ' · ${dateFmt.format(paidOn)}',
+                ),
+                const Divider(),
+                for (final l in rows)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text('${l.flatNumber} · ${l.head}')),
+                        Text(inr.format(l.pending)),
+                      ],
+                    ),
+                  ),
+                const Divider(),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Total', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                    Text(inr.format(total), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text('One receipt is recorded per due; owners see theirs immediately.', style: _note),
+              ],
+            ),
+          ),
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirm & save')),
+        ],
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirm & save')),
-      ],
-    ),
-  );
-  if (!context.mounted) return;
-  if (confirmed != true) continue;
-  _lastPaymentMode = mode;
-  await _run(context, () async {
-    final n = await ref
-        .read(duesProvider.notifier)
-        .recordBulkPayments(
-          dues: rows,
-          mode: mode,
-          reference: reference.text.trim().isEmpty ? null : reference.text.trim(),
-          paidOn: paidOn,
-        );
-    return 'Recorded $n receipts totalling ${inr.format(total)}';
-  });
-  return;
+    );
+    if (!context.mounted) return;
+    if (confirmed != true) continue;
+    _lastPaymentMode = mode;
+    await _run(context, () async {
+      final n = await ref
+          .read(duesProvider.notifier)
+          .recordBulkPayments(
+            dues: rows,
+            mode: mode,
+            reference: reference.text.trim().isEmpty ? null : reference.text.trim(),
+            paidOn: paidOn,
+          );
+      return 'Recorded $n receipts totalling ${inr.format(total)}';
+    });
+    return;
   }
 }
 

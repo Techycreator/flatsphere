@@ -11,10 +11,10 @@ typedef AttendanceData = ({List<StaffMember> staff, Map<String, StaffAttendance>
 
 class AttendanceRepo {
   /// The caller's owner/resident flats in the open association only.
-  static Future<List<(String id, String number)>> myResidentialFlats() async {
+  static Future<List<(String id, String number)>> myResidentialFlats() => AssociationContext.run(() async {
     final userId = db.auth.currentUser!.id;
     final associationId = await db.rpc('my_association') as String?;
-    if (associationId == null) return [];
+    if (associationId == null) return <(String, String)>[];
     final rows = await db
         .from('memberships')
         .select('flat_id, association_id, flats(number)')
@@ -23,7 +23,7 @@ class AttendanceRepo {
         .isFilter('ended_at', null)
         .inFilter('role', ['owner', 'resident']);
     return residentialFlatsFrom(rows, associationId);
-  }
+  });
 
   /// Unique flats from membership rows, keeping only [associationId].
   static List<(String id, String number)> residentialFlatsFrom(List<Map<String, dynamic>> rows, String associationId) {

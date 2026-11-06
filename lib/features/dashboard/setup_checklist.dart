@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormF
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/router.dart' show canAccess;
 import '../../backend/backend.dart';
 import '../../backend/finance_repo.dart';
 import '../../models/models.dart';
@@ -13,15 +14,9 @@ final _setupStatusProvider = FutureProvider.autoDispose<({bool owners, bool sche
   final s = ref.watch(sessionProvider);
   final associationId = s?.user.associationId;
   if (!backendEnabled || associationId == null) return (owners: true, schedule: true);
-  final owners = await db
-      .from('memberships')
-      .select('id')
-      .eq('association_id', associationId)
-      .eq('role', 'owner')
-      .isFilter('ended_at', null)
-      .limit(1);
+  final status = await db.rpc('setup_status') as Map<String, dynamic>?;
   final schedule = await FinanceRepo.duesSchedule();
-  return (owners: owners.isNotEmpty, schedule: schedule?['enabled'] == true);
+  return (owners: status?['owners'] == true, schedule: schedule?['enabled'] == true);
 });
 
 /// First-time setup steps for a new association; hidden once every step is done.
@@ -31,24 +26,45 @@ class SetupChecklistCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionProvider)?.activeRole;
-    if (!backendEnabled ||
-        !const {Role.admin, Role.president, Role.secretary, Role.treasurer}.contains(role)) {
+    if (!backendEnabled || !const {Role.admin, Role.president, Role.secretary, Role.treasurer}.contains(role)) {
       return const SizedBox.shrink();
     }
     final status = ref.watch(_setupStatusProvider).value;
     if (status == null) return const SizedBox.shrink();
     final dues = ref.watch(duesProvider);
+    final canFinance = const {Role.admin, Role.treasurer}.contains(role);
+    final canDirectory = canAccess(role!, '/directory');
     final steps = [
-      (dues.flats.isNotEmpty, 'Add flats (number, type, sq. ft.)', 'Flats & people', '/directory'),
-      (status.owners, 'Add owners and residents to each flat', 'Flats & people → invite by email', '/directory'),
-      (dues.opening != null, 'Set the opening bank balance', 'Finance → Dues → Set opening balance', '/finance'),
+      (
+        dues.flats.isNotEmpty,
+        'Add flats (number, type, sq. ft.)',
+        'Flats & people',
+        canDirectory ? '/directory' : null,
+      ),
+      (
+        status.owners,
+        'Add owners and residents to each flat',
+        'Flats & people → invite by email',
+        canDirectory ? '/directory' : null,
+      ),
+      (
+        dues.opening != null,
+        'Set the opening bank balance',
+        'Finance → Dues → Set opening balance',
+        canFinance ? '/finance' : null,
+      ),
       (
         dues.lines.isNotEmpty,
         'Raise the first dues by category',
         'Finance → Dues → More → Raise dues (Maintenance, Corpus fund, Lift AMC…)',
-        '/finance',
+        canFinance ? '/finance' : null,
       ),
-      (status.schedule, 'Turn on automatic monthly maintenance bills', 'Finance → Dues → More → Automatic monthly bills', '/finance'),
+      (
+        status.schedule,
+        'Turn on automatic monthly maintenance bills',
+        'Finance → Dues → More → Automatic monthly bills',
+        canFinance ? '/finance' : null,
+      ),
     ];
     final done = steps.where((x) => x.$1).length;
     if (done == steps.length) return const SizedBox.shrink();
@@ -62,13 +78,14 @@ class SetupChecklistCard extends ConsumerWidget {
             for (final (ok, title, where, route) in steps)
               ListTile(
                 dense: true,
-                leading: Icon(
-                  ok ? Icons.check_circle : Icons.radio_button_unchecked,
-                  color: ok ? Colors.green : null,
-                ),
+                leading: Icon(ok ? Icons.check_circle : Icons.radio_button_unchecked, color: ok ? Colors.green : null),
                 title: Text(title),
-                subtitle: Text(where),
-                onTap: ok ? null : () => context.go(route),
+                subtitle: Text(
+                  route == null && !ok
+                      ? '$where (done by ${where.startsWith('Finance') ? 'Treasurer' : 'Admin / President / Secretary'})'
+                      : where,
+                ),
+                onTap: ok || route == null ? null : () => context.go(route),
               ),
             const ListTile(
               dense: true,

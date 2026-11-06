@@ -664,6 +664,8 @@ class _OwnerDash extends ConsumerWidget {
         const SizedBox(height: 16),
         const _MeetingsCard(generalBodyOnly: true),
         const SizedBox(height: 16),
+        const _ChangeRequestCard(owner: true),
+        const SizedBox(height: 16),
         const _CommunityPreview(),
       ],
     );
@@ -711,8 +713,40 @@ class _ResidentDash extends ConsumerWidget {
         const SizedBox(height: 8),
         Text('Financial statements are visible to owners only.', style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 16),
+        const _ChangeRequestCard(owner: false),
+        const SizedBox(height: 16),
         const _CommunityPreview(),
       ],
+    );
+  }
+}
+
+/// Owner/tenant change shortcuts, kept below the everyday cards.
+class _ChangeRequestCard extends StatelessWidget {
+  const _ChangeRequestCard({required this.owner});
+  final bool owner;
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      title: 'Owner / tenant change',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (owner)
+            OutlinedButton.icon(
+              onPressed: () => context.go('/approvals/new/owner'),
+              icon: const Icon(Icons.sell_outlined),
+              label: const Text('Owner change (sale / transfer)'),
+            ),
+          OutlinedButton.icon(
+            onPressed: () => context.go('/approvals/new/resident'),
+            icon: const Icon(Icons.swap_horiz_outlined),
+            label: const Text('Tenant / resident change'),
+          ),
+        ],
+      ),
     );
   }
 }
