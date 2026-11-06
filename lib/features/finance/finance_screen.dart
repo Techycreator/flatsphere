@@ -308,6 +308,14 @@ class _DuesTabState extends ConsumerState<_DuesTab> {
                           title: Text('Automatic monthly bills'),
                         ),
                       ),
+                    if (backendEnabled)
+                      PopupMenuItem(
+                        value: () => showRecurringBillForm(context, ref),
+                        child: const ListTile(
+                          leading: Icon(Icons.date_range_outlined),
+                          title: Text('Custom monthly bill (fixed months)'),
+                        ),
+                      ),
                     PopupMenuItem(
                       value: () => showRaiseDuesForm(context, ref),
                       child: ListTile(leading: const Icon(Icons.playlist_add), title: Text(l.raiseDues)),

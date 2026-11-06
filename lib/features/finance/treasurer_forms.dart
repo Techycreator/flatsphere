@@ -376,6 +376,159 @@ Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
   });
 }
 
+/// A bill raised automatically each month for a fixed number of months, e.g. Painting contribution ₹5,000 × 6.
+Future<void> showRecurringBillForm(BuildContext context, WidgetRef ref) async {
+  final st = ref.read(duesProvider);
+  final types = {for (final f in financeFlats(st)) f.$2}.toList()..sort();
+  if (types.isEmpty) return toast(context, 'Add flats first in Flats & people');
+  List<Map<String, dynamic>> active;
+  try {
+    active = await FinanceRepo.recurringBills();
+  } catch (e) {
+    if (context.mounted) toast(context, friendlyError(e));
+    return;
+  }
+  if (!context.mounted) return;
+  final now = DateTime.now();
+  final head = TextEditingController();
+  final same = TextEditingController();
+  final rates = {for (final t in types) t: TextEditingController()};
+  final starts = [for (var i = 0; i < 12; i++) DateTime(now.year, now.month + i)];
+  var start = starts.first;
+  var months = 6;
+  var billDay = 1;
+  var dueDay = 10;
+  int rate(String t) => int.tryParse(rates[t]!.text) ?? 0;
+  final monthFmt = DateFormat('MMM yyyy');
+  Widget day(String label, int value, void Function(int) on) => DropdownButtonFormField<int>(
+    initialValue: value,
+    decoration: InputDecoration(labelText: label),
+    items: [for (var d = 1; d <= 28; d++) DropdownMenuItem(value: d, child: Text('Day $d'))],
+    onChanged: (v) => on(v ?? value),
+  );
+  final ok = await _form(
+    context,
+    title: 'Custom monthly bill',
+    action: 'Save',
+    validate: () {
+      if (head.text.trim().isEmpty) return 'Enter a bill name, e.g. Painting contribution';
+      if (types.every((t) => rate(t) <= 0)) return 'Enter an amount for at least one flat type';
+      if (dueDay < billDay) return 'Due day must be on or after the bill day';
+      return null;
+    },
+    fields: (set, _) => [
+      if (active.isNotEmpty) ...[
+        const Text('Running now', style: TextStyle(fontWeight: FontWeight.w600)),
+        for (final b in active)
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: Text('${b['head_prefix']}'),
+            subtitle: Text(
+              'From ${monthFmt.format(DateTime.parse(b['start_month'] as String))} · ${b['months']} months',
+            ),
+            trailing: TextButton(
+              onPressed: () async {
+                try {
+                  await FinanceRepo.stopRecurringBill(b['id'] as String);
+                  set(() => active = [...active]..remove(b));
+                  if (context.mounted) toast(context, 'Stopped; bills already raised stay');
+                } catch (e) {
+                  if (context.mounted) toast(context, friendlyError(e));
+                }
+              },
+              child: const Text('Stop'),
+            ),
+          ),
+        const Divider(),
+      ],
+      TextField(
+        controller: head,
+        decoration: const InputDecoration(
+          labelText: 'Bill name *',
+          helperText: 'Each month adds the month, e.g. Painting contribution – Nov 2026',
+        ),
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<DateTime>(
+              initialValue: start,
+              decoration: const InputDecoration(labelText: 'First month'),
+              items: [for (final m in starts) DropdownMenuItem(value: m, child: Text(monthFmt.format(m)))],
+              onChanged: (v) => set(() => start = v ?? start),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonFormField<int>(
+              initialValue: months,
+              decoration: const InputDecoration(labelText: 'For how many months'),
+              items: [for (var m = 1; m <= 36; m++) DropdownMenuItem(value: m, child: Text('$m'))],
+              onChanged: (v) => set(() => months = v ?? months),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(child: day('Raise on', billDay, (v) => set(() => billDay = v))),
+          const SizedBox(width: 8),
+          Expanded(child: day('Due by', dueDay, (v) => set(() => dueDay = v))),
+        ],
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: same,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: const InputDecoration(labelText: 'Same amount for every flat (optional)', prefixText: '₹ '),
+        onChanged: (v) => set(() {
+          for (final c in rates.values) {
+            c.text = v;
+          }
+        }),
+      ),
+      const SizedBox(height: 8),
+      Text(AppLocalizations.of(context).flatTypeAmount, style: const TextStyle(fontWeight: FontWeight.w600)),
+      for (final t in types)
+        TextField(
+          controller: rates[t],
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(labelText: t, prefixText: '₹ '),
+        ),
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          'Raised automatically each month from ${monthFmt.format(start)} to '
+          '${monthFmt.format(DateTime(start.year, start.month + months - 1))}. '
+          'If this month\'s day has passed, this month\'s bill is raised on Save.',
+          style: _note,
+        ),
+      ),
+    ],
+  );
+  if (ok != true || !context.mounted) return;
+  await _run(context, () async {
+    await FinanceRepo.saveRecurringBill(
+      headPrefix: head.text.trim(),
+      rates: {
+        for (final t in types)
+          if (rate(t) > 0) t: rate(t),
+      },
+      startMonth: start,
+      months: months,
+      billDay: billDay,
+      dueDay: dueDay,
+    );
+    await ref.read(duesProvider.notifier).refresh();
+    return 'Saved "${head.text.trim()}" for $months months';
+  });
+}
+
 Future<void> showRaiseDuesPerSqftForm(BuildContext context, WidgetRef ref) async {
   final l = AppLocalizations.of(context);
   final now = DateTime.now();

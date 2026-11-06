@@ -1,3 +1,4 @@
+import 'package:intl/intl.dart';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -390,6 +391,30 @@ class FinanceRepo {
       'p_late_fee_grace_days': graceDays,
     },
   );
+
+  static Future<List<Map<String, dynamic>>> recurringBills() async =>
+      await db.from('recurring_bills').select().eq('active', true).order('created_at');
+
+  static Future<void> saveRecurringBill({
+    required String headPrefix,
+    required Map<String, int> rates,
+    required DateTime startMonth,
+    required int months,
+    required int billDay,
+    required int dueDay,
+  }) => db.rpc(
+    'save_recurring_bill',
+    params: {
+      'p_head_prefix': headPrefix,
+      'p_rates': rates,
+      'p_start_month': DateFormat('yyyy-MM-01').format(startMonth),
+      'p_months': months,
+      'p_bill_day': billDay,
+      'p_due_day': dueDay,
+    },
+  );
+
+  static Future<void> stopRecurringBill(String id) => db.rpc('stop_recurring_bill', params: {'p_id': id});
 
   /// Sends a reversal of a mistaken receipt for President/Secretary approval.
   static Future<void> requestPaymentReversal(String paymentId, String reason, String requestRef) =>
