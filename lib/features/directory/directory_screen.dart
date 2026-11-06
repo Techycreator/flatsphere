@@ -333,7 +333,7 @@ class _DirectoryScreenState extends ConsumerState<DirectoryScreen> {
                   ChoiceOrOtherField(
                     controller: type,
                     label: 'Type',
-                    options: const ['1BHK', '2BHK', '3BHK', '4BHK', 'Studio', 'Villa', 'Penthouse', 'Shop'],
+                    options: const ['1BHK', '2BHK', '2.5BHK', '3BHK', '4BHK', 'Studio', 'Villa', 'Penthouse', 'Shop'],
                   ),
                   const SizedBox(height: 12),
                   TextField(

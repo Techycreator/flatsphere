@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../backend/association_settings_repo.dart';
-import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/backend.dart' show AssociationContext, backendEnabled;
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
@@ -29,6 +29,8 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
   late final TextEditingController _familyMinimumAge;
   late final TextEditingController _familyMemberLimit;
   bool _saving = false;
+  bool _ownersSeeAllComplaints = false;
+  bool _residentsSeeAllComplaints = false;
   bool _loadingIdDocumentAccess = true;
   String? _idDocumentAccessError;
   String? _updatingIdDocumentAccessFor;
@@ -47,6 +49,8 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
     _dueDay = TextEditingController(text: '${settings['default_due_day'] ?? 10}');
     _familyMinimumAge = TextEditingController(text: '${settings['family_min_login_age'] ?? 12}');
     _familyMemberLimit = TextEditingController(text: '${settings['family_member_limit'] ?? 5}');
+    _ownersSeeAllComplaints = settings['complaints_visible_to_owners'] == true;
+    _residentsSeeAllComplaints = settings['complaints_visible_to_residents'] == true;
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadIdDocumentAccess());
   }
 
@@ -94,15 +98,24 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
     if (associationId == null) return;
     setState(() => _saving = true);
     try {
-      await AssociationSettingsRepo.update(
-        name: name,
-        state: state,
-        city: _city.text,
-        brandPrimary: brand,
-        fiscalYearStartMonth: fiscalMonth,
-        defaultDueDay: dueDay,
-      );
-      await AssociationSettingsRepo.updateFamilyRules(minimumLoginAge: minimumLoginAge, memberLimit: familyMemberLimit);
+      await AssociationContext.run(() async {
+        if (ref.read(sessionProvider)?.user.associationId != associationId) {
+          throw StateError('The active association changed. Reopen settings before saving.');
+        }
+        await AssociationSettingsRepo.update(
+          name: name,
+          state: state,
+          city: _city.text,
+          brandPrimary: brand,
+          fiscalYearStartMonth: fiscalMonth,
+          defaultDueDay: dueDay,
+        );
+        await AssociationSettingsRepo.updateFamilyRules(minimumLoginAge: minimumLoginAge, memberLimit: familyMemberLimit);
+        await AssociationSettingsRepo.updateComplaintVisibility(
+          owners: _ownersSeeAllComplaints,
+          residents: _residentsSeeAllComplaints,
+        );
+      });
       await ref.read(sessionProvider.notifier).switchAssociation(associationId);
       if (mounted) toast(context, AppLocalizations.of(context).settingsSaved);
     } catch (error) {
@@ -375,6 +388,28 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
                 decoration: InputDecoration(labelText: '${l.defaultDueDay} *', helperText: 'Choose 1 to 28'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SectionCard(
+          title: 'Complaint visibility',
+          child: Column(
+            children: [
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: _ownersSeeAllComplaints,
+                onChanged: (v) => setState(() => _ownersSeeAllComplaints = v),
+                title: const Text('Make all complaints visible to all owners'),
+                subtitle: const Text('Off: owners see only the complaints they raised'),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: _residentsSeeAllComplaints,
+                onChanged: (v) => setState(() => _residentsSeeAllComplaints = v),
+                title: const Text('Make all complaints visible to all residents'),
+                subtitle: const Text('Off: residents see only the complaints they raised. Saved with Save settings.'),
               ),
             ],
           ),

@@ -128,6 +128,12 @@ abstract class AppLocalizations {
   /// **'Approvals'**
   String get approvals;
 
+  /// No description provided for @myRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'My requests'**
+  String get myRequests;
+
   /// No description provided for @finance.
   ///
   /// In en, this message translates to:

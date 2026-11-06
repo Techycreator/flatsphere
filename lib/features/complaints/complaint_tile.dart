@@ -72,12 +72,21 @@ class ComplaintTile extends ConsumerWidget {
 }
 
 /// Complaints the active role is allowed to see.
-List<Complaint> visibleComplaints(WidgetRef ref) {
+/// Owners/residents see only their own unless the Admin opened all complaints to their role;
+/// [mineOnly] keeps the personal view (e.g. dashboards) regardless of that setting.
+List<Complaint> visibleComplaints(WidgetRef ref, {bool mineOnly = false}) {
   final s = ref.watch(sessionProvider)!;
   final all = ref.watch(complaintsProvider);
+  final settings = s.user.association?.settings ?? const <String, dynamic>{};
+  final openToRole = switch (s.activeRole) {
+    Role.owner => settings['complaints_visible_to_owners'] == true,
+    Role.resident => settings['complaints_visible_to_residents'] == true,
+    _ => true,
+  };
+  bool isMine(Complaint c) => c.raisedById != null ? c.raisedById == s.user.id : c.raisedBy == s.user.name;
   return switch (s.activeRole) {
-    Role.owner || Role.resident =>
-      all.where((c) => c.raisedById != null ? c.raisedById == s.user.id : c.raisedBy == s.user.name).toList(),
+    Role.owner || Role.resident when mineOnly || !openToRole => all.where(isMine).toList(),
+    Role.owner || Role.resident => all.where((c) => !c.isPrivate || isMine(c)).toList(),
     _ => all,
   };
 }

@@ -376,6 +376,166 @@ Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
   });
 }
 
+/// A bill raised automatically each month for a fixed number of months, e.g. Painting contribution ₹5,000 × 6.
+Future<void> showRecurringBillForm(BuildContext context, WidgetRef ref) async {
+  final associationId = ref.read(sessionProvider)?.user.associationId;
+  if (associationId == null) return;
+  final st = ref.read(duesProvider);
+  final types = {for (final f in financeFlats(st)) f.$2}.toList()..sort();
+  if (types.isEmpty) return toast(context, 'Add flats first in Flats & people');
+  List<Map<String, dynamic>> active;
+  try {
+    active = await FinanceRepo.recurringBills();
+  } catch (e) {
+    if (context.mounted) toast(context, friendlyError(e));
+    return;
+  }
+  if (!context.mounted) return;
+  final now = DateTime.now();
+  final head = TextEditingController();
+  final same = TextEditingController();
+  final rates = {for (final t in types) t: TextEditingController()};
+  final starts = [for (var i = 0; i < 12; i++) DateTime(now.year, now.month + i)];
+  var start = starts.first;
+  var months = 6;
+  var billDay = 1;
+  var dueDay = 10;
+  int rate(String t) => int.tryParse(rates[t]!.text) ?? 0;
+  final monthFmt = DateFormat('MMM yyyy');
+  Widget day(String label, int value, void Function(int) on) => DropdownButtonFormField<int>(
+    initialValue: value,
+    decoration: InputDecoration(labelText: label),
+    items: [for (var d = 1; d <= 28; d++) DropdownMenuItem(value: d, child: Text('Day $d'))],
+    onChanged: (v) => on(v ?? value),
+  );
+  final ok = await _form(
+    context,
+    title: 'Custom monthly bill',
+    action: 'Save',
+    validate: () {
+      if (head.text.trim().isEmpty) return 'Enter a bill name, e.g. Painting contribution';
+      if (types.every((t) => rate(t) <= 0)) return 'Enter an amount for at least one flat type';
+      if (dueDay < billDay) return 'Due day must be on or after the bill day';
+      return null;
+    },
+    fields: (set, dialogContext) => [
+      if (active.isNotEmpty) ...[
+        const Text('Running now', style: TextStyle(fontWeight: FontWeight.w600)),
+        for (final b in active)
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: Text('${b['head_prefix']}'),
+            subtitle: Text(
+              'From ${monthFmt.format(DateTime.parse(b['start_month'] as String))} · ${b['months']} months',
+            ),
+            trailing: TextButton(
+              onPressed: () async {
+                try {
+                  await FinanceRepo.stopRecurringBill(b['id'] as String);
+                  if (dialogContext.mounted) set(() => active = [...active]..remove(b));
+                  if (context.mounted) toast(context, 'Stopped; bills already raised stay');
+                } catch (e) {
+                  if (dialogContext.mounted) toast(dialogContext, friendlyError(e));
+                }
+              },
+              child: const Text('Stop'),
+            ),
+          ),
+        const Divider(),
+      ],
+      TextField(
+        controller: head,
+        decoration: const InputDecoration(
+          labelText: 'Bill name *',
+          helperText: 'Each month adds the month, e.g. Painting contribution – Nov 2026',
+        ),
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<DateTime>(
+              initialValue: start,
+              decoration: const InputDecoration(labelText: 'First month'),
+              items: [for (final m in starts) DropdownMenuItem(value: m, child: Text(monthFmt.format(m)))],
+              onChanged: (v) => set(() => start = v ?? start),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonFormField<int>(
+              initialValue: months,
+              decoration: const InputDecoration(labelText: 'For how many months'),
+              items: [for (var m = 1; m <= 36; m++) DropdownMenuItem(value: m, child: Text('$m'))],
+              onChanged: (v) => set(() => months = v ?? months),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(child: day('Raise on', billDay, (v) => set(() => billDay = v))),
+          const SizedBox(width: 8),
+          Expanded(child: day('Due by', dueDay, (v) => set(() => dueDay = v))),
+        ],
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: same,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: const InputDecoration(labelText: 'Same amount for every flat (optional)', prefixText: '₹ '),
+        onChanged: (v) => set(() {
+          for (final c in rates.values) {
+            c.text = v;
+          }
+        }),
+      ),
+      const SizedBox(height: 8),
+      Text(AppLocalizations.of(context).flatTypeAmount, style: const TextStyle(fontWeight: FontWeight.w600)),
+      for (final t in types)
+        TextField(
+          controller: rates[t],
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(labelText: t, prefixText: '₹ '),
+        ),
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          'Raised automatically each month from ${monthFmt.format(start)} to '
+          '${monthFmt.format(DateTime(start.year, start.month + months - 1))}. '
+          'If this month\'s day has passed, this month\'s bill is raised on Save.',
+          style: _note,
+        ),
+      ),
+    ],
+  );
+  if (ok != true || !context.mounted) return;
+  await _run(context, () async {
+    await AssociationContext.run(() async {
+      if (ref.read(sessionProvider)?.user.associationId != associationId) {
+        throw StateError('The active association changed. Reopen this form before saving.');
+      }
+      await FinanceRepo.saveRecurringBill(
+        headPrefix: head.text.trim(),
+        rates: {
+          for (final t in types)
+            if (rate(t) > 0) t: rate(t),
+        },
+        startMonth: start,
+        months: months,
+        billDay: billDay,
+        dueDay: dueDay,
+      );
+    });
+    await ref.read(duesProvider.notifier).refresh();
+    return 'Saved "${head.text.trim()}" for $months months';
+  });
+}
+
 Future<void> showRaiseDuesPerSqftForm(BuildContext context, WidgetRef ref) async {
   final l = AppLocalizations.of(context);
   final now = DateTime.now();
@@ -602,177 +762,184 @@ Future<void> showBulkReceiveForm(BuildContext context, WidgetRef ref) async {
       if (monthFmt.format(l.dueDate) == month) duesCategory(l.head),
   }.toList()..sort();
 
-  final ok = await _form(
-    context,
-    title: 'Bulk receive dues',
-    action: 'Preview',
-    validate: () => selected.isEmpty ? 'Tick at least one flat' : null,
-    fields: (set, _) {
-      final cats = categories();
-      if (category != 'All' && !cats.contains(category)) category = 'All';
-      final list = matching();
-      selected.removeWhere((l) => !list.contains(l));
-      final total = selected.fold(0, (s, l) => s + l.pending);
-      return [
-        Row(
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                key: ValueKey('m$month'),
-                initialValue: month,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Month'),
-                items: [for (final m in months) DropdownMenuItem(value: m, child: Text(m))],
-                onChanged: (v) => set(() => month = v ?? month),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                key: ValueKey('c$month$category'),
-                initialValue: category,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Type'),
-                items: [
-                  const DropdownMenuItem(value: 'All', child: Text('All types')),
-                  for (final c in cats) DropdownMenuItem(value: c, child: Text(c)),
-                ],
-                onChanged: (v) => set(() => category = v ?? category),
-              ),
-            ),
-          ],
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '${selected.length} of ${list.length} selected · ${inr.format(total)}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            TextButton(
-              onPressed: list.isEmpty
-                  ? null
-                  : () => set(() {
-                      final all = selected.length == list.length;
-                      selected.clear();
-                      if (!all) selected.addAll(list);
-                    }),
-              child: Text(selected.length == list.length && list.isNotEmpty ? 'Clear all' : 'Select all'),
-            ),
-          ],
-        ),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 240),
-          child: list.isEmpty
-              ? const Text('Nothing pending for this month and type.')
-              : ListView(
-                  shrinkWrap: true,
-                  children: [
-                    for (final l in list)
-                      CheckboxListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        value: selected.contains(l),
-                        onChanged: (v) => set(() => v == true ? selected.add(l) : selected.remove(l)),
-                        title: Text('${l.flatNumber} · ${l.head}'),
-                        secondary: Text(inr.format(l.pending)),
-                      ),
-                  ],
-                ),
-        ),
-        DropdownButtonFormField<String>(
-          initialValue: mode,
-          decoration: const InputDecoration(labelText: 'Payment mode (same for all)'),
-          items: [
-            for (final e in paymentModes.entries)
-              if (e.key != 'online') DropdownMenuItem(value: e.key, child: Text(e.value)),
-          ],
-          onChanged: (v) => set(() => mode = v ?? mode),
-        ),
-        TextField(
-          controller: reference,
-          decoration: const InputDecoration(
-            labelText: 'Reference (optional, same for all)',
-            hintText: 'e.g. collection drive or bank statement date',
-          ),
-        ),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.event),
-          label: Text('Received on ${dateFmt.format(paidOn)}'),
-          onPressed: () async {
-            final d = await _pickDate(context, paidOn);
-            if (d != null) set(() => paidOn = d);
-          },
-        ),
-      ];
-    },
-  );
-  if (ok != true || !context.mounted) return;
-
-  // Preview before the final save: every flat, amount and the grand total.
-  final rows = selected.toList()..sort((a, b) => a.flatNumber.compareTo(b.flatNumber));
-  final total = rows.fold(0, (s, l) => s + l.pending);
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text('Receive ${inr.format(total)} for ${rows.length} dues?'),
-      content: SizedBox(
-        width: 440,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+  while (true) {
+    if (!context.mounted) return;
+    final ok = await _form(
+      context,
+      title: 'Bulk receive dues',
+      action: 'Preview',
+      validate: () => selected.isEmpty ? 'Tick at least one flat' : null,
+      fields: (set, _) {
+        final cats = categories();
+        if (category != 'All' && !cats.contains(category)) category = 'All';
+        final list = matching();
+        selected.removeWhere((l) => !list.contains(l));
+        final total = selected.fold(0, (s, l) => s + l.pending);
+        return [
+          Row(
             children: [
-              Text(
-                '$month · ${category == 'All' ? 'all types' : category} · ${paymentModes[mode] ?? mode}'
-                '${reference.text.trim().isEmpty ? '' : ' · ref ${reference.text.trim()}'}'
-                ' · ${dateFmt.format(paidOn)}',
-              ),
-              const Divider(),
-              for (final l in rows)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text('${l.flatNumber} · ${l.head}')),
-                      Text(inr.format(l.pending)),
-                    ],
-                  ),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('m$month'),
+                  initialValue: month,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Month'),
+                  items: [for (final m in months) DropdownMenuItem(value: m, child: Text(m))],
+                  onChanged: (v) => set(() => month = v ?? month),
                 ),
-              const Divider(),
-              Row(
-                children: [
-                  const Expanded(child: Text('Total', style: TextStyle(fontWeight: FontWeight.w700))),
-                  Text(inr.format(total), style: const TextStyle(fontWeight: FontWeight.w700)),
-                ],
               ),
-              const SizedBox(height: 8),
-              const Text('One receipt is recorded per due; owners see theirs immediately.', style: _note),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('c$month$category'),
+                  initialValue: category,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Type'),
+                  items: [
+                    const DropdownMenuItem(value: 'All', child: Text('All types')),
+                    for (final c in cats) DropdownMenuItem(value: c, child: Text(c)),
+                  ],
+                  onChanged: (v) => set(() => category = v ?? category),
+                ),
+              ),
             ],
           ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${selected.length} of ${list.length} selected · ${inr.format(total)}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              TextButton(
+                onPressed: list.isEmpty
+                    ? null
+                    : () => set(() {
+                        final all = selected.length == list.length;
+                        selected.clear();
+                        if (!all) selected.addAll(list);
+                      }),
+                child: Text(selected.length == list.length && list.isNotEmpty ? 'Clear all' : 'Select all'),
+              ),
+            ],
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 240),
+            child: list.isEmpty
+                ? const Text('Nothing pending for this month and type.')
+                : ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final l in list)
+                        CheckboxListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          value: selected.contains(l),
+                          onChanged: (v) => set(() => v == true ? selected.add(l) : selected.remove(l)),
+                          title: Text('${l.flatNumber} · ${l.head}'),
+                          secondary: Text(inr.format(l.pending)),
+                        ),
+                    ],
+                  ),
+          ),
+          DropdownButtonFormField<String>(
+            initialValue: mode,
+            decoration: const InputDecoration(labelText: 'Payment mode (same for all)'),
+            items: [
+              for (final e in paymentModes.entries)
+                if (e.key != 'online') DropdownMenuItem(value: e.key, child: Text(e.value)),
+            ],
+            onChanged: (v) => set(() => mode = v ?? mode),
+          ),
+          TextField(
+            controller: reference,
+            decoration: const InputDecoration(
+              labelText: 'Reference (optional, same for all)',
+              hintText: 'e.g. collection drive or bank statement date',
+            ),
+          ),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.event),
+            label: Text('Received on ${dateFmt.format(paidOn)}'),
+            onPressed: () async {
+              final d = await _pickDate(context, paidOn);
+              if (d != null) set(() => paidOn = d);
+            },
+          ),
+        ];
+      },
+    );
+    if (ok != true || !context.mounted) return;
+
+    // Preview before the final save: every flat, amount and the grand total.
+    final rows = selected.toList()..sort((a, b) => a.flatNumber.compareTo(b.flatNumber));
+    final total = rows.fold(0, (s, l) => s + l.pending);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Receive ${inr.format(total)} for ${rows.length} dues?'),
+        content: SizedBox(
+          width: 440,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$month · ${category == 'All' ? 'all types' : category} · ${paymentModes[mode] ?? mode}'
+                  '${reference.text.trim().isEmpty ? '' : ' · ref ${reference.text.trim()}'}'
+                  ' · ${dateFmt.format(paidOn)}',
+                ),
+                const Divider(),
+                for (final l in rows)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text('${l.flatNumber} · ${l.head}')),
+                        Text(inr.format(l.pending)),
+                      ],
+                    ),
+                  ),
+                const Divider(),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Total', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                    Text(inr.format(total), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text('One receipt is recorded per due; owners see theirs immediately.', style: _note),
+              ],
+            ),
+          ),
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirm & save')),
+        ],
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirm & save')),
-      ],
-    ),
-  );
-  if (confirmed != true || !context.mounted) return;
-  _lastPaymentMode = mode;
-  await _run(context, () async {
-    final n = await ref
-        .read(duesProvider.notifier)
-        .recordBulkPayments(
-          dues: rows,
-          mode: mode,
-          reference: reference.text.trim().isEmpty ? null : reference.text.trim(),
-          paidOn: paidOn,
-        );
-    return 'Recorded $n receipts totalling ${inr.format(total)}';
-  });
+    );
+    if (!context.mounted) return;
+    if (confirmed != true) continue;
+    _lastPaymentMode = mode;
+    await _run(context, () async {
+      final n = await ref
+          .read(duesProvider.notifier)
+          .recordBulkPayments(
+            dues: rows,
+            mode: mode,
+            reference: reference.text.trim().isEmpty ? null : reference.text.trim(),
+            paidOn: paidOn,
+          );
+      return 'Recorded $n receipts totalling ${inr.format(total)}';
+    });
+    return;
+  }
 }
 
 final pettyCashBalanceProvider = FutureProvider.autoDispose<int?>((ref) async {

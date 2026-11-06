@@ -138,12 +138,12 @@ class _Overview extends ConsumerWidget {
                   : 'Receipts + other income − expenses − petty cash given · ${dateFmt.format(today)}',
             ),
             StatCard(
-              label: 'Dues collected',
+              label: 'Dues collected (all time)',
               value: inr.format(collected),
               icon: Icons.south_west,
               color: AppColors.green,
               onTap: full ? () => go(1) : null,
-              sub: '$thisMonth bills, arrears & corpus',
+              sub: 'All bills raised so far, incl. arrears & corpus',
             ),
             StatCard(
               label: 'Pending dues',
@@ -306,6 +306,14 @@ class _DuesTabState extends ConsumerState<_DuesTab> {
                         child: const ListTile(
                           leading: Icon(Icons.event_repeat),
                           title: Text('Automatic monthly bills'),
+                        ),
+                      ),
+                    if (backendEnabled)
+                      PopupMenuItem(
+                        value: () => showRecurringBillForm(context, ref),
+                        child: const ListTile(
+                          leading: Icon(Icons.date_range_outlined),
+                          title: Text('Custom monthly bill (fixed months)'),
                         ),
                       ),
                     PopupMenuItem(

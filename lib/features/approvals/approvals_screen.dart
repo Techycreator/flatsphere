@@ -32,6 +32,7 @@ class ApprovalsScreen extends ConsumerWidget {
           };
     final raised = all.where((a) => a.initiatorName.contains(s.user.name)).toList();
     final done = all.where((a) => a.overall != Decision.pending).toList();
+    final personal = s.activeRole == Role.owner || s.activeRole == Role.resident;
 
     Widget list(List<ApprovalRequest> xs, String empty) => xs.isEmpty
         ? Card(child: EmptyState(empty))
@@ -53,7 +54,7 @@ class ApprovalsScreen extends ConsumerWidget {
               isScrollable: true,
               tabAlignment: TabAlignment.start,
               tabs: [
-                Tab(text: 'Awaiting me (${mine.length})'),
+                Tab(text: '${personal ? 'Waiting for me' : 'Awaiting me'} (${mine.length})'),
                 Tab(text: 'Raised by me (${raised.length})'),
                 Tab(text: 'Completed (${done.length})'),
                 Tab(text: 'All (${all.length})'),
@@ -67,7 +68,12 @@ class ApprovalsScreen extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: Text(l.pendingApprovals, style: Theme.of(context).textTheme.titleLarge)),
+                        Expanded(
+                          child: Text(
+                            personal ? l.myRequests : l.pendingApprovals,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
                         if (startTypes.isNotEmpty)
                           PopupMenuButton<MembershipRequestType>(
                             onSelected: (t) => context.go('/approvals/new/${t.name}'),
@@ -87,7 +93,11 @@ class ApprovalsScreen extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    const Text('You can never approve a request you raised yourself (maker-checker).'),
+                    Text(
+                      personal
+                          ? 'Consents you need to give, and owner / tenant changes for your flat.'
+                          : 'You can never approve a request you raised yourself (maker-checker).',
+                    ),
                     const SizedBox(height: 12),
                     list(mine, 'Nothing waiting for you'),
                   ],

@@ -161,7 +161,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.textContaining('Family dates of birth are securely stored'), findsOneWidget);
-    expect(find.text('No family members are recorded for your flat yet.'), findsOneWidget);
+    expect(find.text('No family members are recorded yet.'), findsOneWidget);
   });
 
   testWidgets('non-household role is denied family DOB screen', (tester) async {

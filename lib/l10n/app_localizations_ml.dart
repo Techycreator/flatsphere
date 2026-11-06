@@ -25,6 +25,9 @@ class AppLocalizationsMl extends AppLocalizations {
   String get approvals => 'അംഗീകാരങ്ങൾ';
 
   @override
+  String get myRequests => 'എന്റെ അപേക്ഷകൾ';
+
+  @override
   String get finance => 'സാമ്പത്തികം';
 
   @override

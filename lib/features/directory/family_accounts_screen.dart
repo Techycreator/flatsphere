@@ -46,7 +46,7 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
     });
     try {
       final members = await DirectoryRepo.familyMembers();
-      if (mounted) setState(() => _members = members);
+      if (mounted) setState(() => _members = [...members]..sort((a, b) => a.flatNumber.compareTo(b.flatNumber)));
     } catch (error) {
       if (mounted) setState(() => _error = friendlyError(error));
     } finally {
@@ -212,14 +212,20 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
         else if (_error != null)
           EmptyState(_error!, icon: Icons.error_outline)
         else if (_members.isEmpty)
-          const EmptyState('No family members are recorded for your flat yet.', icon: Icons.people_outline)
+          const EmptyState('No family members are recorded yet.', icon: Icons.people_outline)
         else
           SectionCard(
             title: '${_members.length} family member${_members.length == 1 ? '' : 's'}',
             padding: false,
             child: Column(
               children: [
-                for (final member in _members)
+                for (final (i, member) in _members.indexed) ...[
+                  if (_members.map((m) => m.flatNumber).toSet().length > 1 &&
+                      (i == 0 || _members[i - 1].flatNumber != member.flatNumber))
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: Text('Flat ${member.flatNumber}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
                   ListTile(
                     leading: const Icon(Icons.person_outline),
                     title: Text(member.name),
@@ -243,6 +249,7 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
                             icon: const Icon(Icons.alternate_email),
                           ),
                   ),
+                ],
               ],
             ),
           ),

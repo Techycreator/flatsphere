@@ -137,6 +137,8 @@ const Map<String, String> mlStrings = {
   'New fund request': 'പുതിയ ഫണ്ട് അഭ്യർത്ഥന',
   'New records become active only after approval and remain associated with this community.': 'പുതിയ രേഖകൾ അംഗീകാരത്തിനു ശേഷം മാത്രമേ സജീവമാകൂ, അവ ഈ സമൂഹവുമായി ബന്ധപ്പെട്ടിരിക്കും.',
   'New request': 'പുതിയ അഭ്യർത്ഥന',
+  'Consents you need to give, and owner / tenant changes for your flat.': 'നിങ്ങൾ നൽകേണ്ട സമ്മതങ്ങളും നിങ്ങളുടെ ഫ്ലാറ്റിലെ ഉടമ / വാടകക്കാരൻ മാറ്റങ്ങളും.',
+  'Owner / tenant change': 'ഉടമ / വാടകക്കാരൻ മാറ്റം',
   'No AMC contracts': 'AMC കരാറുകൾ ഇല്ല',
   'No contract or insurance documents': 'കരാർ അല്ലെങ്കിൽ ഇൻഷുറൻസ് രേഖകൾ ഇല്ല',
   'No fund request linked': 'ഫണ്ട് അഭ്യർത്ഥന ബന്ധിപ്പിച്ചിട്ടില്ല',

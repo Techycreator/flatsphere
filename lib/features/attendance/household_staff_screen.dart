@@ -1,6 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text, TextField, DropdownButtonFormField;
+
 import '../../widgets/tr_text.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -12,8 +14,14 @@ import '../../state/app_state.dart';
 import '../../widgets/common.dart';
 import 'household_staff_overview.dart';
 
-final householdFlatsProvider = FutureProvider<List<(String id, String number)>>((ref) => AttendanceRepo.myResidentialFlats());
-final householdWorkersProvider = FutureProvider<List<FlatHousekeepingWorker>>((ref) => AttendanceRepo.flatHousekeeping());
+final householdFlatsProvider = FutureProvider.autoDispose<List<(String id, String number)>>((ref) {
+  ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId)));
+  return AttendanceRepo.myResidentialFlats();
+});
+final householdWorkersProvider = FutureProvider.autoDispose<List<FlatHousekeepingWorker>>((ref) {
+  ref.watch(sessionProvider.select((s) => (s?.user.id, s?.user.associationId)));
+  return AttendanceRepo.flatHousekeeping();
+});
 
 class HouseholdStaffScreen extends ConsumerWidget {
   const HouseholdStaffScreen({super.key});
@@ -23,7 +31,9 @@ class HouseholdStaffScreen extends ConsumerWidget {
     final role = ref.watch(sessionProvider)!.activeRole;
     if (householdStaffViewerRoles.contains(role)) return const HouseholdStaffOverview();
     if (role != Role.owner && role != Role.resident) {
-      return const PageBody(children: [EmptyState('Household staff is available to flat owners and residents.', icon: Icons.lock_outline)]);
+      return const PageBody(
+        children: [EmptyState('Household staff is available to flat owners and residents.', icon: Icons.lock_outline)],
+      );
     }
     final flats = ref.watch(householdFlatsProvider);
     final workers = ref.watch(householdWorkersProvider);
@@ -34,7 +44,9 @@ class HouseholdStaffScreen extends ConsumerWidget {
           children: [
             Expanded(child: Text('Household staff', style: Theme.of(context).textTheme.headlineSmall)),
             FilledButton.icon(
-              onPressed: flats.hasValue && flats.value!.isNotEmpty ? () => _addWorker(context, ref, flats.value!) : null,
+              onPressed: flats.hasValue && flats.value!.isNotEmpty
+                  ? () => _addWorker(context, ref, flats.value!)
+                  : null,
               icon: const Icon(Icons.person_add_alt),
               label: const Text('Add staff'),
             ),
@@ -45,9 +57,13 @@ class HouseholdStaffScreen extends ConsumerWidget {
         const SizedBox(height: 12),
         if (flats.isLoading || workers.isLoading) const LinearProgressIndicator(),
         if (flats.hasError)
-          Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${flats.error}'))),
+          Card(
+            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${flats.error}')),
+          ),
         if (workers.hasError)
-          Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${workers.error}'))),
+          Card(
+            child: ListTile(leading: const Icon(Icons.error_outline), title: Text('${workers.error}')),
+          ),
         if (flats.hasValue && flats.value!.isEmpty)
           const EmptyState('No active owner/resident flat is linked to this account.', icon: Icons.home_outlined),
         if (workers.hasValue && workers.value!.isEmpty)
@@ -120,10 +136,7 @@ Future<void> _addWorker(BuildContext context, WidgetRef ref, List<(String id, St
   }
 }
 
-Future<_HousekeepingDraft?> _housekeepingDialog(
-  BuildContext context,
-  List<(String id, String number)> flats,
-) async {
+Future<_HousekeepingDraft?> _housekeepingDialog(BuildContext context, List<(String id, String number)> flats) async {
   final name = TextEditingController();
   var flatId = flats.first.$1;
   var usualIn = const TimeOfDay(hour: 9, minute: 0);
@@ -151,7 +164,10 @@ Future<_HousekeepingDraft?> _housekeepingDialog(
                   onChanged: (value) => setState(() => flatId = value ?? flatId),
                 ),
                 const SizedBox(height: 12),
-                TextField(controller: name, decoration: const InputDecoration(labelText: 'Full name *')),
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Full name *'),
+                ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -234,4 +250,5 @@ Future<_HousekeepingDraft?> _housekeepingDialog(
   return draft;
 }
 
-String _time(TimeOfDay value) => '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}:00';
+String _time(TimeOfDay value) =>
+    '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}:00';

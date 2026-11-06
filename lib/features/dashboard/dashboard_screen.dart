@@ -15,6 +15,7 @@ import '../../models/sla.dart';
 import '../../state/app_state.dart';
 import '../../state/demo_data.dart';
 import '../../widgets/push_prompt.dart';
+import 'setup_checklist.dart';
 import '../../widgets/common.dart';
 import '../approvals/approval_tile.dart';
 import '../complaints/complaint_tile.dart';
@@ -240,6 +241,7 @@ class _PresidentDash extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const SetupChecklistCard(),
         StatGrid(
           children: [
             StatCard(
@@ -254,7 +256,7 @@ class _PresidentDash extends ConsumerWidget {
               value: collectionPercent == null ? '—' : '$collectionPercent%',
               icon: Icons.savings_outlined,
               color: AppColors.green,
-              sub: '${inr.format(paid)} of ${inr.format(total)}',
+              sub: '${inr.format(paid)} of ${inr.format(total)} · all bills raised so far',
             ),
             StatCard(
               label: 'Bank balance',
@@ -315,6 +317,7 @@ class _SecretaryDash extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const SetupChecklistCard(),
         StatGrid(
           children: [
             StatCard(
@@ -406,9 +409,16 @@ class _TreasurerDash extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const SetupChecklistCard(),
         StatGrid(
           children: [
-            StatCard(label: 'Collected', value: inr.format(paid), icon: Icons.south_west, color: AppColors.green),
+            StatCard(
+              label: 'Collected',
+              value: inr.format(paid),
+              icon: Icons.south_west,
+              color: AppColors.green,
+              sub: 'All bills raised so far',
+            ),
             StatCard(
               label: 'Pending dues',
               value: inr.format(pending),
@@ -534,7 +544,7 @@ class _OwnerDash extends ConsumerWidget {
     final myReminder = (ref.watch(dueRemindersProvider).value ?? const [])
         .where((x) => myFlats.contains(x.flat) && dues.pendingFor(x.flat) > 0)
         .firstOrNull;
-    final mine = visibleComplaints(ref);
+    final mine = visibleComplaints(ref, mineOnly: true);
     final notices = ref.watch(noticesProvider);
     final approvals = ref.watch(approvalsProvider);
     final consents = approvals.where((a) => a.awaits(Role.owner, s.user.name)).toList();
@@ -547,33 +557,6 @@ class _OwnerDash extends ConsumerWidget {
       children: [
         const GateAlertsCard(),
         const _DueReminderBanners(),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Start a change for your flat', style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    FilledButton.tonal(
-                      onPressed: () => context.go('/approvals/new/owner'),
-                      child: const Text('Owner change (sale / transfer)'),
-                    ),
-                    FilledButton.tonal(
-                      onPressed: () => context.go('/approvals/new/resident'),
-                      child: const Text('Tenant / resident change'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
         for (final f in rented) ...[
           Card(
             child: ListTile(
@@ -682,6 +665,8 @@ class _OwnerDash extends ConsumerWidget {
         const SizedBox(height: 16),
         const _MeetingsCard(generalBodyOnly: true),
         const SizedBox(height: 16),
+        const _ChangeRequestCard(owner: true),
+        const SizedBox(height: 16),
         const _CommunityPreview(),
       ],
     );
@@ -693,24 +678,12 @@ class _ResidentDash extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mine = visibleComplaints(ref);
+    final mine = visibleComplaints(ref, mineOnly: true);
     final notices = ref.watch(noticesProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const GateAlertsCard(),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.swap_horiz_outlined),
-            title: const Text('Moving out or changing tenancy?'),
-            subtitle: const Text('Start a tenant / resident change request'),
-            trailing: FilledButton.tonal(
-              onPressed: () => context.go('/approvals/new/resident'),
-              child: const Text('Start'),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
         TwoCol(
           left: SectionCard(
             title: 'My complaints',
@@ -741,8 +714,40 @@ class _ResidentDash extends ConsumerWidget {
         const SizedBox(height: 8),
         Text('Financial statements are visible to owners only.', style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 16),
+        const _ChangeRequestCard(owner: false),
+        const SizedBox(height: 16),
         const _CommunityPreview(),
       ],
+    );
+  }
+}
+
+/// Owner/tenant change shortcuts, kept below the everyday cards.
+class _ChangeRequestCard extends StatelessWidget {
+  const _ChangeRequestCard({required this.owner});
+  final bool owner;
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      title: 'Owner / tenant change',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (owner)
+            OutlinedButton.icon(
+              onPressed: () => context.go('/approvals/new/owner'),
+              icon: const Icon(Icons.sell_outlined),
+              label: const Text('Owner change (sale / transfer)'),
+            ),
+          OutlinedButton.icon(
+            onPressed: () => context.go('/approvals/new/resident'),
+            icon: const Icon(Icons.swap_horiz_outlined),
+            label: const Text('Tenant / resident change'),
+          ),
+        ],
+      ),
     );
   }
 }
