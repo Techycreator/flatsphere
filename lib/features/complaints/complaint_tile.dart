@@ -83,9 +83,10 @@ List<Complaint> visibleComplaints(WidgetRef ref, {bool mineOnly = false}) {
     Role.resident => settings['complaints_visible_to_residents'] == true,
     _ => true,
   };
+  bool isMine(Complaint c) => c.raisedById != null ? c.raisedById == s.user.id : c.raisedBy == s.user.name;
   return switch (s.activeRole) {
-    Role.owner || Role.resident when mineOnly || !openToRole =>
-      all.where((c) => c.raisedById != null ? c.raisedById == s.user.id : c.raisedBy == s.user.name).toList(),
+    Role.owner || Role.resident when mineOnly || !openToRole => all.where(isMine).toList(),
+    Role.owner || Role.resident => all.where((c) => !c.isPrivate || isMine(c)).toList(),
     _ => all,
   };
 }

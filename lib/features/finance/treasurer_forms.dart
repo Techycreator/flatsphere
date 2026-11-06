@@ -378,6 +378,8 @@ Future<void> showRaiseDuesForm(BuildContext context, WidgetRef ref) async {
 
 /// A bill raised automatically each month for a fixed number of months, e.g. Painting contribution ₹5,000 × 6.
 Future<void> showRecurringBillForm(BuildContext context, WidgetRef ref) async {
+  final associationId = ref.read(sessionProvider)?.user.associationId;
+  if (associationId == null) return;
   final st = ref.read(duesProvider);
   final types = {for (final f in financeFlats(st)) f.$2}.toList()..sort();
   if (types.isEmpty) return toast(context, 'Add flats first in Flats & people');
@@ -513,17 +515,22 @@ Future<void> showRecurringBillForm(BuildContext context, WidgetRef ref) async {
   );
   if (ok != true || !context.mounted) return;
   await _run(context, () async {
-    await FinanceRepo.saveRecurringBill(
-      headPrefix: head.text.trim(),
-      rates: {
-        for (final t in types)
-          if (rate(t) > 0) t: rate(t),
-      },
-      startMonth: start,
-      months: months,
-      billDay: billDay,
-      dueDay: dueDay,
-    );
+    await AssociationContext.run(() async {
+      if (ref.read(sessionProvider)?.user.associationId != associationId) {
+        throw StateError('The active association changed. Reopen this form before saving.');
+      }
+      await FinanceRepo.saveRecurringBill(
+        headPrefix: head.text.trim(),
+        rates: {
+          for (final t in types)
+            if (rate(t) > 0) t: rate(t),
+        },
+        startMonth: start,
+        months: months,
+        billDay: billDay,
+        dueDay: dueDay,
+      );
+    });
     await ref.read(duesProvider.notifier).refresh();
     return 'Saved "${head.text.trim()}" for $months months';
   });

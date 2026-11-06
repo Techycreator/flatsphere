@@ -317,6 +317,7 @@ class _SecretaryDash extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const SetupChecklistCard(),
         StatGrid(
           children: [
             StatCard(

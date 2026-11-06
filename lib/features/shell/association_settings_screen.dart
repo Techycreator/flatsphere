@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../backend/association_settings_repo.dart';
-import '../../backend/backend.dart' show backendEnabled;
+import '../../backend/backend.dart' show AssociationContext, backendEnabled;
 import '../../backend/directory_repo.dart' show friendlyError;
 import '../../l10n/app_localizations.dart';
 import '../../models/models.dart';
@@ -98,19 +98,24 @@ class _AssociationSettingsScreenState extends ConsumerState<AssociationSettingsS
     if (associationId == null) return;
     setState(() => _saving = true);
     try {
-      await AssociationSettingsRepo.update(
-        name: name,
-        state: state,
-        city: _city.text,
-        brandPrimary: brand,
-        fiscalYearStartMonth: fiscalMonth,
-        defaultDueDay: dueDay,
-      );
-      await AssociationSettingsRepo.updateFamilyRules(minimumLoginAge: minimumLoginAge, memberLimit: familyMemberLimit);
-      await AssociationSettingsRepo.updateComplaintVisibility(
-        owners: _ownersSeeAllComplaints,
-        residents: _residentsSeeAllComplaints,
-      );
+      await AssociationContext.run(() async {
+        if (ref.read(sessionProvider)?.user.associationId != associationId) {
+          throw StateError('The active association changed. Reopen settings before saving.');
+        }
+        await AssociationSettingsRepo.update(
+          name: name,
+          state: state,
+          city: _city.text,
+          brandPrimary: brand,
+          fiscalYearStartMonth: fiscalMonth,
+          defaultDueDay: dueDay,
+        );
+        await AssociationSettingsRepo.updateFamilyRules(minimumLoginAge: minimumLoginAge, memberLimit: familyMemberLimit);
+        await AssociationSettingsRepo.updateComplaintVisibility(
+          owners: _ownersSeeAllComplaints,
+          residents: _residentsSeeAllComplaints,
+        );
+      });
       await ref.read(sessionProvider.notifier).switchAssociation(associationId);
       if (mounted) toast(context, AppLocalizations.of(context).settingsSaved);
     } catch (error) {
