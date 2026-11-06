@@ -1,4 +1,5 @@
 import '../models/models.dart';
+import 'attendance_repo.dart';
 import 'backend.dart';
 
 class AmenitiesRepo {
@@ -20,21 +21,7 @@ class AmenitiesRepo {
     ];
   }
 
-  static Future<List<(String id, String number)>> myFlats() async {
-    final rows = await db
-        .from('memberships')
-        .select('flat_id,flats(number)')
-        .eq('user_id', db.auth.currentUser!.id)
-        .isFilter('ended_at', null)
-        .inFilter('role', ['owner', 'resident']);
-    final unique = <String, String>{};
-    for (final row in rows) {
-      if (row['flat_id'] case final String id) {
-        unique[id] = ((row['flats'] as Map?)?['number'] as String?) ?? '';
-      }
-    }
-    return [for (final e in unique.entries) (e.key, e.value)];
-  }
+  static Future<List<(String id, String number)>> myFlats() => AttendanceRepo.myResidentialFlats();
 
   static Future<List<AmenityBooking>> bookings() async {
     final rows = await db

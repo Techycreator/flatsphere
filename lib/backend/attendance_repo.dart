@@ -12,10 +12,13 @@ typedef AttendanceData = ({List<StaffMember> staff, Map<String, StaffAttendance>
 class AttendanceRepo {
   static Future<List<(String id, String number)>> myResidentialFlats() async {
     final userId = db.auth.currentUser!.id;
+    final associationId = await db.rpc('my_association') as String?;
+    if (associationId == null) return [];
     final rows = await db
         .from('memberships')
         .select('flat_id, flats(number)')
         .eq('user_id', userId)
+        .eq('association_id', associationId)
         .isFilter('ended_at', null)
         .inFilter('role', ['owner', 'resident']);
     final unique = <String, String>{};

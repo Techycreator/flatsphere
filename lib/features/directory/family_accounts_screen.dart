@@ -212,7 +212,7 @@ class _FamilyAccountsScreenState extends ConsumerState<FamilyAccountsScreen> {
         else if (_error != null)
           EmptyState(_error!, icon: Icons.error_outline)
         else if (_members.isEmpty)
-          const EmptyState('No family members are recorded for your flat yet.', icon: Icons.people_outline)
+          const EmptyState('No family members are recorded yet.', icon: Icons.people_outline)
         else
           SectionCard(
             title: '${_members.length} family member${_members.length == 1 ? '' : 's'}',
