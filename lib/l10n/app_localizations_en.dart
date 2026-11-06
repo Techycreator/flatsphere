@@ -25,6 +25,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get approvals => 'Approvals';
 
   @override
+  String get myRequests => 'My requests';
+
+  @override
   String get finance => 'Finance';
 
   @override

@@ -15,6 +15,7 @@ final _home = NavItem('/home', Icons.space_dashboard_outlined, (l) => l.dashboar
 final _complaints = NavItem('/complaints', Icons.report_problem_outlined, (l) => l.complaints);
 final _checklist = NavItem('/checklist', Icons.checklist_rtl, (l) => l.checklist);
 final _approvals = NavItem('/approvals', Icons.verified_outlined, (l) => l.approvals);
+final _myRequests = NavItem('/approvals', Icons.assignment_outlined, (l) => l.myRequests);
 final _finance = NavItem('/finance', Icons.account_balance_wallet_outlined, (l) => l.finance);
 final _statements = NavItem('/statements', Icons.description_outlined, (_) => 'Statements');
 final _dues = NavItem('/dues', Icons.payments_outlined, (l) => l.myDues);
@@ -189,7 +190,7 @@ List<NavItem> _baseNav(Role r) => switch (r) {
     _meetings,
     _householdStaff,
     _amenities,
-    _approvals,
+    _myRequests,
     _community,
     _associationDocs,
     _notices,
@@ -201,7 +202,7 @@ List<NavItem> _baseNav(Role r) => switch (r) {
     _amenities,
     _familyAccounts,
     _householdStaff,
-    _approvals,
+    _myRequests,
     _community,
     _notices,
   ],
